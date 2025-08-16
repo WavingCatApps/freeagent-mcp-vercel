@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/mcp.ts": {
-      "runtime": "nodejs"
-    }
-  },
   "headers": [
     {
       "source": "/api/mcp",
