@@ -6,7 +6,12 @@ import { z } from 'zod';
 // Wrapper to adapt the existing MCP server tools for Vercel
 const handler = createMcpHandler(
   (server: any) => {
-    const client = new FreeAgentClient();
+    const client = new FreeAgentClient({
+      clientId: process.env.FREEAGENT_CLIENT_ID!,
+      clientSecret: process.env.FREEAGENT_CLIENT_SECRET!,
+      accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
+      refreshToken: process.env.FREEAGENT_REFRESH_TOKEN!
+    });
 
     // List timeslips tool
     server.tool(
