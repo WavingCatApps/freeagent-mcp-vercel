@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/mcp",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
