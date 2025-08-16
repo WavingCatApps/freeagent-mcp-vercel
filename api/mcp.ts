@@ -17,14 +17,19 @@ const handler = createMcpHandler(
     };
 
     // Helper function to make direct API requests
-    const makeDirectRequest = async (endpoint: string) => {
-      const response = await fetch(`https://api.freeagent.com/v2${endpoint}`, {
+    const makeDirectRequest = async (endpoint: string, options: any = {}) => {
+      const requestOptions = {
+        method: options.method || 'GET',
         headers: {
           'Authorization': `Bearer ${process.env.FREEAGENT_ACCESS_TOKEN}`,
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        ...options
+      };
+
+      const response = await fetch(`https://api.freeagent.com/v2${endpoint}`, requestOptions);
       
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status}`);
@@ -33,63 +38,155 @@ const handler = createMcpHandler(
       return response.json();
     };
 
-    // Helper function to enhance timeslip data with related resource details
-    const enhanceTimeslipData = async (timeslipData: any) => {
-      if (!timeslipData || !timeslipData.timeslips) return timeslipData;
+    // Helper function to make authenticated requests using the client's axios instance
+    const getResourceDetails = async (client: any, endpoint: string) => {
+      try {
+        console.log(`Attempting to fetch: ${endpoint}`);
+        
+        // Try to access the client's axios instance directly if possible
+        let response;
+        
+        // Check if we can access the client's axios instance
+        if (client && typeof client === 'object') {
+          console.log('Client keys:', Object.keys(client));
+          
+          // Try different ways to access the axios instance
+          if (client.axiosInstance) {
+            console.log('Using client.axiosInstance');
+            response = await client.axiosInstance.get(endpoint);
+          } else if (client.axios) {
+            console.log('Using client.axios');
+            response = await client.axios.get(endpoint);
+          } else if (client.http) {
+            console.log('Using client.http');
+            response = await client.http.get(endpoint);
+          } else if (client._axios) {
+            console.log('Using client._axios');
+            response = await client._axios.get(endpoint);
+          } else {
+            // Fallback: inspect the client to find axios
+            for (const [key, value] of Object.entries(client)) {
+              if (value && typeof value === 'object' && 'get' in value && typeof (value as any).get === 'function') {
+                console.log(`Found axios-like instance at client.${key}`);
+                response = await (value as any).get(endpoint);
+                break;
+              }
+            }
+          }
+        }
+        
+        if (!response) {
+          console.log('Could not find axios instance, falling back to direct fetch');
+          return null;
+        }
+        
+        console.log(`Successfully fetched ${endpoint}:`, response.data || response);
+        return response.data || response;
+        
+      } catch (error) {
+        console.log(`Failed to fetch ${endpoint}:`, error);
+        return null;
+      }
+    };
 
-      const enhanced = { ...timeslipData };
+    // Global cache for resource details to persist across MCP requests
+    const resourceCache = {
+      projects: new Map(),
+      tasks: new Map(), 
+      users: new Map()
+    };
+
+    // Helper function to enhance timeslip data with actual resource names
+    const enhanceTimeslipData = async (timeslipData: any, client: any) => {
+      // Handle both array format and object with timeslips property
+      const timeslips = Array.isArray(timeslipData) ? timeslipData : timeslipData?.timeslips;
       
-      for (const timeslip of enhanced.timeslips) {
-        try {
-          // Fetch project details if project URL exists
-          if (timeslip.project) {
-            const projectId = timeslip.project.split('/').pop();
-            try {
-              const projectResponse = await makeDirectRequest(`/projects/${projectId}`);
-              timeslip.project_details = {
-                id: projectId,
-                name: projectResponse.project?.name || 'Unknown Project',
-                url: timeslip.project
-              };
-            } catch (e) {
-              timeslip.project_details = { id: projectId, name: 'Project details unavailable', url: timeslip.project };
-            }
-          }
+      if (!timeslips || !Array.isArray(timeslips)) {
+        return timeslipData;
+      }
 
-          // Fetch task details if task URL exists
-          if (timeslip.task) {
-            const taskId = timeslip.task.split('/').pop();
-            try {
-              const taskResponse = await makeDirectRequest(`/tasks/${taskId}`);
-              timeslip.task_details = {
-                id: taskId,
-                name: taskResponse.task?.name || 'Unknown Task',
-                url: timeslip.task
-              };
-            } catch (e) {
-              timeslip.task_details = { id: taskId, name: 'Task details unavailable', url: timeslip.task };
-            }
-          }
+      const enhanced = Array.isArray(timeslipData) ? [...timeslipData] : { ...timeslipData };
+      const timeslipsToProcess = Array.isArray(enhanced) ? enhanced : enhanced.timeslips;
+      
+      // Collect all unique IDs first to batch requests
+      const projectIds = new Set();
+      const taskIds = new Set();
+      const userIds = new Set();
+      
+      timeslipsToProcess.forEach(timeslip => {
+        if (timeslip.project) {
+          const projectId = timeslip.project.split('/').pop();
+          projectIds.add(projectId);
+        }
+        if (timeslip.task) {
+          const taskId = timeslip.task.split('/').pop();
+          taskIds.add(taskId);
+        }
+        if (timeslip.user) {
+          const userId = timeslip.user.split('/').pop();
+          userIds.add(userId);
+        }
+      });
 
-          // Fetch user details if user URL exists
-          if (timeslip.user) {
-            const userId = timeslip.user.split('/').pop();
-            try {
-              const userResponse = await makeDirectRequest(`/users/${userId}`);
-              timeslip.user_details = {
-                id: userId,
-                first_name: userResponse.user?.first_name || '',
-                last_name: userResponse.user?.last_name || '',
-                email: userResponse.user?.email || '',
-                url: timeslip.user
-              };
-            } catch (e) {
-              timeslip.user_details = { id: userId, name: 'User details unavailable', url: timeslip.user };
-            }
-          }
-        } catch (error) {
-          // Continue if individual resource fetch fails
-          console.warn('Failed to enhance timeslip data:', error);
+      // Fetch missing resource details in parallel
+      const fetchPromises = [];
+      
+      // Fetch missing projects
+      for (const projectId of projectIds) {
+        if (!resourceCache.projects.has(projectId)) {
+          fetchPromises.push(
+            getResourceDetails(client, `/projects/${projectId}`)
+              .then(data => resourceCache.projects.set(projectId, data?.project?.name || `Project ${projectId}`))
+          );
+        }
+      }
+      
+      // Fetch missing tasks
+      for (const taskId of taskIds) {
+        if (!resourceCache.tasks.has(taskId)) {
+          fetchPromises.push(
+            getResourceDetails(client, `/tasks/${taskId}`)
+              .then(data => resourceCache.tasks.set(taskId, data?.task?.name || `Task ${taskId}`))
+          );
+        }
+      }
+      
+      // Fetch missing users
+      for (const userId of userIds) {
+        if (!resourceCache.users.has(userId)) {
+          fetchPromises.push(
+            getResourceDetails(client, `/users/${userId}`)
+              .then(data => {
+                const userName = data?.user ? 
+                  `${data.user.first_name} ${data.user.last_name}`.trim() : 
+                  `User ${userId}`;
+                resourceCache.users.set(userId, userName);
+              })
+          );
+        }
+      }
+
+      // Wait for all fetches to complete
+      await Promise.all(fetchPromises);
+      
+      // Apply cached data to timeslips
+      for (const timeslip of timeslipsToProcess) {
+        if (timeslip.project) {
+          const projectId = timeslip.project.split('/').pop();
+          timeslip.project_id = projectId;
+          timeslip.project_name = resourceCache.projects.get(projectId);
+        }
+        
+        if (timeslip.task) {
+          const taskId = timeslip.task.split('/').pop();
+          timeslip.task_id = taskId;
+          timeslip.task_name = resourceCache.tasks.get(taskId);
+        }
+        
+        if (timeslip.user) {
+          const userId = timeslip.user.split('/').pop();
+          timeslip.user_id = userId;
+          timeslip.user_name = resourceCache.users.get(userId);
         }
       }
       
@@ -112,11 +209,58 @@ const handler = createMcpHandler(
         try {
           const client = createClient();
           const result = await client.listTimeslips(params);
-          const enhanced = await enhanceTimeslipData(result);
+          const enhanced = await enhanceTimeslipData(result, client);
           return {
             content: [{
               type: 'text' as const,
               text: JSON.stringify(enhanced, null, 2),
+            }],
+          };
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // Create task tool
+    server.tool(
+      'create_task',
+      'Create a new task for a project in FreeAgent',
+      {
+        project: z.string().describe('Project URL or ID'),
+        name: z.string().describe('Task name'),
+        is_recurring: z.boolean().optional().describe('Whether this is a recurring task (default: false)'),
+        status: z.enum(['Active', 'Hidden', 'Completed']).optional().describe('Task status (default: Active)')
+      },
+      async (params: any) => {
+        try {
+          const client = createClient();
+          
+          // Prepare task data with defaults
+          const taskData = {
+            name: params.name,
+            project: params.project,
+            is_billable: true, // Always set to true as requested
+            is_recurring: params.is_recurring || false,
+            status: params.status || 'Active'
+            // Explicitly omitting billing_rate and billing_period as requested
+          };
+
+          const result = await makeDirectRequest('/tasks', {
+            method: 'POST',
+            body: JSON.stringify({ task: taskData })
+          });
+
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify(result, null, 2),
             }],
           };
         } catch (error) {
