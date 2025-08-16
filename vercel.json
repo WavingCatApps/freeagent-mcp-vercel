@@ -3,12 +3,5 @@
     "api/mcp.ts": {
       "runtime": "nodejs18.x"
     }
-  },
-  "env": {
-    "FREEAGENT_API_URL": "@freeagent-api-url",
-    "FREEAGENT_ACCESS_TOKEN": "@freeagent-access-token",
-    "FREEAGENT_REFRESH_TOKEN": "@freeagent-refresh-token", 
-    "FREEAGENT_CLIENT_ID": "@freeagent-client-id",
-    "FREEAGENT_CLIENT_SECRET": "@freeagent-client-secret"
   }
 }
