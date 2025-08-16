@@ -41,33 +41,21 @@ const handler = createMcpHandler(
     // Helper function to make authenticated requests using the client's axios instance
     const getResourceDetails = async (client: any, endpoint: string) => {
       try {
-        console.log(`Attempting to fetch: ${endpoint}`);
-        
-        // Try to access the client's axios instance directly if possible
         let response;
         
-        // Check if we can access the client's axios instance
         if (client && typeof client === 'object') {
-          console.log('Client keys:', Object.keys(client));
-          
-          // Try different ways to access the axios instance
           if (client.axiosInstance) {
-            console.log('Using client.axiosInstance');
             response = await client.axiosInstance.get(endpoint);
           } else if (client.axios) {
-            console.log('Using client.axios');
             response = await client.axios.get(endpoint);
           } else if (client.http) {
-            console.log('Using client.http');
             response = await client.http.get(endpoint);
           } else if (client._axios) {
-            console.log('Using client._axios');
             response = await client._axios.get(endpoint);
           } else {
             // Fallback: inspect the client to find axios
             for (const [key, value] of Object.entries(client)) {
               if (value && typeof value === 'object' && 'get' in value && typeof (value as any).get === 'function') {
-                console.log(`Found axios-like instance at client.${key}`);
                 response = await (value as any).get(endpoint);
                 break;
               }
@@ -76,15 +64,12 @@ const handler = createMcpHandler(
         }
         
         if (!response) {
-          console.log('Could not find axios instance, falling back to direct fetch');
           return null;
         }
         
-        console.log(`Successfully fetched ${endpoint}:`, response.data || response);
         return response.data || response;
         
       } catch (error) {
-        console.log(`Failed to fetch ${endpoint}:`, error);
         return null;
       }
     };
@@ -113,7 +98,7 @@ const handler = createMcpHandler(
       const taskIds = new Set();
       const userIds = new Set();
       
-      timeslipsToProcess.forEach(timeslip => {
+      timeslipsToProcess.forEach((timeslip: any) => {
         if (timeslip.project) {
           const projectId = timeslip.project.split('/').pop();
           projectIds.add(projectId);
@@ -460,11 +445,7 @@ const handler = createMcpHandler(
       }
     );
   },
-  {
-    name: 'FreeAgent MCP Server',
-    version: '1.0.0',
-    icon: 'https://www.freeagent.com/favicon.ico'
-  },
+  {},
   { basePath: '/api' }
 );
 
