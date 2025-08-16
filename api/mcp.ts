@@ -91,7 +91,7 @@ class FreeAgentClient {
   }
 }
 
-const handler = createMcpHandler((server: any) => {
+const mcpServer = createMcpHandler((server: any) => {
   const client = new FreeAgentClient({
     apiUrl: process.env.FREEAGENT_API_URL || 'https://api.freeagent.com/v2',
     accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
@@ -275,5 +275,18 @@ const handler = createMcpHandler((server: any) => {
   );
 });
 
-export default handler;
-export { handler as GET, handler as POST, handler as DELETE };
+export default function handler(req: any, res: any) {
+  return mcpServer(req, res);
+}
+
+export async function GET(req: any) {
+  return mcpServer(req);
+}
+
+export async function POST(req: any) {
+  return mcpServer(req);
+}
+
+export async function DELETE(req: any) {
+  return mcpServer(req);
+}
