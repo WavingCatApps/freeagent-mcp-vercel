@@ -275,4 +275,5 @@ const handler = createMcpHandler((server: any) => {
   );
 });
 
+export default handler;
 export { handler as GET, handler as POST, handler as DELETE };
