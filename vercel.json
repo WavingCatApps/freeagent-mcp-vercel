@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/mcp.ts": {
-      "runtime": "nodejs20.x"
+      "runtime": "@vercel/node@20.x"
     }
   }
 }
