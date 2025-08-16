@@ -5,7 +5,6 @@
   "main": "api/mcp.ts",
   "scripts": {
     "dev": "vercel dev",
-    "build": "vercel build",
     "deploy": "vercel deploy",
     "deploy:prod": "vercel deploy --prod"
   },
