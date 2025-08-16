@@ -91,7 +91,7 @@ class FreeAgentClient {
   }
 }
 
-const handler = createMcpHandler(server => {
+const handler = createMcpHandler((server: any) => {
   const client = new FreeAgentClient({
     apiUrl: process.env.FREEAGENT_API_URL || 'https://api.freeagent.com/v2',
     accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
@@ -109,7 +109,7 @@ const handler = createMcpHandler(server => {
       view: z.enum(['all', 'unbilled', 'running']).optional().describe('Filter view'),
       nested: z.string().optional().describe('Include nested resources'),
     },
-    async ({ from_date, to_date, view, nested }) => {
+    async ({ from_date, to_date, view, nested }: any) => {
       try {
         const result = await client.listTimeslips({
           from_date,
@@ -147,7 +147,7 @@ const handler = createMcpHandler(server => {
       hours: z.number().describe('Number of hours'),
       comment: z.string().optional().describe('Optional comment'),
     },
-    async ({ task, user, project, dated_on, hours, comment }) => {
+    async ({ task, user, project, dated_on, hours, comment }: any) => {
       try {
         const result = await client.createTimeslip({
           task,
@@ -188,7 +188,7 @@ const handler = createMcpHandler(server => {
       hours: z.number().optional().describe('Number of hours'),
       comment: z.string().optional().describe('Comment'),
     },
-    async ({ id, task, user, project, dated_on, hours, comment }) => {
+    async ({ id, task, user, project, dated_on, hours, comment }: any) => {
       try {
         const updateData: any = {};
         if (task) updateData.task = task;
@@ -224,7 +224,7 @@ const handler = createMcpHandler(server => {
     {
       id: z.string().describe('Timeslip ID'),
     },
-    async ({ id }) => {
+    async ({ id }: any) => {
       try {
         const result = await client.startTimer(id);
         
@@ -252,7 +252,7 @@ const handler = createMcpHandler(server => {
     {
       id: z.string().describe('Timeslip ID'),
     },
-    async ({ id }) => {
+    async ({ id }: any) => {
       try {
         const result = await client.stopTimer(id);
         
