@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "api/mcp.ts": {
-      "runtime": "@vercel/node@20.x"
-    }
-  }
-}
+{}
