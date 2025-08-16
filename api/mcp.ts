@@ -1,4 +1,4 @@
-import { createMcpHandler } from '@vercel/mcp-adapter';
+import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
 
 interface FreeAgentConfig {
@@ -91,7 +91,8 @@ class FreeAgentClient {
   }
 }
 
-const mcpServer = createMcpHandler((server: any) => {
+const handler = createMcpHandler(
+  (server: any) => {
   const client = new FreeAgentClient({
     apiUrl: process.env.FREEAGENT_API_URL || 'https://api.freeagent.com/v2',
     accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
@@ -273,20 +274,9 @@ const mcpServer = createMcpHandler((server: any) => {
       }
     }
   );
-});
+  },
+  {},
+  { basePath: '/api' }
+);
 
-export default function handler(req: any) {
-  return mcpServer(req);
-}
-
-export async function GET(req: any) {
-  return mcpServer(req);
-}
-
-export async function POST(req: any) {
-  return mcpServer(req);
-}
-
-export async function DELETE(req: any) {
-  return mcpServer(req);
-}
+export { handler as GET, handler as POST, handler as DELETE };
