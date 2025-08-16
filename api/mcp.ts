@@ -275,8 +275,8 @@ const mcpServer = createMcpHandler((server: any) => {
   );
 });
 
-export default function handler(req: any, res: any) {
-  return mcpServer(req, res);
+export default function handler(req: any) {
+  return mcpServer(req);
 }
 
 export async function GET(req: any) {
