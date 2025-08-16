@@ -19,7 +19,8 @@
   "license": "MIT",
   "dependencies": {
     "mcp-handler": "latest",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "freeagent-mcp": "github:markpitt/freeagent-mcp"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
