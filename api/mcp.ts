@@ -6,6 +6,20 @@ import { z } from 'zod';
 // Wrapper to adapt the existing MCP server tools for Vercel
 const handler = createMcpHandler(
   (server: any) => {
+    // Set server info with FreeAgent branding
+    server.setRequestHandler('initialize', async (request: any) => {
+      return {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: {},
+        },
+        serverInfo: {
+          name: 'FreeAgent MCP Server',
+          version: '1.0.0',
+          icon: 'https://www.freeagent.com/favicon.ico'
+        }
+      };
+    });
     const client = new FreeAgentClient({
       clientId: process.env.FREEAGENT_CLIENT_ID!,
       clientSecret: process.env.FREEAGENT_CLIENT_SECRET!,
