@@ -16,6 +16,86 @@ const handler = createMcpHandler(
       });
     };
 
+    // Helper function to make direct API requests
+    const makeDirectRequest = async (endpoint: string) => {
+      const response = await fetch(`https://api.freeagent.com/v2${endpoint}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.FREEAGENT_ACCESS_TOKEN}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      
+      return response.json();
+    };
+
+    // Helper function to enhance timeslip data with related resource details
+    const enhanceTimeslipData = async (timeslipData: any) => {
+      if (!timeslipData || !timeslipData.timeslips) return timeslipData;
+
+      const enhanced = { ...timeslipData };
+      
+      for (const timeslip of enhanced.timeslips) {
+        try {
+          // Fetch project details if project URL exists
+          if (timeslip.project) {
+            const projectId = timeslip.project.split('/').pop();
+            try {
+              const projectResponse = await makeDirectRequest(`/projects/${projectId}`);
+              timeslip.project_details = {
+                id: projectId,
+                name: projectResponse.project?.name || 'Unknown Project',
+                url: timeslip.project
+              };
+            } catch (e) {
+              timeslip.project_details = { id: projectId, name: 'Project details unavailable', url: timeslip.project };
+            }
+          }
+
+          // Fetch task details if task URL exists
+          if (timeslip.task) {
+            const taskId = timeslip.task.split('/').pop();
+            try {
+              const taskResponse = await makeDirectRequest(`/tasks/${taskId}`);
+              timeslip.task_details = {
+                id: taskId,
+                name: taskResponse.task?.name || 'Unknown Task',
+                url: timeslip.task
+              };
+            } catch (e) {
+              timeslip.task_details = { id: taskId, name: 'Task details unavailable', url: timeslip.task };
+            }
+          }
+
+          // Fetch user details if user URL exists
+          if (timeslip.user) {
+            const userId = timeslip.user.split('/').pop();
+            try {
+              const userResponse = await makeDirectRequest(`/users/${userId}`);
+              timeslip.user_details = {
+                id: userId,
+                first_name: userResponse.user?.first_name || '',
+                last_name: userResponse.user?.last_name || '',
+                email: userResponse.user?.email || '',
+                url: timeslip.user
+              };
+            } catch (e) {
+              timeslip.user_details = { id: userId, name: 'User details unavailable', url: timeslip.user };
+            }
+          }
+        } catch (error) {
+          // Continue if individual resource fetch fails
+          console.warn('Failed to enhance timeslip data:', error);
+        }
+      }
+      
+      return enhanced;
+    };
+
     // List timeslips tool
     server.tool(
       'list_timeslips',
@@ -32,10 +112,11 @@ const handler = createMcpHandler(
         try {
           const client = createClient();
           const result = await client.listTimeslips(params);
+          const enhanced = await enhanceTimeslipData(result);
           return {
             content: [{
               type: 'text' as const,
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(enhanced, null, 2),
             }],
           };
         } catch (error) {
