@@ -6,26 +6,15 @@ import { z } from 'zod';
 // Wrapper to adapt the existing MCP server tools for Vercel
 const handler = createMcpHandler(
   (server: any) => {
-    // Set server info with FreeAgent branding
-    server.setRequestHandler('initialize', async (request: any) => {
-      return {
-        protocolVersion: '2024-11-05',
-        capabilities: {
-          tools: {},
-        },
-        serverInfo: {
-          name: 'FreeAgent MCP Server',
-          version: '1.0.0',
-          icon: 'https://www.freeagent.com/favicon.ico'
-        }
-      };
-    });
-    const client = new FreeAgentClient({
-      clientId: process.env.FREEAGENT_CLIENT_ID!,
-      clientSecret: process.env.FREEAGENT_CLIENT_SECRET!,
-      accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
-      refreshToken: process.env.FREEAGENT_REFRESH_TOKEN!
-    });
+    // Helper function to create client with environment variables
+    const createClient = () => {
+      return new FreeAgentClient({
+        clientId: process.env.FREEAGENT_CLIENT_ID!,
+        clientSecret: process.env.FREEAGENT_CLIENT_SECRET!,
+        accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
+        refreshToken: process.env.FREEAGENT_REFRESH_TOKEN!
+      });
+    };
 
     // List timeslips tool
     server.tool(
@@ -41,6 +30,7 @@ const handler = createMcpHandler(
       },
       async (params: any) => {
         try {
+          const client = createClient();
           const result = await client.listTimeslips(params);
           return {
             content: [{
@@ -69,6 +59,7 @@ const handler = createMcpHandler(
       },
       async ({ id }: any) => {
         try {
+          const client = createClient();
           const result = await client.getTimeslip(id);
           return {
             content: [{
@@ -102,6 +93,7 @@ const handler = createMcpHandler(
       },
       async (params: any) => {
         try {
+          const client = createClient();
           const result = await client.createTimeslip(params);
           return {
             content: [{
@@ -136,6 +128,7 @@ const handler = createMcpHandler(
       },
       async ({ id, ...updateData }: any) => {
         try {
+          const client = createClient();
           const result = await client.updateTimeslip(id, updateData);
           return {
             content: [{
@@ -164,6 +157,7 @@ const handler = createMcpHandler(
       },
       async ({ id }: any) => {
         try {
+          const client = createClient();
           const result = await client.deleteTimeslip(id);
           return {
             content: [{
@@ -192,6 +186,7 @@ const handler = createMcpHandler(
       },
       async ({ id }: any) => {
         try {
+          const client = createClient();
           const result = await client.startTimer(id);
           return {
             content: [{
@@ -220,6 +215,7 @@ const handler = createMcpHandler(
       },
       async ({ id }: any) => {
         try {
+          const client = createClient();
           const result = await client.stopTimer(id);
           return {
             content: [{
@@ -239,7 +235,11 @@ const handler = createMcpHandler(
       }
     );
   },
-  {},
+  {
+    name: 'FreeAgent MCP Server',
+    version: '1.0.0',
+    icon: 'https://www.freeagent.com/favicon.ico'
+  },
   { basePath: '/api' }
 );
 
