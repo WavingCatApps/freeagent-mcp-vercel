@@ -1,5 +1,5 @@
-const { createMcpHandler } = require('@vercel/mcp-adapter');
-const { z } = require('zod');
+import { createMcpHandler } from '@vercel/mcp-adapter';
+import { z } from 'zod';
 
 interface FreeAgentConfig {
   apiUrl: string;
@@ -275,7 +275,4 @@ const handler = createMcpHandler((server: any) => {
   );
 });
 
-module.exports = handler;
-module.exports.GET = handler;
-module.exports.POST = handler; 
-module.exports.DELETE = handler;
+export { handler as GET, handler as POST, handler as DELETE };

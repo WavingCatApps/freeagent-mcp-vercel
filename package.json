@@ -1,6 +1,7 @@
 {
   "name": "freeagent-mcp-vercel",
   "version": "1.0.0",
+  "type": "module",
   "description": "FreeAgent MCP Server for Vercel deployment",
   "main": "api/mcp.ts",
   "scripts": {
