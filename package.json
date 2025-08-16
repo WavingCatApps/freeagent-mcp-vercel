@@ -1,0 +1,33 @@
+{
+  "name": "freeagent-mcp-vercel",
+  "version": "1.0.0",
+  "description": "FreeAgent MCP Server for Vercel deployment",
+  "main": "api/mcp.ts",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vercel build",
+    "deploy": "vercel deploy",
+    "deploy:prod": "vercel deploy --prod"
+  },
+  "keywords": [
+    "freeagent",
+    "mcp",
+    "vercel",
+    "claude",
+    "timeslips"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@vercel/mcp-adapter": "^1.0.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vercel": "^33.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
