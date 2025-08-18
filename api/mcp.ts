@@ -1,4 +1,4 @@
-import { createMcpHandler } from 'mcp-handler';
+import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 // @ts-ignore - The freeagent-mcp package doesn't have proper TypeScript declarations yet
 import { FreeAgentClient } from 'freeagent-mcp/build/freeagent-client.js';
 import { z } from 'zod';
@@ -6,22 +6,38 @@ import { z } from 'zod';
 // Wrapper to adapt the existing MCP server tools for Vercel
 const handler = createMcpHandler(
   (server: any) => {
-    // Helper function to create client with environment variables
-    const createClient = () => {
+    // Helper function to create client with credentials from auth info or environment variables
+    const createClient = (authInfo?: any) => {
+      // Try to get credentials from auth info first, then fall back to environment variables
+      const clientId = authInfo?.clientId || process.env.FREEAGENT_CLIENT_ID;
+      const clientSecret = authInfo?.clientSecret || process.env.FREEAGENT_CLIENT_SECRET;
+      const accessToken = authInfo?.accessToken || process.env.FREEAGENT_ACCESS_TOKEN;
+      const refreshToken = authInfo?.refreshToken || process.env.FREEAGENT_REFRESH_TOKEN;
+
+      if (!clientId || !clientSecret || !accessToken || !refreshToken) {
+        throw new Error('Missing required FreeAgent credentials. Please provide clientId, clientSecret, accessToken, and refreshToken either through the connector UI or environment variables.');
+      }
+
       return new FreeAgentClient({
-        clientId: process.env.FREEAGENT_CLIENT_ID!,
-        clientSecret: process.env.FREEAGENT_CLIENT_SECRET!,
-        accessToken: process.env.FREEAGENT_ACCESS_TOKEN!,
-        refreshToken: process.env.FREEAGENT_REFRESH_TOKEN!
+        clientId,
+        clientSecret,
+        accessToken,
+        refreshToken
       });
     };
 
     // Helper function to make direct API requests
-    const makeDirectRequest = async (endpoint: string, options: any = {}) => {
+    const makeDirectRequest = async (endpoint: string, options: any = {}, authInfo?: any) => {
+      const accessToken = authInfo?.accessToken || process.env.FREEAGENT_ACCESS_TOKEN;
+      
+      if (!accessToken) {
+        throw new Error('Missing access token for API request');
+      }
+
       const requestOptions = {
         method: options.method || 'GET',
         headers: {
-          'Authorization': `Bearer ${process.env.FREEAGENT_ACCESS_TOKEN}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
           'Content-Type': 'application/json',
           ...options.headers
@@ -190,9 +206,9 @@ const handler = createMcpHandler(
         project: z.string().optional().describe('Project URL to filter by'),
         task: z.string().optional().describe('Task URL to filter by'),
       },
-      async (params: any) => {
+      async (params: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.listTimeslips(params);
           const enhanced = await enhanceTimeslipData(result, client);
           return {
@@ -223,9 +239,9 @@ const handler = createMcpHandler(
         is_recurring: z.boolean().optional().describe('Whether this is a recurring task (default: false)'),
         status: z.enum(['Active', 'Hidden', 'Completed']).optional().describe('Task status (default: Active)')
       },
-      async (params: any) => {
+      async (params: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           
           // Prepare task data with defaults
           const taskData = {
@@ -240,7 +256,7 @@ const handler = createMcpHandler(
           const result = await makeDirectRequest('/tasks', {
             method: 'POST',
             body: JSON.stringify({ task: taskData })
-          });
+          }, auth);
 
           return {
             content: [{
@@ -267,9 +283,9 @@ const handler = createMcpHandler(
       {
         id: z.string().describe('Timeslip ID'),
       },
-      async ({ id }: any) => {
+      async ({ id }: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.getTimeslip(id);
           return {
             content: [{
@@ -301,9 +317,9 @@ const handler = createMcpHandler(
         hours: z.number().describe('Number of hours'),
         comment: z.string().optional().describe('Optional comment'),
       },
-      async (params: any) => {
+      async (params: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.createTimeslip(params);
           return {
             content: [{
@@ -336,9 +352,9 @@ const handler = createMcpHandler(
         hours: z.number().optional().describe('Number of hours'),
         comment: z.string().optional().describe('Comment'),
       },
-      async ({ id, ...updateData }: any) => {
+      async ({ id, ...updateData }: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.updateTimeslip(id, updateData);
           return {
             content: [{
@@ -365,9 +381,9 @@ const handler = createMcpHandler(
       {
         id: z.string().describe('Timeslip ID'),
       },
-      async ({ id }: any) => {
+      async ({ id }: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.deleteTimeslip(id);
           return {
             content: [{
@@ -394,9 +410,9 @@ const handler = createMcpHandler(
       {
         id: z.string().describe('Timeslip ID'),
       },
-      async ({ id }: any) => {
+      async ({ id }: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.startTimer(id);
           return {
             content: [{
@@ -423,9 +439,9 @@ const handler = createMcpHandler(
       {
         id: z.string().describe('Timeslip ID'),
       },
-      async ({ id }: any) => {
+      async ({ id }: any, { auth }: any = {}) => {
         try {
-          const client = createClient();
+          const client = createClient(auth);
           const result = await client.stopTimer(id);
           return {
             content: [{
@@ -449,4 +465,29 @@ const handler = createMcpHandler(
   { basePath: '/api' }
 );
 
-export { handler as GET, handler as POST, handler as DELETE };
+// Custom auth verification function that extracts credentials from Bearer token
+const verifyToken = async (req: Request, bearerToken?: string) => {
+  if (!bearerToken) {
+    return undefined; // Allow fallback to environment variables
+  }
+
+  try {
+    // Expect Bearer token to be a JSON object with credentials
+    const credentials = JSON.parse(atob(bearerToken));
+    
+    // Validate that we have the required credentials
+    if (credentials.clientId && credentials.clientSecret && credentials.accessToken && credentials.refreshToken) {
+      return credentials;
+    }
+    
+    return undefined;
+  } catch (error) {
+    // If parsing fails, allow fallback to environment variables
+    return undefined;
+  }
+};
+
+// Wrap the handler with auth middleware
+const authHandler = withMcpAuth(handler, verifyToken, { required: false });
+
+export { authHandler as GET, authHandler as POST, authHandler as DELETE };
