@@ -26,32 +26,19 @@ const handler = createMcpHandler(
       });
     };
 
-    // Helper function to make direct API requests
+    // Helper function to make direct API requests using client's axios instance
     const makeDirectRequest = async (endpoint: string, options: any = {}, authInfo?: any) => {
-      const accessToken = authInfo?.accessToken || process.env.FREEAGENT_ACCESS_TOKEN;
+      const client = createClient(authInfo);
       
-      if (!accessToken) {
-        throw new Error('Missing access token for API request');
-      }
-
-      const requestOptions = {
+      const axiosOptions = {
         method: options.method || 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
-        ...options
+        url: endpoint,
+        data: options.body ? JSON.parse(options.body) : undefined,
+        headers: options.headers || {}
       };
 
-      const response = await fetch(`https://api.freeagent.com/v2${endpoint}`, requestOptions);
-      
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-      
-      return response.json();
+      const response = await client.axiosInstance.request(axiosOptions);
+      return response.data;
     };
 
     // Helper function to make authenticated requests using the client's axios instance
@@ -215,6 +202,35 @@ const handler = createMcpHandler(
             content: [{
               type: 'text' as const,
               text: JSON.stringify(enhanced, null, 2),
+            }],
+          };
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            }],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    // List projects tool
+    server.tool(
+      'list_projects',
+      'List all projects in FreeAgent',
+      {
+        view: z.enum(['all', 'active', 'completed']).optional().describe('Filter view (default: active)')
+      },
+      async (params: any, { auth }: any = {}) => {
+        try {
+          const view = params.view || 'active';
+          const result = await makeDirectRequest(`/projects?view=${view}`, {}, auth);
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify(result, null, 2),
             }],
           };
         } catch (error) {
