@@ -20,14 +20,34 @@ A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpi
 
 In your Vercel dashboard, add the following environment variables:
 
+**Required:**
 - `FREEAGENT_API_URL` - FreeAgent API URL (default: https://api.freeagent.com/v2)
 - `FREEAGENT_ACCESS_TOKEN` - Your FreeAgent OAuth access token
 - `FREEAGENT_REFRESH_TOKEN` - Your FreeAgent OAuth refresh token
 - `FREEAGENT_CLIENT_ID` - Your FreeAgent app client ID
 - `FREEAGENT_CLIENT_SECRET` - Your FreeAgent app client secret
 
-### 3. Configure Claude Desktop
+**Optional Security:**
+- `ENDPOINT_PATH_SUFFIX` - Random string to make your endpoint URL unpredictable (e.g., `x7k9m2n8p4q1r5s`)
+  
+  Generate a secure random string with:
+  ```bash
+  # Using Node.js
+  node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
+  
+  # Using OpenSSL
+  openssl rand -hex 16
+  ```
 
+### 3. Configure Claude
+
+#### For Claude UI (Connectors)
+Add your MCP server as a connector using this URL format:
+```
+https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
+```
+
+#### For Claude Desktop
 Add the following to your Claude Desktop MCP settings:
 
 ```json
@@ -38,12 +58,14 @@ Add the following to your Claude Desktop MCP settings:
       "args": [
         "@anthropic-ai/mcp-sdk",
         "mcp-server-http",
-        "https://your-deployment.vercel.app/api/mcp"
+        "https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix"
       ]
     }
   }
 }
 ```
+
+**Note:** If you set `ENDPOINT_PATH_SUFFIX`, include it in your URL as `?suffix=your-suffix-value`
 
 ## FreeAgent API Setup
 
@@ -98,6 +120,15 @@ Stop a timer for a timeslip in FreeAgent.
 **Parameters:**
 - `id`: Timeslip ID
 
+## Security Features
+
+This MCP server includes several security measures:
+
+- **Request validation**: Only allows requests from Claude, Copilot, and MCP inspector tools
+- **Rate limiting**: 100 requests per minute per IP address
+- **CORS protection**: Restricts cross-origin requests to legitimate domains
+- **Optional URL suffix**: Add `ENDPOINT_PATH_SUFFIX` environment variable for URL obfuscation
+
 ## Development
 
 ```bash
@@ -110,6 +141,8 @@ npm run dev
 # Deploy to Vercel
 npm run deploy
 ```
+
+**Local testing:** Security validation is relaxed in development mode to allow MCP inspector tools.
 
 ## License
 

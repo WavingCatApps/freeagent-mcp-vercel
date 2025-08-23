@@ -625,6 +625,12 @@ const verifyToken = async (req: Request, bearerToken?: string) => {
 
 // Dynamic CORS handler for multiple legitimate origins
 const corsHandler = async (request: Request) => {
+  // Optional URL suffix validation for additional security
+  const expectedSuffix = process.env.ENDPOINT_PATH_SUFFIX;
+  if (expectedSuffix && !request.url.includes(expectedSuffix)) {
+    return new Response('Not Found', { status: 404 });
+  }
+
   const origin = request.headers.get('origin');
   const allowedOrigins = [
     'https://claude.ai',
