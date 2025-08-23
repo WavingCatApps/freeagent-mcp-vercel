@@ -537,11 +537,25 @@ const validateRequest = (req: Request): void => {
   const referer = req.headers.get('referer') || '';
   const host = req.headers.get('host') || '';
   
-  // Allow requests from Claude and Copilot domains
+  // Allow requests from AI platforms and development tools
   const allowedOrigins = [
-    // Claude domains
+    // Claude/Anthropic domains
     'claude.ai',
     'anthropic.com',
+    // OpenAI domains
+    'openai.com',
+    'chatgpt.com',
+    'platform.openai.com',
+    // Google AI domains
+    'gemini.google.com',
+    'ai.google.com',
+    'ai.google.dev',
+    'makersuite.google.com',
+    'aistudio.google.com',
+    // AWS domains
+    'aws.amazon.com',
+    'bedrock.aws.amazon.com',
+    'console.aws.amazon.com',
     // GitHub Copilot domains
     'github.com',
     'github.dev',
@@ -561,9 +575,15 @@ const validateRequest = (req: Request): void => {
     host.includes(domain)
   );
   
-  // Check for Claude or Copilot user agent patterns
+  // Check for AI platform or development tool user agent patterns
   const isLegitimateUserAgent = userAgent.toLowerCase().includes('claude') || 
                                userAgent.toLowerCase().includes('anthropic') ||
+                               userAgent.toLowerCase().includes('openai') ||
+                               userAgent.toLowerCase().includes('chatgpt') ||
+                               userAgent.toLowerCase().includes('google') ||
+                               userAgent.toLowerCase().includes('gemini') ||
+                               userAgent.toLowerCase().includes('aws') ||
+                               userAgent.toLowerCase().includes('bedrock') ||
                                userAgent.toLowerCase().includes('copilot') ||
                                userAgent.toLowerCase().includes('github') ||
                                userAgent.toLowerCase().includes('vscode');
@@ -633,13 +653,30 @@ const corsHandler = async (request: Request) => {
 
   const origin = request.headers.get('origin');
   const allowedOrigins = [
+    // Claude/Anthropic
     'https://claude.ai',
     'https://www.claude.ai',
     'https://anthropic.com',
+    // OpenAI
+    'https://openai.com',
+    'https://chatgpt.com',
+    'https://platform.openai.com',
+    // Google AI
+    'https://gemini.google.com',
+    'https://ai.google.com',
+    'https://ai.google.dev',
+    'https://makersuite.google.com',
+    'https://aistudio.google.com',
+    // AWS
+    'https://aws.amazon.com',
+    'https://bedrock.aws.amazon.com',
+    'https://console.aws.amazon.com',
+    // GitHub/Microsoft
     'https://github.com',
     'https://github.dev',
     'https://vscode.dev',
     'https://codespaces.dev',
+    // Local testing
     'http://localhost:3000',
     'http://localhost:8080',
     'http://127.0.0.1:3000',

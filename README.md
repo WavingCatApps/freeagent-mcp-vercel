@@ -1,6 +1,6 @@
 # FreeAgent MCP Server for Vercel
 
-A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables Claude to interact with FreeAgent for managing timeslips and timers, with a few new features added.
+A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms (Claude, ChatGPT, Gemini, AWS Bedrock) to interact with FreeAgent for managing timeslips and timers, with a few new features added.
 
 ## Features
 
@@ -91,15 +91,15 @@ In your Vercel dashboard, add the following environment variables:
   openssl rand -hex 16
   ```
 
-### 4. Configure Claude
+### 4. Configure Your AI Platform
 
-#### For Claude UI (Connectors)
+#### Claude UI (Connectors)
 Add your MCP server as a connector using this URL format:
 ```
 https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
 ```
 
-#### For Claude Desktop
+#### Claude Desktop
 Add the following to your Claude Desktop MCP settings:
 
 ```json
@@ -115,6 +115,12 @@ Add the following to your Claude Desktop MCP settings:
     }
   }
 }
+```
+
+#### OpenAI ChatGPT / Other Platforms
+Use the HTTP endpoint directly in your AI platform's MCP configuration:
+```
+https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
 ```
 
 **Note:** If you set `ENDPOINT_PATH_SUFFIX`, include it in your URL as `?suffix=your-suffix-value`
@@ -198,7 +204,7 @@ Delete a timeslip from FreeAgent.
 
 This MCP server includes several security measures:
 
-- **Request validation**: Only allows requests from Claude, Copilot, and MCP inspector tools
+- **Request validation**: Only allows requests from legitimate AI platforms (Claude, ChatGPT, Gemini, AWS Bedrock), development tools (GitHub Copilot, VS Code), and MCP inspector tools
 - **Rate limiting**: 100 requests per minute per IP address
 - **CORS protection**: Restricts cross-origin requests to legitimate domains
 - **Optional URL suffix**: Add `ENDPOINT_PATH_SUFFIX` environment variable for URL obfuscation
