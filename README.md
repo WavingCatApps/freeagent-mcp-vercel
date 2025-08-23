@@ -1,20 +1,24 @@
 # FreeAgent MCP Server for Vercel
 
-A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables Claude to interact with FreeAgent for managing timeslips and timers.
+A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables Claude to interact with FreeAgent for managing timeslips and timers, with a few new features added.
 
 ## Features
 
 - **List Timeslips**: Filter by date range, view options (all/unbilled/running)
 - **Create Timeslips**: Add new time entries with task, user, project details
 - **Update Timeslips**: Modify existing time entries
+- **Get Timeslips**: Retrieve specific timeslips by ID
+- **Delete Timeslips**: Remove time entries from FreeAgent
 - **Timer Controls**: Start and stop timers for timeslips
+- **Project Management**: List all projects with filtering options
+- **Task Management**: Create new tasks for projects
 - **Serverless**: Runs on Vercel's edge functions for global availability
 
 ## Setup
 
 ### 1. Deploy to Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/freeagent-mcp-vercel)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/WavingCatApps/freeagent-mcp-vercel)
 
 ### 2. Configure Environment Variables
 
@@ -27,7 +31,7 @@ In your Vercel dashboard, add the following environment variables:
 - `FREEAGENT_CLIENT_ID` - Your FreeAgent app client ID
 - `FREEAGENT_CLIENT_SECRET` - Your FreeAgent app client secret
 
-**Optional Security:**
+**Optional, but recommended, Security:**
 - `ENDPOINT_PATH_SUFFIX` - Random string to make your endpoint URL unpredictable (e.g., `x7k9m2n8p4q1r5s`)
   
   Generate a secure random string with:
@@ -83,7 +87,9 @@ List and filter timeslips from FreeAgent.
 - `from_date` (optional): Start date in YYYY-MM-DD format
 - `to_date` (optional): End date in YYYY-MM-DD format  
 - `view` (optional): Filter view ("all", "unbilled", or "running")
-- `nested` (optional): Include nested resources
+- `user` (optional): User URL to filter by
+- `project` (optional): Project URL to filter by
+- `task` (optional): Task URL to filter by
 
 ### create_timeslip
 Create a new timeslip in FreeAgent.
@@ -116,6 +122,33 @@ Start a timer for a timeslip in FreeAgent.
 
 ### stop_timer
 Stop a timer for a timeslip in FreeAgent.
+
+**Parameters:**
+- `id`: Timeslip ID
+
+### list_projects
+List all projects in FreeAgent.
+
+**Parameters:**
+- `view` (optional): Filter view ("all", "active", or "completed") - default: "active"
+
+### create_task
+Create a new task for a project in FreeAgent.
+
+**Parameters:**
+- `project`: Project URL or ID
+- `name`: Task name
+- `is_recurring` (optional): Whether this is a recurring task (default: false)
+- `status` (optional): Task status ("Active", "Hidden", or "Completed") - default: "Active"
+
+### get_timeslip
+Get a specific timeslip by ID.
+
+**Parameters:**
+- `id`: Timeslip ID
+
+### delete_timeslip
+Delete a timeslip from FreeAgent.
 
 **Parameters:**
 - `id`: Timeslip ID
