@@ -7,7 +7,8 @@
   "scripts": {
     "deploy": "vercel deploy",
     "deploy:prod": "vercel deploy --prod",
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "get-tokens": "node scripts/get-oauth-tokens.js"
   },
   "keywords": [
     "freeagent",

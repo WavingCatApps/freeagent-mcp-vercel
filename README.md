@@ -73,10 +73,55 @@ Add the following to your Claude Desktop MCP settings:
 
 ## FreeAgent API Setup
 
-1. Register a new application in your FreeAgent account settings
-2. Note down your Client ID and Client Secret
-3. Follow the OAuth flow to get access and refresh tokens
-4. Configure the environment variables in Vercel
+### 1. Register Your Application
+
+1. Go to the [FreeAgent Developer Dashboard](https://dev.freeagent.com)
+2. Log in with your FreeAgent credentials
+3. Create a new application with these settings:
+   - **Name**: Choose any name for your MCP server
+   - **Redirect URI**: `http://localhost:3456/oauth/callback`
+   - **Description**: Optional description
+4. Note down your **Client ID** and **Client Secret**
+
+### 2. Get OAuth Tokens
+
+#### Option A: Using npx (Recommended)
+
+The easiest way to get your OAuth tokens without cloning the repo:
+
+```bash
+npx freeagent-mcp-vercel get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+```
+
+#### Option B: Clone and Run Locally
+
+```bash
+# Clone and setup this repository
+git clone https://github.com/WavingCatApps/freeagent-mcp-vercel.git
+cd freeagent-mcp-vercel
+npm install
+
+# Run the OAuth token script
+npm run get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+```
+
+The script will:
+1. Open your browser to FreeAgent's authorization page
+2. After you approve the application, redirect back to a local server
+3. Exchange the authorization code for access and refresh tokens
+4. Display the tokens in your terminal
+
+**Example output:**
+```
+Add these tokens to your Vercel environment variables:
+
+FREEAGENT_ACCESS_TOKEN=your_access_token_here
+FREEAGENT_REFRESH_TOKEN=your_refresh_token_here
+```
+
+### 3. Configure Vercel Environment Variables
+
+Use the tokens from step 2 to configure your Vercel deployment.
 
 ## Available Tools
 
@@ -180,3 +225,8 @@ npm run deploy
 ## License
 
 MIT License - see the original [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) for details.
+
+## Attribution
+
+- OAuth token setup script adapted from [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) by Mark Pitt
+- Original FreeAgent MCP implementation by [markpitt/freeagent-mcp](https://github.com/markpitt/freeagent-mcp)
