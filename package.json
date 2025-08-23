@@ -6,7 +6,8 @@
   "main": "api/mcp.ts",
   "scripts": {
     "deploy": "vercel deploy",
-    "deploy:prod": "vercel deploy --prod"
+    "deploy:prod": "vercel deploy --prod",
+    "dev": "vercel dev"
   },
   "keywords": [
     "freeagent",

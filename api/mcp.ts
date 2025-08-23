@@ -481,8 +481,128 @@ const handler = createMcpHandler(
   { basePath: '/api' }
 );
 
+// Rate limiter using in-memory store (suitable for serverless)
+const rateLimiter = new Map<string, number[]>();
+
+const checkRateLimit = (clientIP: string): boolean => {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute window
+  const maxRequests = 100; // max requests per minute per IP
+  
+  const requests = rateLimiter.get(clientIP) || [];
+  
+  // Clean old requests outside the window
+  const validRequests = requests.filter((time: number) => now - time < windowMs);
+  
+  if (validRequests.length >= maxRequests) {
+    return false; // Rate limit exceeded
+  }
+  
+  validRequests.push(now);
+  rateLimiter.set(clientIP, validRequests);
+  
+  // Clean up old entries to prevent memory leaks
+  if (rateLimiter.size > 1000) {
+    for (const [ip, times] of rateLimiter.entries()) {
+      const recentTimes = times.filter(time => now - time < windowMs);
+      if (recentTimes.length === 0) {
+        rateLimiter.delete(ip);
+      }
+    }
+  }
+  
+  return true;
+};
+
+const validateRequest = (req: Request): void => {
+  // Get client IP
+  const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                   req.headers.get('x-real-ip') || 
+                   'unknown';
+  
+  // Check rate limit first
+  if (!checkRateLimit(clientIP)) {
+    throw new Error('Rate limit exceeded. Please try again later.');
+  }
+  
+  // Skip validation in development or local environments
+  if (process.env.NODE_ENV !== 'production' || 
+      process.env.VERCEL_ENV !== 'production') {
+    return;
+  }
+  
+  // Get request headers for validation
+  const userAgent = req.headers.get('user-agent') || '';
+  const origin = req.headers.get('origin') || '';
+  const referer = req.headers.get('referer') || '';
+  const host = req.headers.get('host') || '';
+  
+  // Allow requests from Claude and Copilot domains
+  const allowedOrigins = [
+    // Claude domains
+    'claude.ai',
+    'anthropic.com',
+    // GitHub Copilot domains
+    'github.com',
+    'github.dev',
+    'codespaces.dev',
+    'vscode.dev',
+    'microsoft.com',
+    'visualstudio.com',
+    // Local testing
+    'localhost',
+    '127.0.0.1',
+  ];
+  
+  // Check if request comes from allowed origins or has Claude-specific patterns
+  const isAllowedOrigin = allowedOrigins.some(domain => 
+    origin.includes(domain) || 
+    referer.includes(domain) || 
+    host.includes(domain)
+  );
+  
+  // Check for Claude or Copilot user agent patterns
+  const isLegitimateUserAgent = userAgent.toLowerCase().includes('claude') || 
+                               userAgent.toLowerCase().includes('anthropic') ||
+                               userAgent.toLowerCase().includes('copilot') ||
+                               userAgent.toLowerCase().includes('github') ||
+                               userAgent.toLowerCase().includes('vscode');
+  
+  // Check for MCP-specific headers or patterns that indicate legitimate MCP clients
+  const mcpHeaders = req.headers.get('content-type')?.includes('application/json');
+  const isMcpRequest = mcpHeaders && (
+    userAgent.toLowerCase().includes('mcp') ||
+    userAgent.toLowerCase().includes('inspector') ||
+    userAgent.toLowerCase().includes('node') // Common for MCP inspector tools
+  );
+  
+  // Allow if any of these conditions are met
+  if (isAllowedOrigin || isLegitimateUserAgent || isMcpRequest) {
+    return;
+  }
+  
+  // Log suspicious requests for monitoring
+  console.warn('Blocked request:', {
+    ip: clientIP,
+    userAgent,
+    origin,
+    referer,
+    host,
+    timestamp: new Date().toISOString()
+  });
+  
+  throw new Error('Unauthorized request source');
+};
+
 // Custom auth verification function that extracts credentials from Bearer token
 const verifyToken = async (req: Request, bearerToken?: string) => {
+  // Validate request first
+  try {
+    validateRequest(req);
+  } catch (error) {
+    throw error; // Re-throw validation errors
+  }
+  
   if (!bearerToken) {
     return undefined; // Allow fallback to environment variables
   }
@@ -503,7 +623,67 @@ const verifyToken = async (req: Request, bearerToken?: string) => {
   }
 };
 
+// Dynamic CORS handler for multiple legitimate origins
+const corsHandler = async (request: Request) => {
+  const origin = request.headers.get('origin');
+  const allowedOrigins = [
+    'https://claude.ai',
+    'https://www.claude.ai',
+    'https://anthropic.com',
+    'https://github.com',
+    'https://github.dev',
+    'https://vscode.dev',
+    'https://codespaces.dev',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://127.0.0.1:3000',
+  ];
+
+  // Check if origin is allowed
+  const isAllowedOrigin = origin && allowedOrigins.includes(origin);
+  
+  // Handle preflight OPTIONS requests
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': isAllowedOrigin ? origin : 'null',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
+  try {
+    // Call the original auth handler
+    const response = await authHandler(request);
+    
+    // Add CORS headers to the response
+    if (isAllowedOrigin) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    }
+    
+    return response;
+  } catch (error) {
+    // Handle errors with CORS headers
+    const errorResponse = new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': isAllowedOrigin ? origin : 'null',
+      },
+    });
+    
+    return errorResponse;
+  }
+};
+
 // Wrap the handler with auth middleware
 const authHandler = withMcpAuth(handler, verifyToken, { required: false });
 
-export { authHandler as GET, authHandler as POST, authHandler as DELETE };
+export { corsHandler as GET, corsHandler as POST, corsHandler as DELETE };
