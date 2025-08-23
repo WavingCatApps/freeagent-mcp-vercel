@@ -16,20 +16,68 @@ A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpi
 
 ## Setup
 
-### 1. Deploy to Vercel
+### 1. Get FreeAgent API Credentials
+
+#### Register Your Application
+
+1. Go to the [FreeAgent Developer Dashboard](https://dev.freeagent.com)
+2. Log in with your FreeAgent credentials
+3. Create a new application with these settings:
+   - **Name**: Choose any name for your MCP server
+   - **Redirect URI**: `http://localhost:3456/oauth/callback`
+   - **Description**: Optional description
+4. Note down your **Client ID** and **Client Secret**
+
+#### Get OAuth Tokens
+
+**Option A: Using npx (Recommended)**
+
+The easiest way to get your OAuth tokens without cloning the repo:
+
+```bash
+npx freeagent-mcp-vercel get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+```
+
+**Option B: Clone and Run Locally**
+
+```bash
+# Clone and setup this repository
+git clone https://github.com/WavingCatApps/freeagent-mcp-vercel.git
+cd freeagent-mcp-vercel
+npm install
+
+# Run the OAuth token script
+npm run get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+```
+
+The script will:
+1. Open your browser to FreeAgent's authorization page
+2. After you approve the application, redirect back to a local server
+3. Exchange the authorization code for access and refresh tokens
+4. Display the tokens in your terminal
+
+**Example output:**
+```
+Add these tokens to your Vercel environment variables:
+
+FREEAGENT_ACCESS_TOKEN=your_access_token_here
+FREEAGENT_REFRESH_TOKEN=your_refresh_token_here
+```
+
+### 2. Deploy to Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/WavingCatApps/freeagent-mcp-vercel)
 
-### 2. Configure Environment Variables
+### 3. Configure Environment Variables
 
 In your Vercel dashboard, add the following environment variables:
 
 **Required:**
 - `FREEAGENT_API_URL` - FreeAgent API URL (default: https://api.freeagent.com/v2)
-- `FREEAGENT_ACCESS_TOKEN` - Your FreeAgent OAuth access token
-- `FREEAGENT_REFRESH_TOKEN` - Your FreeAgent OAuth refresh token
-- `FREEAGENT_CLIENT_ID` - Your FreeAgent app client ID
-- `FREEAGENT_CLIENT_SECRET` - Your FreeAgent app client secret
+- `FREEAGENT_ACCESS_TOKEN` - Your FreeAgent OAuth access token (from step 1)
+- `FREEAGENT_REFRESH_TOKEN` - Your FreeAgent OAuth refresh token (from step 1)
+- `FREEAGENT_CLIENT_ID` - Your FreeAgent app client ID (from step 1)
+- `FREEAGENT_CLIENT_SECRET` - Your FreeAgent app client secret (from step 1)
 
 **Optional, but recommended, Security:**
 - `ENDPOINT_PATH_SUFFIX` - Random string to make your endpoint URL unpredictable (e.g., `x7k9m2n8p4q1r5s`)
@@ -43,7 +91,7 @@ In your Vercel dashboard, add the following environment variables:
   openssl rand -hex 16
   ```
 
-### 3. Configure Claude
+### 4. Configure Claude
 
 #### For Claude UI (Connectors)
 Add your MCP server as a connector using this URL format:
@@ -70,58 +118,6 @@ Add the following to your Claude Desktop MCP settings:
 ```
 
 **Note:** If you set `ENDPOINT_PATH_SUFFIX`, include it in your URL as `?suffix=your-suffix-value`
-
-## FreeAgent API Setup
-
-### 1. Register Your Application
-
-1. Go to the [FreeAgent Developer Dashboard](https://dev.freeagent.com)
-2. Log in with your FreeAgent credentials
-3. Create a new application with these settings:
-   - **Name**: Choose any name for your MCP server
-   - **Redirect URI**: `http://localhost:3456/oauth/callback`
-   - **Description**: Optional description
-4. Note down your **Client ID** and **Client Secret**
-
-### 2. Get OAuth Tokens
-
-#### Option A: Using npx (Recommended)
-
-The easiest way to get your OAuth tokens without cloning the repo:
-
-```bash
-npx freeagent-mcp-vercel get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
-```
-
-#### Option B: Clone and Run Locally
-
-```bash
-# Clone and setup this repository
-git clone https://github.com/WavingCatApps/freeagent-mcp-vercel.git
-cd freeagent-mcp-vercel
-npm install
-
-# Run the OAuth token script
-npm run get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
-```
-
-The script will:
-1. Open your browser to FreeAgent's authorization page
-2. After you approve the application, redirect back to a local server
-3. Exchange the authorization code for access and refresh tokens
-4. Display the tokens in your terminal
-
-**Example output:**
-```
-Add these tokens to your Vercel environment variables:
-
-FREEAGENT_ACCESS_TOKEN=your_access_token_here
-FREEAGENT_REFRESH_TOKEN=your_refresh_token_here
-```
-
-### 3. Configure Vercel Environment Variables
-
-Use the tokens from step 2 to configure your Vercel deployment.
 
 ## Available Tools
 
