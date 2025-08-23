@@ -556,13 +556,21 @@ const validateRequest = (req: Request): void => {
     'aws.amazon.com',
     'bedrock.aws.amazon.com',
     'console.aws.amazon.com',
-    // GitHub Copilot domains
+    // Microsoft domains
     'github.com',
     'github.dev',
     'codespaces.dev',
     'vscode.dev',
     'microsoft.com',
     'visualstudio.com',
+    'copilot.microsoft.com',
+    'copilotstudio.microsoft.com',
+    // Development platforms
+    'replit.com',
+    'repl.it',
+    'zed.dev',
+    'sourcegraph.com',
+    'codeium.com',
     // Local testing
     'localhost',
     '127.0.0.1',
@@ -576,17 +584,15 @@ const validateRequest = (req: Request): void => {
   );
   
   // Check for AI platform or development tool user agent patterns
-  const isLegitimateUserAgent = userAgent.toLowerCase().includes('claude') || 
-                               userAgent.toLowerCase().includes('anthropic') ||
-                               userAgent.toLowerCase().includes('openai') ||
-                               userAgent.toLowerCase().includes('chatgpt') ||
-                               userAgent.toLowerCase().includes('google') ||
-                               userAgent.toLowerCase().includes('gemini') ||
-                               userAgent.toLowerCase().includes('aws') ||
-                               userAgent.toLowerCase().includes('bedrock') ||
-                               userAgent.toLowerCase().includes('copilot') ||
-                               userAgent.toLowerCase().includes('github') ||
-                               userAgent.toLowerCase().includes('vscode');
+  const legitimateUserAgentPatterns = [
+    'claude', 'anthropic', 'openai', 'chatgpt', 'google', 'gemini',
+    'aws', 'bedrock', 'copilot', 'github', 'vscode', 'microsoft',
+    'replit', 'zed', 'sourcegraph', 'codeium', 'windsurf', 'cursor'
+  ];
+  const userAgentLower = userAgent.toLowerCase();
+  const isLegitimateUserAgent = legitimateUserAgentPatterns.some(pattern => 
+    userAgentLower.includes(pattern)
+  );
   
   // Check for MCP-specific headers or patterns that indicate legitimate MCP clients
   const mcpHeaders = req.headers.get('content-type')?.includes('application/json');
@@ -671,11 +677,23 @@ const corsHandler = async (request: Request) => {
     'https://aws.amazon.com',
     'https://bedrock.aws.amazon.com',
     'https://console.aws.amazon.com',
-    // GitHub/Microsoft
+    // Microsoft
     'https://github.com',
     'https://github.dev',
     'https://vscode.dev',
     'https://codespaces.dev',
+    'https://microsoft.com',
+    'https://copilot.microsoft.com',
+    'https://copilotstudio.microsoft.com',
+    // Development platforms
+    'https://replit.com',
+    'https://repl.it',
+    'https://zed.dev',
+    'https://sourcegraph.com',
+    'https://codeium.com',
+    'https://windsurf.com',
+    'https://cursor.so',
+    'https://cursor.com',
     // Local testing
     'http://localhost:3000',
     'http://localhost:8080',

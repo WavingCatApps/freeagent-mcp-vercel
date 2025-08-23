@@ -1,6 +1,8 @@
 # FreeAgent MCP Server for Vercel
 
-A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms (Claude, ChatGPT, Gemini, AWS Bedrock) to interact with FreeAgent for managing timeslips and timers, with a few new features added.
+A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms and development tools to interact with FreeAgent for managing timeslips and timers, with a few new features added.
+
+**Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code
 
 ## Features
 
@@ -117,8 +119,21 @@ Add the following to your Claude Desktop MCP settings:
 }
 ```
 
-#### OpenAI ChatGPT / Other Platforms
-Use the HTTP endpoint directly in your AI platform's MCP configuration:
+#### Other AI Platforms & Development Tools
+Use the HTTP endpoint directly in your platform's MCP configuration:
+
+**Supported Platforms:**
+- OpenAI ChatGPT
+- Google Gemini / AI Studio  
+- AWS Bedrock
+- Microsoft Copilot Studio
+- Replit
+- Zed Editor
+- Sourcegraph
+- Windsurf
+- Cursor
+
+**Endpoint:**
 ```
 https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
 ```
