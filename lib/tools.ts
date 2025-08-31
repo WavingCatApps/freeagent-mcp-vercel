@@ -295,4 +295,812 @@ export const registerTools = (server: any) => {
       }
     }
   );
+
+  // List bank accounts tool
+  server.tool(
+    'list_bank_accounts',
+    'List bank accounts from FreeAgent',
+    {
+      view: z.enum(['standard_bank_accounts', 'credit_card_accounts', 'paypal_accounts']).optional().describe('Filter by account type'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = params.view ? `?view=${params.view}` : '';
+        const result = await makeDirectRequest(`/bank_accounts${queryParams}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single bank account tool
+  server.tool(
+    'get_bank_account',
+    'Get a specific bank account by ID',
+    {
+      id: z.string().describe('Bank account ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bank_accounts/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List bank transactions tool
+  server.tool(
+    'list_bank_transactions',
+    'List bank transactions from FreeAgent for a specific bank account',
+    {
+      bank_account: z.string().describe('Bank account URL or ID (required)'),
+      from_date: z.string().optional().describe('Start date in YYYY-MM-DD format'),
+      to_date: z.string().optional().describe('End date in YYYY-MM-DD format'),
+      view: z.enum(['all', 'unexplained', 'explained', 'manual', 'imported', 'marked_for_review']).optional().describe('Filter view (default: all)'),
+      updated_since: z.string().optional().describe('ISO timestamp to get transactions updated since'),
+      last_uploaded: z.boolean().optional().describe('Get only transactions from most recent statement upload'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = new URLSearchParams();
+        
+        // Bank account is required
+        queryParams.append('bank_account', params.bank_account);
+        
+        // Add optional parameters
+        if (params.from_date) queryParams.append('from_date', params.from_date);
+        if (params.to_date) queryParams.append('to_date', params.to_date);
+        if (params.view) queryParams.append('view', params.view);
+        if (params.updated_since) queryParams.append('updated_since', params.updated_since);
+        if (params.last_uploaded) queryParams.append('last_uploaded', 'true');
+        
+        const result = await makeDirectRequest(`/bank_transactions?${queryParams.toString()}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single bank transaction tool
+  server.tool(
+    'get_bank_transaction',
+    'Get a specific bank transaction by ID',
+    {
+      id: z.string().describe('Bank transaction ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bank_transactions/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List bank transaction explanations tool
+  server.tool(
+    'list_bank_transaction_explanations',
+    'List bank transaction explanations from FreeAgent',
+    {
+      from_date: z.string().optional().describe('Start date in YYYY-MM-DD format'),
+      to_date: z.string().optional().describe('End date in YYYY-MM-DD format'),
+      updated_since: z.string().optional().describe('ISO timestamp to get explanations updated since'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = new URLSearchParams();
+        
+        if (params.from_date) queryParams.append('from_date', params.from_date);
+        if (params.to_date) queryParams.append('to_date', params.to_date);
+        if (params.updated_since) queryParams.append('updated_since', params.updated_since);
+        
+        const queryString = queryParams.toString();
+        const result = await makeDirectRequest(`/bank_transaction_explanations${queryString ? `?${queryString}` : ''}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single bank transaction explanation tool
+  server.tool(
+    'get_bank_transaction_explanation',
+    'Get a specific bank transaction explanation by ID',
+    {
+      id: z.string().describe('Bank transaction explanation ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bank_transaction_explanations/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Create bank transaction explanation tool
+  server.tool(
+    'create_bank_transaction_explanation',
+    'Create an explanation for a bank transaction in FreeAgent',
+    {
+      bank_transaction: z.string().optional().describe('Bank transaction URL to explain'),
+      bank_account: z.string().optional().describe('Bank account URL (alternative to bank_transaction)'),
+      dated_on: z.string().describe('Transaction date in YYYY-MM-DD format'),
+      gross_value: z.number().describe('Transaction amount (negative for expenses, positive for income)'),
+      category: z.string().describe('Category URL for the transaction'),
+      description: z.string().optional().describe('Description of the transaction'),
+      sales_tax_status: z.enum(['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE']).optional().describe('Sales tax status'),
+      sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage (e.g., 20 for 20%)'),
+      sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
+      project: z.string().optional().describe('Project URL to associate with'),
+      attachment: z.string().optional().describe('Attachment data or file reference'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const explanationData: any = {
+          dated_on: params.dated_on,
+          gross_value: params.gross_value,
+          category: params.category,
+          description: params.description,
+          sales_tax_status: params.sales_tax_status,
+          sales_tax_rate: params.sales_tax_rate,
+          sales_tax_value: params.sales_tax_value,
+          project: params.project,
+          attachment: params.attachment,
+        };
+
+        // Add bank transaction or bank account
+        if (params.bank_transaction) {
+          explanationData.bank_transaction = params.bank_transaction;
+        } else if (params.bank_account) {
+          explanationData.bank_account = params.bank_account;
+        }
+
+        // Remove undefined values
+        Object.keys(explanationData).forEach(key => {
+          if (explanationData[key] === undefined) {
+            delete explanationData[key];
+          }
+        });
+
+        const result = await makeDirectRequest('/bank_transaction_explanations', {
+          method: 'POST',
+          body: JSON.stringify({ bank_transaction_explanation: explanationData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update bank transaction explanation tool
+  server.tool(
+    'update_bank_transaction_explanation',
+    'Update an existing bank transaction explanation',
+    {
+      id: z.string().describe('Bank transaction explanation ID'),
+      dated_on: z.string().optional().describe('Transaction date in YYYY-MM-DD format'),
+      gross_value: z.number().optional().describe('Transaction amount'),
+      category: z.string().optional().describe('Category URL'),
+      description: z.string().optional().describe('Description'),
+      sales_tax_status: z.enum(['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE']).optional().describe('Sales tax status'),
+      sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
+      sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
+      project: z.string().optional().describe('Project URL'),
+      attachment: z.string().optional().describe('Attachment data or file reference'),
+    },
+    async ({ id, ...updateData }: any, { auth }: any = {}) => {
+      try {
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key];
+          }
+        });
+
+        const result = await makeDirectRequest(`/bank_transaction_explanations/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ bank_transaction_explanation: updateData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete bank transaction explanation tool
+  server.tool(
+    'delete_bank_transaction_explanation',
+    'Delete a bank transaction explanation',
+    {
+      id: z.string().describe('Bank transaction explanation ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bank_transaction_explanations/${id}`, {
+          method: 'DELETE'
+        }, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get attachment tool
+  server.tool(
+    'get_attachment',
+    'Get details of a specific attachment by ID',
+    {
+      id: z.string().describe('Attachment ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/attachments/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete attachment tool
+  server.tool(
+    'delete_attachment',
+    'Delete a specific attachment by ID',
+    {
+      id: z.string().describe('Attachment ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/attachments/${id}`, {
+          method: 'DELETE'
+        }, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List expenses tool
+  server.tool(
+    'list_expenses',
+    'List expenses from FreeAgent',
+    {
+      view: z.enum(['recent', 'recurring']).optional().describe('Filter view'),
+      from_date: z.string().optional().describe('Start date in YYYY-MM-DD format'),
+      to_date: z.string().optional().describe('End date in YYYY-MM-DD format'),
+      updated_since: z.string().optional().describe('ISO timestamp to get expenses updated since'),
+      user: z.string().optional().describe('User URL to filter by'),
+      project: z.string().optional().describe('Project URL to filter by'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = new URLSearchParams();
+        
+        if (params.view) queryParams.append('view', params.view);
+        if (params.from_date) queryParams.append('from_date', params.from_date);
+        if (params.to_date) queryParams.append('to_date', params.to_date);
+        if (params.updated_since) queryParams.append('updated_since', params.updated_since);
+        if (params.user) queryParams.append('user', params.user);
+        if (params.project) queryParams.append('project', params.project);
+        
+        const queryString = queryParams.toString();
+        const result = await makeDirectRequest(`/expenses${queryString ? `?${queryString}` : ''}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single expense tool
+  server.tool(
+    'get_expense',
+    'Get a specific expense by ID',
+    {
+      id: z.string().describe('Expense ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/expenses/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Create expense tool
+  server.tool(
+    'create_expense',
+    'Create a new expense in FreeAgent',
+    {
+      user: z.string().describe('User URL (expense claimant)'),
+      category: z.string().describe('Category URL for the expense'),
+      dated_on: z.string().describe('Expense date in YYYY-MM-DD format'),
+      ec_status: z.enum(['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE']).describe('VAT/EC status'),
+      description: z.string().optional().describe('Description of the expense'),
+      gross_value: z.number().optional().describe('Gross expense amount'),
+      sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
+      sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
+      project: z.string().optional().describe('Project URL to associate with'),
+      attachment: z.string().optional().describe('Attachment data or file reference'),
+      currency: z.string().optional().describe('Currency code (e.g., GBP, USD)'),
+      mileage: z.number().optional().describe('Mileage for travel expenses'),
+      vehicle_type: z.enum(['Car', 'Motorcycle']).optional().describe('Vehicle type for mileage claims'),
+      is_rebillable: z.boolean().optional().describe('Whether expense can be rebilled to client'),
+      rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
+      rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const expenseData: any = {
+          user: params.user,
+          category: params.category,
+          dated_on: params.dated_on,
+          ec_status: params.ec_status,
+          description: params.description,
+          gross_value: params.gross_value,
+          sales_tax_rate: params.sales_tax_rate,
+          sales_tax_value: params.sales_tax_value,
+          project: params.project,
+          attachment: params.attachment,
+          currency: params.currency,
+          mileage: params.mileage,
+          vehicle_type: params.vehicle_type,
+          is_rebillable: params.is_rebillable,
+          rebill_factor: params.rebill_factor,
+          rebill_type: params.rebill_type,
+        };
+
+        // Remove undefined values
+        Object.keys(expenseData).forEach(key => {
+          if (expenseData[key] === undefined) {
+            delete expenseData[key];
+          }
+        });
+
+        const result = await makeDirectRequest('/expenses', {
+          method: 'POST',
+          body: JSON.stringify({ expense: expenseData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update expense tool
+  server.tool(
+    'update_expense',
+    'Update an existing expense in FreeAgent',
+    {
+      id: z.string().describe('Expense ID'),
+      user: z.string().optional().describe('User URL (expense claimant)'),
+      category: z.string().optional().describe('Category URL'),
+      dated_on: z.string().optional().describe('Expense date in YYYY-MM-DD format'),
+      ec_status: z.enum(['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE']).optional().describe('VAT/EC status'),
+      description: z.string().optional().describe('Description'),
+      gross_value: z.number().optional().describe('Gross expense amount'),
+      sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
+      sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
+      project: z.string().optional().describe('Project URL'),
+      attachment: z.string().optional().describe('Attachment data or file reference'),
+      currency: z.string().optional().describe('Currency code'),
+      mileage: z.number().optional().describe('Mileage for travel expenses'),
+      vehicle_type: z.enum(['Car', 'Motorcycle']).optional().describe('Vehicle type for mileage claims'),
+      is_rebillable: z.boolean().optional().describe('Whether expense can be rebilled to client'),
+      rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
+      rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type'),
+    },
+    async ({ id, ...updateData }: any, { auth }: any = {}) => {
+      try {
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key];
+          }
+        });
+
+        const result = await makeDirectRequest(`/expenses/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ expense: updateData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete expense tool
+  server.tool(
+    'delete_expense',
+    'Delete an expense from FreeAgent',
+    {
+      id: z.string().describe('Expense ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/expenses/${id}`, {
+          method: 'DELETE'
+        }, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List categories tool
+  server.tool(
+    'list_categories',
+    'List all categories from FreeAgent',
+    {
+      sub_accounts: z.boolean().optional().describe('Include sub-accounts in the response'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = params.sub_accounts ? '?sub_accounts=true' : '';
+        const result = await makeDirectRequest(`/categories${queryParams}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single category tool
+  server.tool(
+    'get_category',
+    'Get a specific category by nominal code',
+    {
+      nominal_code: z.string().describe('Category nominal code'),
+    },
+    async ({ nominal_code }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/categories/${nominal_code}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Create category tool
+  server.tool(
+    'create_category',
+    'Create a new category in FreeAgent',
+    {
+      description: z.string().describe('Category name/description'),
+      nominal_code: z.string().describe('Category nominal code'),
+      category_type: z.enum(['income', 'cost_of_sales', 'admin_expenses', 'current_assets', 'liabilities', 'equity']).describe('Category type'),
+      allowable_for_tax: z.boolean().optional().describe('Whether category is tax deductible'),
+      tax_reporting_name: z.string().optional().describe('Name for statutory accounts reporting'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const categoryData: any = {
+          description: params.description,
+          nominal_code: params.nominal_code,
+          category_type: params.category_type,
+          allowable_for_tax: params.allowable_for_tax,
+          tax_reporting_name: params.tax_reporting_name,
+        };
+
+        // Remove undefined values
+        Object.keys(categoryData).forEach(key => {
+          if (categoryData[key] === undefined) {
+            delete categoryData[key];
+          }
+        });
+
+        const result = await makeDirectRequest('/categories', {
+          method: 'POST',
+          body: JSON.stringify({ category: categoryData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update category tool
+  server.tool(
+    'update_category',
+    'Update an existing category in FreeAgent',
+    {
+      nominal_code: z.string().describe('Category nominal code'),
+      description: z.string().optional().describe('Category name/description'),
+      allowable_for_tax: z.boolean().optional().describe('Whether category is tax deductible'),
+      tax_reporting_name: z.string().optional().describe('Name for statutory accounts reporting'),
+    },
+    async ({ nominal_code, ...updateData }: any, { auth }: any = {}) => {
+      try {
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key];
+          }
+        });
+
+        const result = await makeDirectRequest(`/categories/${nominal_code}`, {
+          method: 'PUT',
+          body: JSON.stringify({ category: updateData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete category tool
+  server.tool(
+    'delete_category',
+    'Delete a category from FreeAgent (only user-created categories without existing items)',
+    {
+      nominal_code: z.string().describe('Category nominal code'),
+    },
+    async ({ nominal_code }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/categories/${nominal_code}`, {
+          method: 'DELETE'
+        }, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
 };
