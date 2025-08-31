@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { createClient, makeDirectRequest, enhanceTimeslipData } from './utils.js';
 
+// Attachment schema for expenses and bank transaction explanations
+const AttachmentSchema = z.object({
+  data: z.string().describe('Binary data of the file encoded as base64'),
+  file_name: z.string().describe('Name of the file'),
+  description: z.string().optional().describe('Description of the attachment'),
+  content_type: z.enum(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf']).describe('MIME type of the file'),
+}).describe('Attachment object with file data and metadata');
+
 export const registerTools = (server: any) => {
   // List timeslips tool
   server.tool(
@@ -506,8 +514,9 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage (e.g., 20 for 20%)'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL to associate with'),
-      attachment: z.string().optional().describe('Attachment data or file reference'),
+      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
       paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
+      receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
     },
     async (params: any, { auth }: any = {}) => {
       try {
@@ -522,6 +531,7 @@ export const registerTools = (server: any) => {
           project: params.project,
           attachment: params.attachment,
           paid_user: params.paid_user,
+          receipt_reference: params.receipt_reference,
         };
 
         // Add bank transaction or bank account
@@ -575,8 +585,9 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL'),
-      attachment: z.string().optional().describe('Attachment data or file reference'),
+      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
       paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
+      receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
     },
     async ({ id, ...updateData }: any, { auth }: any = {}) => {
       try {
@@ -783,7 +794,7 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL to associate with'),
-      attachment: z.string().optional().describe('Attachment data or file reference'),
+      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
       currency: z.string().optional().describe('Currency code (e.g., GBP, USD)'),
       mileage: z.number().optional().describe('Mileage for travel expenses'),
       vehicle_type: z.enum(['Car', 'Motorcycle', 'Bicycle']).optional().describe('Vehicle type for mileage claims'),
@@ -793,6 +804,7 @@ export const registerTools = (server: any) => {
       is_rebillable: z.boolean().optional().describe('Whether expense can be rebilled to client'),
       rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
       rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type'),
+      receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
     },
     async (params: any, { auth }: any = {}) => {
       try {
@@ -816,6 +828,7 @@ export const registerTools = (server: any) => {
           is_rebillable: params.is_rebillable,
           rebill_factor: params.rebill_factor,
           rebill_type: params.rebill_type,
+          receipt_reference: params.receipt_reference,
         };
 
         // Remove undefined values
@@ -863,7 +876,7 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL'),
-      attachment: z.string().optional().describe('Attachment data or file reference'),
+      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
       currency: z.string().optional().describe('Currency code'),
       mileage: z.number().optional().describe('Mileage for travel expenses'),
       vehicle_type: z.enum(['Car', 'Motorcycle', 'Bicycle']).optional().describe('Vehicle type for mileage claims'),
@@ -873,6 +886,7 @@ export const registerTools = (server: any) => {
       is_rebillable: z.boolean().optional().describe('Whether expense can be rebilled to client'),
       rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
       rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type'),
+      receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
     },
     async ({ id, ...updateData }: any, { auth }: any = {}) => {
       try {
