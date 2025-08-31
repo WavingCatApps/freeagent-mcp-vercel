@@ -10,6 +10,645 @@ const AttachmentSchema = z.object({
 }).describe('Attachment object with file data and metadata');
 
 export const registerTools = (server: any) => {
+  // Tool introspection and documentation tools
+  server.tool(
+    'describe_tools',
+    'Get detailed specifications and parameter information for all available FreeAgent MCP tools',
+    {
+      tool_name: z.string().optional().describe('Optional: Get details for a specific tool name'),
+      category: z.enum(['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'attachments', 'introspection']).optional().describe('Optional: Filter tools by category'),
+    },
+    async (params: any) => {
+      const toolSpecs = {
+        // Timeslip tools
+        list_timeslips: {
+          category: 'timeslips',
+          description: 'List and filter timeslips from FreeAgent',
+          parameters: {
+            from_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Start date filter' },
+            to_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'End date filter' },
+            view: { type: 'enum', optional: true, values: ['all', 'unbilled', 'running'], description: 'Filter view' },
+            user: { type: 'string', optional: true, description: 'User URL to filter by' },
+            project: { type: 'string', optional: true, description: 'Project URL to filter by' },
+            task: { type: 'string', optional: true, description: 'Task URL to filter by' }
+          }
+        },
+        get_timeslip: {
+          category: 'timeslips',
+          description: 'Get a specific timeslip by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Timeslip ID' }
+          }
+        },
+        create_timeslip: {
+          category: 'timeslips',
+          description: 'Create a new timeslip in FreeAgent',
+          parameters: {
+            task: { type: 'string', required: true, description: 'Task URL' },
+            user: { type: 'string', required: true, description: 'User URL' },
+            project: { type: 'string', required: true, description: 'Project URL' },
+            dated_on: { type: 'string', required: true, format: 'YYYY-MM-DD', description: 'Date' },
+            hours: { type: 'number', required: true, description: 'Number of hours' },
+            comment: { type: 'string', optional: true, description: 'Optional comment' }
+          }
+        },
+        update_timeslip: {
+          category: 'timeslips',
+          description: 'Update an existing timeslip',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Timeslip ID' },
+            task: { type: 'string', optional: true, description: 'Task URL' },
+            user: { type: 'string', optional: true, description: 'User URL' },
+            project: { type: 'string', optional: true, description: 'Project URL' },
+            dated_on: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Date' },
+            hours: { type: 'number', optional: true, description: 'Number of hours' },
+            comment: { type: 'string', optional: true, description: 'Comment' }
+          }
+        },
+        delete_timeslip: {
+          category: 'timeslips',
+          description: 'Delete a timeslip',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Timeslip ID' }
+          }
+        },
+        start_timer: {
+          category: 'timeslips',
+          description: 'Start a timer for a timeslip',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Timeslip ID' }
+          }
+        },
+        stop_timer: {
+          category: 'timeslips',
+          description: 'Stop a timer for a timeslip',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Timeslip ID' }
+          }
+        },
+
+        // Project tools
+        list_projects: {
+          category: 'projects',
+          description: 'List all projects in FreeAgent',
+          parameters: {
+            view: { type: 'enum', optional: true, values: ['all', 'active', 'completed'], default: 'active', description: 'Filter view' }
+          }
+        },
+        create_task: {
+          category: 'projects',
+          description: 'Create a new task for a project',
+          parameters: {
+            project: { type: 'string', required: true, description: 'Project URL or ID' },
+            name: { type: 'string', required: true, description: 'Task name' },
+            is_recurring: { type: 'boolean', optional: true, default: false, description: 'Whether this is a recurring task' },
+            status: { type: 'enum', optional: true, values: ['Active', 'Hidden', 'Completed'], default: 'Active', description: 'Task status' }
+          }
+        },
+
+        // Expense tools
+        list_expenses: {
+          category: 'expenses',
+          description: 'List expenses from FreeAgent',
+          parameters: {
+            view: { type: 'enum', optional: true, values: ['recent', 'recurring'], description: 'Filter view' },
+            from_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Start date' },
+            to_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'End date' },
+            updated_since: { type: 'string', optional: true, format: 'ISO timestamp', description: 'Get expenses updated since' },
+            user: { type: 'string', optional: true, description: 'User URL to filter by' },
+            project: { type: 'string', optional: true, description: 'Project URL to filter by' }
+          }
+        },
+        get_expense: {
+          category: 'expenses',
+          description: 'Get a specific expense by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Expense ID' }
+          }
+        },
+        create_expense: {
+          category: 'expenses',
+          description: 'Create a new expense in FreeAgent with full support for mileage claims, attachments, and rebilling',
+          parameters: {
+            user: { type: 'string', required: true, description: 'User URL (expense claimant)' },
+            category: { type: 'string', required: true, description: 'Category URL for the expense' },
+            dated_on: { type: 'string', required: true, format: 'YYYY-MM-DD', description: 'Expense date' },
+            ec_status: { type: 'enum', required: true, values: ['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE'], description: 'VAT/EC status' },
+            description: { type: 'string', optional: true, description: 'Description of the expense' },
+            gross_value: { type: 'number', optional: true, description: 'Gross expense amount' },
+            sales_tax_rate: { type: 'number', optional: true, description: 'Sales tax rate as percentage' },
+            sales_tax_value: { type: 'number', optional: true, description: 'Manual sales tax amount' },
+            project: { type: 'string', optional: true, description: 'Project URL to associate with' },
+            attachment: { 
+              type: 'object', 
+              optional: true, 
+              description: 'File attachment with data and metadata',
+              structure: {
+                data: { type: 'string', required: true, description: 'Binary data encoded as base64' },
+                file_name: { type: 'string', required: true, description: 'Name of the file' },
+                description: { type: 'string', optional: true, description: 'Description of the attachment' },
+                content_type: { type: 'enum', required: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'MIME type' }
+              }
+            },
+            currency: { type: 'string', optional: true, description: 'Currency code (e.g., GBP, USD)' },
+            mileage: { type: 'number', optional: true, description: 'Mileage for travel expenses' },
+            vehicle_type: { type: 'enum', optional: true, values: ['Car', 'Motorcycle', 'Bicycle'], description: 'Vehicle type for mileage claims' },
+            engine_type: { type: 'enum', optional: true, values: ['Petrol', 'Diesel', 'LPG', 'Electric', 'Electric_Hybrid'], description: 'Engine type for mileage claims' },
+            engine_size: { type: 'number', optional: true, description: 'Engine size for mileage claims' },
+            reclaim_mileage: { type: 'number', optional: true, min: 0, max: 1, description: 'Reclaim mileage (0=default, 1=at AMAP rate)' },
+            is_rebillable: { type: 'boolean', optional: true, description: 'Whether expense can be rebilled to client' },
+            rebill_factor: { type: 'number', optional: true, min: 0, max: 100, description: 'Rebill percentage (0-100)' },
+            rebill_type: { type: 'enum', optional: true, values: ['marked_up', 'marked_down', 'at_cost'], description: 'Rebill type' },
+            receipt_reference: { type: 'string', optional: true, description: 'Receipt reference number or identifier' }
+          }
+        },
+        update_expense: {
+          category: 'expenses',
+          description: 'Update an existing expense',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Expense ID' },
+            // All other parameters same as create_expense but optional
+          }
+        },
+        delete_expense: {
+          category: 'expenses',
+          description: 'Delete an expense',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Expense ID' }
+          }
+        },
+
+        // Bank account tools
+        list_bank_accounts: {
+          category: 'bank_accounts',
+          description: 'List bank accounts from FreeAgent',
+          parameters: {
+            view: { type: 'enum', optional: true, values: ['standard_bank_accounts', 'credit_card_accounts', 'paypal_accounts'], description: 'Filter by account type' }
+          }
+        },
+        get_bank_account: {
+          category: 'bank_accounts',
+          description: 'Get a specific bank account by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bank account ID' }
+          }
+        },
+
+        // Bank transaction tools
+        list_bank_transactions: {
+          category: 'bank_transactions',
+          description: 'List bank transactions for a specific bank account',
+          parameters: {
+            bank_account: { type: 'string', required: true, description: 'Bank account URL or ID' },
+            from_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Start date' },
+            to_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'End date' },
+            view: { type: 'enum', optional: true, values: ['all', 'unexplained', 'explained', 'manual', 'imported', 'marked_for_review'], default: 'all', description: 'Filter view' },
+            updated_since: { type: 'string', optional: true, format: 'ISO timestamp', description: 'Get transactions updated since' },
+            last_uploaded: { type: 'boolean', optional: true, description: 'Get only transactions from most recent statement upload' }
+          }
+        },
+        get_bank_transaction: {
+          category: 'bank_transactions',
+          description: 'Get a specific bank transaction by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bank transaction ID' }
+          }
+        },
+
+        // Bank transaction explanation tools
+        list_bank_transaction_explanations: {
+          category: 'bank_transaction_explanations',
+          description: 'List bank transaction explanations',
+          parameters: {
+            from_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Start date' },
+            to_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'End date' },
+            updated_since: { type: 'string', optional: true, format: 'ISO timestamp', description: 'Get explanations updated since' }
+          }
+        },
+        get_bank_transaction_explanation: {
+          category: 'bank_transaction_explanations',
+          description: 'Get a specific bank transaction explanation by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bank transaction explanation ID' }
+          }
+        },
+        create_bank_transaction_explanation: {
+          category: 'bank_transaction_explanations',
+          description: 'Create an explanation for a bank transaction with full tax and attachment support',
+          parameters: {
+            bank_transaction: { type: 'string', optional: true, description: 'Bank transaction URL to explain' },
+            bank_account: { type: 'string', optional: true, description: 'Bank account URL (alternative to bank_transaction)' },
+            dated_on: { type: 'string', required: true, format: 'YYYY-MM-DD', description: 'Transaction date' },
+            gross_value: { type: 'number', required: true, description: 'Transaction amount (negative for expenses, positive for income)' },
+            category: { type: 'string', required: true, description: 'Category URL for the transaction' },
+            description: { type: 'string', optional: true, description: 'Description of the transaction' },
+            sales_tax_status: { type: 'enum', optional: true, values: ['TAXABLE', 'EXEMPT', 'OUT_OF_SCOPE'], description: 'Sales tax status' },
+            sales_tax_rate: { type: 'number', optional: true, description: 'Sales tax rate as percentage' },
+            sales_tax_value: { type: 'number', optional: true, description: 'Manual sales tax amount' },
+            project: { type: 'string', optional: true, description: 'Project URL to associate with' },
+            attachment: { 
+              type: 'object', 
+              optional: true, 
+              description: 'File attachment with data and metadata',
+              structure: {
+                data: { type: 'string', required: true, description: 'Binary data encoded as base64' },
+                file_name: { type: 'string', required: true, description: 'Name of the file' },
+                description: { type: 'string', optional: true, description: 'Description of the attachment' },
+                content_type: { type: 'enum', required: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'MIME type' }
+              }
+            },
+            paid_user: { type: 'string', optional: true, description: 'User URL for expense payments (Money Paid to User transactions)' },
+            receipt_reference: { type: 'string', optional: true, description: 'Receipt reference number or identifier' }
+          }
+        },
+        update_bank_transaction_explanation: {
+          category: 'bank_transaction_explanations',
+          description: 'Update an existing bank transaction explanation',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bank transaction explanation ID' },
+            // All other parameters same as create but optional
+          }
+        },
+        delete_bank_transaction_explanation: {
+          category: 'bank_transaction_explanations',
+          description: 'Delete a bank transaction explanation',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bank transaction explanation ID' }
+          }
+        },
+
+        // Category tools
+        list_categories: {
+          category: 'categories',
+          description: 'List all categories from FreeAgent',
+          parameters: {
+            sub_accounts: { type: 'boolean', optional: true, description: 'Include sub-accounts in the response' }
+          }
+        },
+        get_category: {
+          category: 'categories',
+          description: 'Get a specific category by nominal code',
+          parameters: {
+            nominal_code: { type: 'string', required: true, description: 'Category nominal code' }
+          }
+        },
+        create_category: {
+          category: 'categories',
+          description: 'Create a new category',
+          parameters: {
+            description: { type: 'string', required: true, description: 'Category name/description' },
+            nominal_code: { type: 'string', required: true, description: 'Category nominal code' },
+            category_type: { type: 'enum', required: true, values: ['income', 'cost_of_sales', 'admin_expenses', 'current_assets', 'liabilities', 'equity'], description: 'Category type' },
+            allowable_for_tax: { type: 'boolean', optional: true, description: 'Whether category is tax deductible' },
+            tax_reporting_name: { type: 'string', optional: true, description: 'Name for statutory accounts reporting' }
+          }
+        },
+        update_category: {
+          category: 'categories',
+          description: 'Update an existing category',
+          parameters: {
+            nominal_code: { type: 'string', required: true, description: 'Category nominal code' },
+            description: { type: 'string', optional: true, description: 'Category name/description' },
+            allowable_for_tax: { type: 'boolean', optional: true, description: 'Whether category is tax deductible' },
+            tax_reporting_name: { type: 'string', optional: true, description: 'Name for statutory accounts reporting' }
+          }
+        },
+        delete_category: {
+          category: 'categories',
+          description: 'Delete a category (only user-created categories without existing items)',
+          parameters: {
+            nominal_code: { type: 'string', required: true, description: 'Category nominal code' }
+          }
+        },
+
+        // User tools
+        list_users: {
+          category: 'users',
+          description: 'List users from FreeAgent',
+          parameters: {
+            view: { type: 'enum', optional: true, values: ['all', 'staff', 'active_staff', 'advisors', 'active_advisors'], description: 'Filter users by type' }
+          }
+        },
+        get_user: {
+          category: 'users',
+          description: 'Get details of a specific user by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'User ID (use "me" for current authenticated user)' }
+          }
+        },
+        get_current_user: {
+          category: 'users',
+          description: 'Get the current authenticated user profile',
+          parameters: {}
+        },
+        create_user: {
+          category: 'users',
+          description: 'Create a new user in FreeAgent',
+          parameters: {
+            first_name: { type: 'string', required: true, description: 'User first name' },
+            last_name: { type: 'string', required: true, description: 'User last name' },
+            email: { type: 'string', required: true, description: 'User email address' },
+            role: { type: 'enum', required: true, values: ['Owner', 'Director', 'Employee', 'Shareholder', 'Advisor'], description: 'User role' },
+            permission_level: { type: 'number', required: true, min: 0, max: 8, description: 'Permission level (0-8, higher = more access)' },
+            ni_number: { type: 'string', optional: true, description: 'National Insurance Number' },
+            unique_tax_reference: { type: 'string', optional: true, description: 'Unique Tax Reference' },
+            send_invitation: { type: 'boolean', optional: true, default: true, description: 'Send invitation email' }
+          }
+        },
+        update_user: {
+          category: 'users',
+          description: 'Update an existing user',
+          parameters: {
+            id: { type: 'string', required: true, description: 'User ID (use "me" for current user)' },
+            // Other parameters same as create but optional
+          }
+        },
+        delete_user: {
+          category: 'users',
+          description: 'Delete a user from FreeAgent',
+          parameters: {
+            id: { type: 'string', required: true, description: 'User ID to delete' }
+          }
+        },
+
+        // Attachment tools
+        get_attachment: {
+          category: 'attachments',
+          description: 'Get details of a specific attachment by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Attachment ID' }
+          }
+        },
+        delete_attachment: {
+          category: 'attachments',
+          description: 'Delete a specific attachment by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Attachment ID' }
+          }
+        },
+
+        // Introspection tools
+        describe_tools: {
+          category: 'introspection',
+          description: 'Get detailed specifications for all available tools',
+          parameters: {
+            tool_name: { type: 'string', optional: true, description: 'Get details for a specific tool' },
+            category: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'attachments', 'introspection'], description: 'Filter tools by category' }
+          }
+        },
+        get_api_docs: {
+          category: 'introspection',
+          description: 'Get FreeAgent API documentation and examples',
+          parameters: {
+            topic: { type: 'enum', optional: true, values: ['overview', 'authentication', 'expenses', 'bank_transactions', 'attachments', 'mileage_claims', 'tax_handling'], description: 'Specific documentation topic' }
+          }
+        },
+        validate_parameters: {
+          category: 'introspection',
+          description: 'Test parameter formats before making actual API calls',
+          parameters: {
+            tool_name: { type: 'string', required: true, description: 'Tool name to validate parameters for' },
+            parameters: { type: 'object', required: true, description: 'Parameters to validate' }
+          }
+        }
+      };
+
+      let result: any = toolSpecs;
+
+      if (params.tool_name) {
+        result = (toolSpecs as any)[params.tool_name] ? { [params.tool_name]: (toolSpecs as any)[params.tool_name] } : { error: `Tool '${params.tool_name}' not found` };
+      } else if (params.category) {
+        result = Object.fromEntries(
+          Object.entries(toolSpecs).filter(([_, spec]: [string, any]) => spec.category === params.category)
+        );
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    }
+  );
+
+  server.tool(
+    'get_api_docs',
+    'Get FreeAgent API documentation and usage examples',
+    {
+      topic: z.enum(['overview', 'authentication', 'expenses', 'bank_transactions', 'attachments', 'mileage_claims', 'tax_handling']).optional().describe('Specific documentation topic'),
+    },
+    async (params: any) => {
+      const docs = {
+        overview: {
+          title: 'FreeAgent MCP Server Overview',
+          description: 'This MCP server provides comprehensive access to FreeAgent accounting functionality',
+          features: [
+            'Complete timeslip management with timer support',
+            'Expense tracking with mileage claims and attachments',
+            'Bank account and transaction management',
+            'Transaction explanations with tax handling',
+            'Project and task management',
+            'User management with role-based permissions',
+            'Category management for accounting',
+            'File attachment support (images and PDFs)'
+          ],
+          authentication: 'Uses OAuth 2.0 with Bearer token authentication',
+          base_url: 'https://api.freeagent.com/v2'
+        },
+        
+        authentication: {
+          title: 'Authentication',
+          method: 'OAuth 2.0 Bearer Token',
+          format: 'Base64 encoded JSON with: {clientId, clientSecret, accessToken, refreshToken}',
+          example: 'Bearer eyJjbGllbnRJZCI6IjEyMyIsImNsaWVudFNlY3JldCI6IjQ1NiIsImFjY2Vzc1Rva2VuIjoiN...'
+        },
+        
+        expenses: {
+          title: 'Expense Management',
+          description: 'Create and manage business expenses with full tax and attachment support',
+          key_features: [
+            'Multiple expense types (standard, mileage, rebillable)',
+            'VAT/Tax handling (TAXABLE, EXEMPT, OUT_OF_SCOPE)',
+            'Mileage claims with vehicle and engine type support',
+            'File attachments (receipts, invoices)',
+            'Project association and rebilling',
+            'Receipt reference tracking'
+          ],
+          mileage_rates: 'Supports AMAP rates with engine type classification',
+          supported_currencies: ['GBP', 'USD', 'EUR', 'and others'],
+          example_expense: {
+            user: 'https://api.freeagent.com/v2/users/123',
+            category: 'https://api.freeagent.com/v2/categories/456',
+            dated_on: '2024-01-15',
+            ec_status: 'TAXABLE',
+            gross_value: 45.99,
+            description: 'Office supplies',
+            receipt_reference: 'REC-2024-001'
+          }
+        },
+        
+        bank_transactions: {
+          title: 'Bank Transaction Management',
+          description: 'Access and explain bank transactions across multiple accounts',
+          workflow: [
+            '1. List bank accounts to find relevant account',
+            '2. List transactions for specific account with filters',
+            '3. Create explanations to categorize transactions',
+            '4. Associate with users for expense payments'
+          ],
+          explanation_types: [
+            'Standard business transactions',
+            'Expense payments to users',
+            'Tax-related transactions',
+            'Project-specific costs'
+          ],
+          example_explanation: {
+            bank_transaction: 'https://api.freeagent.com/v2/bank_transactions/789',
+            dated_on: '2024-01-15',
+            gross_value: -45.99,
+            category: 'https://api.freeagent.com/v2/categories/456',
+            description: 'Office supplies payment',
+            paid_user: 'https://api.freeagent.com/v2/users/123'
+          }
+        },
+        
+        attachments: {
+          title: 'File Attachment Support',
+          description: 'Upload and manage file attachments for expenses and transactions',
+          supported_formats: [
+            'Images: PNG, JPEG, GIF',
+            'Documents: PDF'
+          ],
+          structure: {
+            data: 'Base64 encoded file content',
+            file_name: 'Original filename with extension',
+            description: 'Optional description of the file',
+            content_type: 'MIME type (e.g., image/png, application/pdf)'
+          },
+          example: {
+            data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB...',
+            file_name: 'receipt.png',
+            description: 'Receipt for office supplies',
+            content_type: 'image/png'
+          }
+        },
+        
+        mileage_claims: {
+          title: 'Mileage Claims',
+          description: 'Comprehensive mileage expense tracking with HMRC compliance',
+          vehicle_types: ['Car', 'Motorcycle', 'Bicycle'],
+          engine_types: ['Petrol', 'Diesel', 'LPG', 'Electric', 'Electric_Hybrid'],
+          rates: {
+            cars_motorcycles: 'AMAP rates apply based on engine type and size',
+            bicycles: 'Fixed rate per mile'
+          },
+          example_claim: {
+            user: 'https://api.freeagent.com/v2/users/123',
+            category: 'https://api.freeagent.com/v2/categories/travel',
+            dated_on: '2024-01-15',
+            ec_status: 'TAXABLE',
+            mileage: 120,
+            vehicle_type: 'Car',
+            engine_type: 'Electric',
+            engine_size: 0,
+            reclaim_mileage: 1,
+            description: 'Client meeting in London'
+          }
+        },
+        
+        tax_handling: {
+          title: 'Tax and VAT Handling',
+          description: 'Comprehensive tax management for all transaction types',
+          vat_statuses: [
+            'TAXABLE - Standard VAT rate applies',
+            'EXEMPT - VAT exempt transaction',
+            'OUT_OF_SCOPE - Outside VAT scope'
+          ],
+          tax_calculation: {
+            automatic: 'Set sales_tax_rate as percentage (e.g., 20 for 20%)',
+            manual: 'Set sales_tax_value as fixed amount'
+          },
+          example: {
+            gross_value: 120.00,
+            sales_tax_rate: 20,
+            // Results in £20 VAT, £100 net
+          }
+        }
+      };
+
+      const result = params.topic ? (docs as any)[params.topic] : docs;
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(result, null, 2),
+        }],
+      };
+    }
+  );
+
+  server.tool(
+    'validate_parameters',
+    'Test parameter formats before making actual API calls',
+    {
+      tool_name: z.string().describe('Tool name to validate parameters for'),
+      parameters: z.record(z.any()).describe('Parameters to validate'),
+    },
+    async ({ tool_name, parameters }: any) => {
+      const validation_results: any = {
+        tool: tool_name,
+        parameters: parameters,
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: []
+        }
+      };
+
+      // Basic validation logic
+      if (tool_name.includes('create_') || tool_name.includes('update_')) {
+        // Check for common required fields
+        if (tool_name.includes('expense')) {
+          if (!parameters.user && tool_name === 'create_expense') {
+            validation_results.validation.valid = false;
+            validation_results.validation.errors.push('user parameter is required for create_expense');
+          }
+          if (!parameters.category && tool_name === 'create_expense') {
+            validation_results.validation.valid = false;
+            validation_results.validation.errors.push('category parameter is required for create_expense');
+          }
+          if (parameters.attachment) {
+            if (!parameters.attachment.data) {
+              validation_results.validation.errors.push('attachment.data is required when attachment is provided');
+            }
+            if (!parameters.attachment.file_name) {
+              validation_results.validation.errors.push('attachment.file_name is required when attachment is provided');
+            }
+            if (!parameters.attachment.content_type) {
+              validation_results.validation.errors.push('attachment.content_type is required when attachment is provided');
+            }
+          }
+        }
+
+        // Check date formats
+        for (const [key, value] of Object.entries(parameters)) {
+          if (key.includes('date') && typeof value === 'string') {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value as string)) {
+              validation_results.validation.warnings.push(`${key} should be in YYYY-MM-DD format`);
+            }
+          }
+        }
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(validation_results, null, 2),
+        }],
+      };
+    }
+  );
   // List timeslips tool
   server.tool(
     'list_timeslips',
