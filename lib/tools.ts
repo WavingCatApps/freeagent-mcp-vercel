@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createClient, makeDirectRequest, enhanceTimeslipData } from './utils.js';
+import { createClient, makeDirectRequest, enhanceTimeslipData, processAttachment } from './utils.js';
 
 // Attachment schema for expenses and bank transaction explanations
 const AttachmentSchema = z.object({
@@ -410,6 +410,31 @@ export const registerTools = (server: any) => {
             tool_name: { type: 'string', required: true, description: 'Tool name to validate parameters for' },
             parameters: { type: 'object', required: true, description: 'Parameters to validate' }
           }
+        },
+
+        // File handling tools
+        prepare_attachment: {
+          category: 'attachments', 
+          description: 'ESSENTIAL TOOL: Prepare complete attachment objects for FreeAgent expenses and transaction explanations. Automatically handles Base64 encoding, content type detection, and creates ready-to-use attachment objects.',
+          parameters: {
+            file_data: { type: 'string', required: true, description: 'Raw file data in any format (binary, hex, Base64, etc.) - will be automatically converted to Base64' },
+            file_name: { type: 'string', required: true, description: 'Filename with extension (used for content type detection)' },
+            description: { type: 'string', optional: true, description: 'Human-readable description of the attachment' },
+            auto_detect_content_type: { type: 'boolean', optional: true, default: true, description: 'Automatically detect MIME type from file extension' },
+            content_type: { type: 'enum', optional: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'Override auto-detected content type' }
+          },
+          key_features: [
+            'Automatic Base64 encoding of file data',
+            'Content type detection from file extension',
+            'Creates complete attachment objects ready for FreeAgent API',
+            'Handles various input formats (binary, hex, Base64, etc.)',
+            'Returns object that can be used directly in create_expense or create_bank_transaction_explanation'
+          ],
+          use_cases: [
+            'Adding receipt images to expense claims',
+            'Attaching invoices to bank transaction explanations',
+            'Converting any file format for FreeAgent upload'
+          ]
         }
       };
 
@@ -515,23 +540,35 @@ export const registerTools = (server: any) => {
         
         attachments: {
           title: 'File Attachment Support',
-          description: 'Upload and manage file attachments for expenses and transactions',
+          description: 'Upload and manage file attachments for expenses and transactions using the prepare_attachment tool',
+          essential_tool: 'prepare_attachment - Use this tool to convert any file data into FreeAgent-ready attachment objects',
           supported_formats: [
             'Images: PNG, JPEG, GIF',
             'Documents: PDF'
           ],
-          structure: {
+          workflow: [
+            '1. Use prepare_attachment tool with raw file data',
+            '2. Tool automatically handles Base64 encoding and content type detection',
+            '3. Use returned attachment object in create_expense or create_bank_transaction_explanation',
+            '4. Alternative: Pass raw file data directly to expense/transaction tools (auto-processed)'
+          ],
+          attachment_structure: {
             data: 'Base64 encoded file content',
             file_name: 'Original filename with extension',
             description: 'Optional description of the file',
             content_type: 'MIME type (e.g., image/png, application/pdf)'
           },
-          example: {
-            data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB...',
-            file_name: 'receipt.png',
-            description: 'Receipt for office supplies',
-            content_type: 'image/png'
-          }
+          example_usage: {
+            step1_prepare: 'prepare_attachment({ file_data: "raw_image_data", file_name: "receipt.png" })',
+            step2_use: 'create_expense({ ..., attachment: prepared_attachment_object })',
+            or_direct: 'create_expense({ ..., attachment: { data: "raw_data", file_name: "receipt.png" } })'
+          },
+          key_benefits: [
+            'Automatic Base64 encoding - no manual conversion needed',
+            'Content type auto-detection from file extensions',
+            'Built-in validation and error handling',
+            'Works with any file format that can be converted to Base64'
+          ]
         },
         
         mileage_claims: {
@@ -649,6 +686,109 @@ export const registerTools = (server: any) => {
       };
     }
   );
+
+
+  // Prepare complete attachment object
+  server.tool(
+    'prepare_attachment',
+    'Prepare a complete attachment object for expenses and transaction explanations',
+    {
+      file_data: z.string().describe('File data (will be Base64 encoded if not already)'),
+      file_name: z.string().describe('Filename with extension'),
+      description: z.string().optional().describe('Description of the attachment'),
+      auto_detect_content_type: z.boolean().optional().default(true).describe('Auto-detect content type from file extension'),
+      content_type: z.enum(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf']).optional().describe('Override content type'),
+    },
+    async (params: any) => {
+      try {
+        let base64Data = params.file_data;
+        
+        // Check if data is already Base64 encoded
+        const isBase64 = (str: string): boolean => {
+          try {
+            return btoa(atob(str)) === str;
+          } catch {
+            return false;
+          }
+        };
+
+        // If not Base64, encode it
+        if (!isBase64(params.file_data)) {
+          try {
+            const buffer = Buffer.from(params.file_data, 'binary');
+            base64Data = buffer.toString('base64');
+          } catch {
+            // Fallback: treat as UTF-8 and encode
+            const buffer = Buffer.from(params.file_data, 'utf8');
+            base64Data = buffer.toString('base64');
+          }
+        }
+
+        // Auto-detect or use provided content type
+        let contentType = params.content_type;
+        if (!contentType && params.auto_detect_content_type !== false) {
+          const ext = params.file_name.toLowerCase().split('.').pop();
+          switch (ext) {
+            case 'png': contentType = 'image/png'; break;
+            case 'jpg':
+            case 'jpeg': contentType = 'image/jpeg'; break;
+            case 'gif': contentType = 'image/gif'; break;
+            case 'pdf': contentType = 'application/x-pdf'; break;
+            default: contentType = 'image/png'; // Default fallback
+          }
+        }
+
+        const attachmentObject = {
+          data: base64Data,
+          file_name: params.file_name,
+          description: params.description,
+          content_type: contentType
+        };
+
+        // Remove undefined values
+        Object.keys(attachmentObject).forEach(key => {
+          if ((attachmentObject as any)[key] === undefined) {
+            delete (attachmentObject as any)[key];
+          }
+        });
+
+        const result = {
+          success: true,
+          attachment: attachmentObject,
+          usage: 'This attachment object can be used directly in create_expense or create_bank_transaction_explanation',
+          example_usage: {
+            expense: {
+              user: 'https://api.freeagent.com/v2/users/123',
+              category: 'https://api.freeagent.com/v2/categories/456', 
+              dated_on: '2024-01-15',
+              ec_status: 'TAXABLE',
+              attachment: attachmentObject
+            }
+          }
+        };
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: `Failed to prepare attachment: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              file_name: params.file_name
+            }, null, 2),
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
   // List timeslips tool
   server.tool(
     'list_timeslips',
@@ -1180,6 +1320,11 @@ export const registerTools = (server: any) => {
           explanationData.bank_account = params.bank_account;
         }
 
+        // Process attachment if provided
+        if (explanationData.attachment) {
+          explanationData.attachment = processAttachment(explanationData.attachment);
+        }
+
         // Remove undefined values
         Object.keys(explanationData).forEach(key => {
           if (explanationData[key] === undefined) {
@@ -1469,6 +1614,11 @@ export const registerTools = (server: any) => {
           rebill_type: params.rebill_type,
           receipt_reference: params.receipt_reference,
         };
+
+        // Process attachment if provided
+        if (expenseData.attachment) {
+          expenseData.attachment = processAttachment(expenseData.attachment);
+        }
 
         // Remove undefined values
         Object.keys(expenseData).forEach(key => {
