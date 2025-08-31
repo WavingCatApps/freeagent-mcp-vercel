@@ -507,6 +507,7 @@ export const registerTools = (server: any) => {
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL to associate with'),
       attachment: z.string().optional().describe('Attachment data or file reference'),
+      paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
     },
     async (params: any, { auth }: any = {}) => {
       try {
@@ -520,6 +521,7 @@ export const registerTools = (server: any) => {
           sales_tax_value: params.sales_tax_value,
           project: params.project,
           attachment: params.attachment,
+          paid_user: params.paid_user,
         };
 
         // Add bank transaction or bank account
@@ -574,6 +576,7 @@ export const registerTools = (server: any) => {
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL'),
       attachment: z.string().optional().describe('Attachment data or file reference'),
+      paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
     },
     async ({ id, ...updateData }: any, { auth }: any = {}) => {
       try {
@@ -1084,6 +1087,222 @@ export const registerTools = (server: any) => {
     async ({ nominal_code }: any, { auth }: any = {}) => {
       try {
         const result = await makeDirectRequest(`/categories/${nominal_code}`, {
+          method: 'DELETE'
+        }, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List users tool
+  server.tool(
+    'list_users',
+    'List users from FreeAgent',
+    {
+      view: z.enum(['all', 'staff', 'active_staff', 'advisors', 'active_advisors']).optional().describe('Filter users by type'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = params.view ? `?view=${params.view}` : '';
+        const result = await makeDirectRequest(`/users${queryParams}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single user tool
+  server.tool(
+    'get_user',
+    'Get details of a specific user by ID',
+    {
+      id: z.string().describe('User ID (use "me" for current authenticated user)'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/users/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get current user profile tool
+  server.tool(
+    'get_current_user',
+    'Get the current authenticated user profile',
+    {},
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest('/users/me', {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Create user tool
+  server.tool(
+    'create_user',
+    'Create a new user in FreeAgent',
+    {
+      first_name: z.string().describe('User first name'),
+      last_name: z.string().describe('User last name'),
+      email: z.string().describe('User email address'),
+      role: z.enum(['Owner', 'Director', 'Employee', 'Shareholder', 'Advisor']).describe('User role'),
+      permission_level: z.number().min(0).max(8).describe('Permission level (0-8, higher = more access)'),
+      ni_number: z.string().optional().describe('National Insurance Number'),
+      unique_tax_reference: z.string().optional().describe('Unique Tax Reference'),
+      send_invitation: z.boolean().optional().describe('Send invitation email (default: true)'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const userData: any = {
+          first_name: params.first_name,
+          last_name: params.last_name,
+          email: params.email,
+          role: params.role,
+          permission_level: params.permission_level,
+          ni_number: params.ni_number,
+          unique_tax_reference: params.unique_tax_reference,
+          send_invitation: params.send_invitation !== false, // Default to true
+        };
+
+        // Remove undefined values
+        Object.keys(userData).forEach(key => {
+          if (userData[key] === undefined) {
+            delete userData[key];
+          }
+        });
+
+        const result = await makeDirectRequest('/users', {
+          method: 'POST',
+          body: JSON.stringify({ user: userData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update user tool
+  server.tool(
+    'update_user',
+    'Update an existing user in FreeAgent',
+    {
+      id: z.string().describe('User ID (use "me" for current user)'),
+      first_name: z.string().optional().describe('User first name'),
+      last_name: z.string().optional().describe('User last name'),
+      email: z.string().optional().describe('User email address'),
+      role: z.enum(['Owner', 'Director', 'Employee', 'Shareholder', 'Advisor']).optional().describe('User role'),
+      permission_level: z.number().min(0).max(8).optional().describe('Permission level (0-8)'),
+      ni_number: z.string().optional().describe('National Insurance Number'),
+      unique_tax_reference: z.string().optional().describe('Unique Tax Reference'),
+    },
+    async ({ id, ...updateData }: any, { auth }: any = {}) => {
+      try {
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key];
+          }
+        });
+
+        const result = await makeDirectRequest(`/users/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ user: updateData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete user tool
+  server.tool(
+    'delete_user',
+    'Delete a user from FreeAgent',
+    {
+      id: z.string().describe('User ID to delete'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/users/${id}`, {
           method: 'DELETE'
         }, auth);
         return {
