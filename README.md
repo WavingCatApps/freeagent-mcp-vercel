@@ -4,6 +4,8 @@ A comprehensive MCP server for the [FreeAgent API](https://dev.freeagent.com) th
 
 **Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code, mcpli
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Deployment Options
 
 This server supports **two deployment modes**:
@@ -263,9 +265,10 @@ npm run deploy
 
 ## License
 
-MIT License - see the original [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Attribution
 
-- OAuth token setup script adapted from [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) by Mark Pitt
-- Original FreeAgent MCP implementation by [markpitt/freeagent-mcp](https://github.com/markpitt/freeagent-mcp)
+- OAuth token setup script adapted from [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) by Mark Pitt.
+- Original FreeAgent MCP implementation by [markpitt/freeagent-mcp](https://github.com/markpitt/freeagent-mcp).
+- FreeAgent for their [excellent API documentation](https://dev.freeagent.com/).
