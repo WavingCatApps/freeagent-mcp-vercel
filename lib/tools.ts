@@ -1,13 +1,10 @@
 import { z } from 'zod';
-import { createClient, makeDirectRequest, enhanceTimeslipData, processAttachment } from './utils.js';
+import { createClient, makeDirectRequest, enhanceTimeslipData } from './utils.js';
 
-// Attachment schema for expenses and bank transaction explanations
-const AttachmentSchema = z.object({
-  data: z.string().describe('Binary data of the file encoded as base64'),
-  file_name: z.string().describe('Name of the file'),
-  description: z.string().optional().describe('Description of the attachment'),
-  content_type: z.enum(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf']).describe('MIME type of the file'),
-}).describe('Attachment object with file data and metadata');
+// Attachment reference for expenses and bank transaction explanations
+// Note: Claude cannot upload files - only reference existing attachments
+// Attachments must be uploaded to FreeAgent via web or mobile app first
+const AttachmentSchema = z.string().describe('URL of an existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first, then referenced by their URL.');
 
 export const registerTools = (server: any) => {
   // Tool introspection and documentation tools
@@ -16,7 +13,7 @@ export const registerTools = (server: any) => {
     'Get detailed specifications and parameter information for all available FreeAgent MCP tools',
     {
       tool_name: z.string().optional().describe('Optional: Get details for a specific tool name'),
-      category: z.enum(['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'attachments', 'introspection']).optional().describe('Optional: Filter tools by category'),
+      category: z.enum(['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection']).optional().describe('Optional: Filter tools by category'),
     },
     async (params: any) => {
       const toolSpecs = {
@@ -128,7 +125,7 @@ export const registerTools = (server: any) => {
         },
         create_expense: {
           category: 'expenses',
-          description: 'Create a new expense in FreeAgent with full support for mileage claims, attachments, and rebilling',
+          description: 'Create a new expense in FreeAgent with support for referencing existing attachments. Includes full support for mileage claims and rebilling.',
           parameters: {
             user: { type: 'string', required: true, description: 'User URL (expense claimant)' },
             category: { type: 'string', required: true, description: 'Category URL for the expense' },
@@ -139,17 +136,7 @@ export const registerTools = (server: any) => {
             sales_tax_rate: { type: 'number', optional: true, description: 'Sales tax rate as percentage' },
             sales_tax_value: { type: 'number', optional: true, description: 'Manual sales tax amount' },
             project: { type: 'string', optional: true, description: 'Project URL to associate with' },
-            attachment: { 
-              type: 'object', 
-              optional: true, 
-              description: 'File attachment with data and metadata',
-              structure: {
-                data: { type: 'string', required: true, description: 'Binary data encoded as base64' },
-                file_name: { type: 'string', required: true, description: 'Name of the file' },
-                description: { type: 'string', optional: true, description: 'Description of the attachment' },
-                content_type: { type: 'enum', required: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'MIME type' }
-              }
-            },
+            file: { type: 'string', optional: true, description: 'URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.' },
             currency: { type: 'string', optional: true, description: 'Currency code (e.g., GBP, USD)' },
             mileage: { type: 'number', optional: true, description: 'Mileage for travel expenses' },
             vehicle_type: { type: 'enum', optional: true, values: ['Car', 'Motorcycle', 'Bicycle'], description: 'Vehicle type for mileage claims' },
@@ -234,7 +221,7 @@ export const registerTools = (server: any) => {
         },
         create_bank_transaction_explanation: {
           category: 'bank_transaction_explanations',
-          description: 'Create an explanation for a bank transaction with full tax and attachment support',
+          description: 'Create an explanation for a bank transaction with IMAGE ATTACHMENT support. Upload supporting images (receipts, invoices) in PNG, JPEG, GIF, or PDF format. Includes full tax handling.',
           parameters: {
             bank_transaction: { type: 'string', optional: true, description: 'Bank transaction URL to explain' },
             bank_account: { type: 'string', optional: true, description: 'Bank account URL (alternative to bank_transaction)' },
@@ -246,19 +233,10 @@ export const registerTools = (server: any) => {
             sales_tax_rate: { type: 'number', optional: true, description: 'Sales tax rate as percentage' },
             sales_tax_value: { type: 'number', optional: true, description: 'Manual sales tax amount' },
             project: { type: 'string', optional: true, description: 'Project URL to associate with' },
-            attachment: { 
-              type: 'object', 
-              optional: true, 
-              description: 'File attachment with data and metadata',
-              structure: {
-                data: { type: 'string', required: true, description: 'Binary data encoded as base64' },
-                file_name: { type: 'string', required: true, description: 'Name of the file' },
-                description: { type: 'string', optional: true, description: 'Description of the attachment' },
-                content_type: { type: 'enum', required: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'MIME type' }
-              }
-            },
+            file: { type: 'string', optional: true, description: 'URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.' },
             paid_user: { type: 'string', optional: true, description: 'User URL for expense payments (Money Paid to User transactions)' },
-            receipt_reference: { type: 'string', optional: true, description: 'Receipt reference number or identifier' }
+            receipt_reference: { type: 'string', optional: true, description: 'Receipt reference number or identifier' },
+            marked_for_review: { type: 'boolean', optional: true, description: 'Whether explanation is marked for review (true=needs approval, false=approved)' }
           }
         },
         update_bank_transaction_explanation: {
@@ -393,7 +371,7 @@ export const registerTools = (server: any) => {
           description: 'Get detailed specifications for all available tools',
           parameters: {
             tool_name: { type: 'string', optional: true, description: 'Get details for a specific tool' },
-            category: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'attachments', 'introspection'], description: 'Filter tools by category' }
+            category: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection'], description: 'Filter tools by category' }
           }
         },
         get_api_docs: {
@@ -412,30 +390,7 @@ export const registerTools = (server: any) => {
           }
         },
 
-        // File handling tools
-        prepare_attachment: {
-          category: 'attachments', 
-          description: 'ESSENTIAL TOOL: Prepare complete attachment objects for FreeAgent expenses and transaction explanations. Automatically handles Base64 encoding, content type detection, and creates ready-to-use attachment objects.',
-          parameters: {
-            file_data: { type: 'string', required: true, description: 'Raw file data in any format (binary, hex, Base64, etc.) - will be automatically converted to Base64' },
-            file_name: { type: 'string', required: true, description: 'Filename with extension (used for content type detection)' },
-            description: { type: 'string', optional: true, description: 'Human-readable description of the attachment' },
-            auto_detect_content_type: { type: 'boolean', optional: true, default: true, description: 'Automatically detect MIME type from file extension' },
-            content_type: { type: 'enum', optional: true, values: ['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf'], description: 'Override auto-detected content type' }
-          },
-          key_features: [
-            'Automatic Base64 encoding of file data',
-            'Content type detection from file extension',
-            'Creates complete attachment objects ready for FreeAgent API',
-            'Handles various input formats (binary, hex, Base64, etc.)',
-            'Returns object that can be used directly in create_expense or create_bank_transaction_explanation'
-          ],
-          use_cases: [
-            'Adding receipt images to expense claims',
-            'Attaching invoices to bank transaction explanations',
-            'Converting any file format for FreeAgent upload'
-          ]
-        }
+        // Attachment management tools - Note: FreeAgent API does not provide list attachments endpoint
       };
 
       let result: any = toolSpecs;
@@ -461,25 +416,55 @@ export const registerTools = (server: any) => {
     'get_api_docs',
     'Get FreeAgent API documentation and usage examples',
     {
-      topic: z.enum(['overview', 'authentication', 'expenses', 'bank_transactions', 'attachments', 'mileage_claims', 'tax_handling']).optional().describe('Specific documentation topic'),
+      topic: z.enum(['overview', 'authentication', 'expenses', 'bank_transactions', 'attachments', 'image_processing', 'mileage_claims', 'tax_handling']).optional().describe('Specific documentation topic'),
     },
     async (params: any) => {
       const docs = {
         overview: {
           title: 'FreeAgent MCP Server Overview',
           description: 'This MCP server provides comprehensive access to FreeAgent accounting functionality',
-          features: [
+          core_features: [
             'Complete timeslip management with timer support',
-            'Expense tracking with mileage claims and attachments',
+            'Expense tracking with mileage claims and existing attachment references',
             'Bank account and transaction management',
-            'Transaction explanations with tax handling',
+            'Transaction explanations with existing attachment support',
             'Project and task management',
             'User management with role-based permissions',
             'Category management for accounting',
-            'File attachment support (images and PDFs)'
+            'Attachment management (existing files only - upload via FreeAgent web/mobile first)'
+          ],
+          attachment_workflow: [
+            'Attachments must be uploaded via FreeAgent web/mobile first',
+            'Reference attachment URLs in expenses and transaction explanations',
+            'View attachment details with get_attachment',
+            'Delete unnecessary attachments with delete_attachment'
           ],
           authentication: 'Uses OAuth 2.0 with Bearer token authentication',
           base_url: 'https://api.freeagent.com/v2'
+        },
+        
+        smart_capture_approval: {
+          title: 'Smart Capture Approval Workflow',
+          description: 'Approve pre-populated transaction explanations created by FreeAgent Smart Capture',
+          workflow: [
+            '1. List transactions marked for review: list_bank_transaction_explanations({ view: "marked_for_review" })',
+            '2. Review the pre-populated explanation details',
+            '3. Approve by updating: update_bank_transaction_explanation({ id: "...", marked_for_review: false })',
+            '4. Or modify and approve: update_bank_transaction_explanation({ id: "...", description: "updated", marked_for_review: false })'
+          ],
+          key_features: [
+            'Smart Capture automatically categorizes receipts and creates explanations',
+            'Explanations are marked with marked_for_review: true',
+            'Use marked_for_review: false to approve the explanation',
+            'Can modify explanation details before approval',
+            'Bulk approval possible by iterating through marked_for_review transactions'
+          ],
+          benefits: [
+            'Streamlines approval of automatically categorized transactions',
+            'Reduces manual data entry for receipt processing',
+            'Enables programmatic approval workflows',
+            'Maintains audit trail of approved vs pending transactions'
+          ]
         },
         
         authentication: {
@@ -539,35 +524,88 @@ export const registerTools = (server: any) => {
         },
         
         attachments: {
-          title: 'File Attachment Support',
-          description: 'Upload and manage file attachments for expenses and transactions using the prepare_attachment tool',
-          essential_tool: 'prepare_attachment - Use this tool to convert any file data into FreeAgent-ready attachment objects',
-          supported_formats: [
-            'Images: PNG, JPEG, GIF',
-            'Documents: PDF'
+          title: 'Attachment Management',
+          description: 'Work with existing attachments in FreeAgent for expenses and transaction explanations',
+          key_principle: 'Claude cannot upload files - only reference existing attachments in FreeAgent. Attachments must be uploaded via web or mobile app first. Note: Attachment URLs are impossible to see on mobile app and not immediately obvious on web interface.',
+          available_tools: [
+            'get_attachment - View details of a specific attachment',
+            'delete_attachment - Remove attachments that are no longer needed'
           ],
           workflow: [
-            '1. Use prepare_attachment tool with raw file data',
-            '2. Tool automatically handles Base64 encoding and content type detection',
-            '3. Use returned attachment object in create_expense or create_bank_transaction_explanation',
-            '4. Alternative: Pass raw file data directly to expense/transaction tools (auto-processed)'
+            '1. Upload attachments via FreeAgent web or mobile app first',
+            '2. Find attachment URLs from FreeAgent web interface (not visible on mobile)',
+            '3. Reference the attachment URL in create_expense or create_bank_transaction_explanation using the file parameter',
+            '4. Alternative: Use FreeAgent Smart Capture (10/month limit) for automatic processing'
           ],
-          attachment_structure: {
-            data: 'Base64 encoded file content',
-            file_name: 'Original filename with extension',
-            description: 'Optional description of the file',
-            content_type: 'MIME type (e.g., image/png, application/pdf)'
+          usage_examples: {
+            note: 'Attachments must be uploaded via FreeAgent web/mobile first. URLs not visible on mobile, consider Smart Capture (10/month)',
+            reference_in_expense: 'create_expense({ user: "...", category: "...", file: "https://api.freeagent.com/v2/attachments/123" })',
+            reference_in_explanation: 'create_bank_transaction_explanation({ ..., file: "https://api.freeagent.com/v2/attachments/123" })'
           },
-          example_usage: {
-            step1_prepare: 'prepare_attachment({ file_data: "raw_image_data", file_name: "receipt.png" })',
-            step2_use: 'create_expense({ ..., attachment: prepared_attachment_object })',
-            or_direct: 'create_expense({ ..., attachment: { data: "raw_data", file_name: "receipt.png" } })'
+          attachment_details: {
+            url: 'Unique attachment identifier',
+            content_src: 'URL to view the attachment',
+            file_name: 'Original filename',
+            file_size: 'File size in bytes',
+            content_type: 'MIME type (image/png, application/pdf, etc.)',
+            description: 'Optional attachment description'
+          }
+        },
+        
+        image_processing: {
+          title: 'Image Processing Capabilities',
+          description: 'The FreeAgent MCP server has comprehensive image processing capabilities for receipt and document uploads',
+          supported_formats: [
+            'PNG images (image/png)',
+            'JPEG images (image/jpeg, image/jpg)', 
+            'GIF images (image/gif)',
+            'PDF documents (application/x-pdf)'
+          ],
+          image_processing_tools: {
+            prepare_attachment: {
+              purpose: 'Primary tool for image processing',
+              capabilities: [
+                'Accepts raw image data in any format',
+                'Automatically converts to Base64 encoding',
+                'Detects content type from file extension',
+                'Creates complete attachment objects',
+                'Handles binary, hex, UTF-8, and other input formats'
+              ],
+              usage: 'prepare_attachment({ file_data: "raw_image_data", file_name: "receipt.png" })'
+            }
+          },
+          workflow_examples: {
+            receipt_upload: {
+              step1: 'Get image data (from file, URL, or other source)',
+              step2: 'Use prepare_attachment to process the image',
+              step3: 'Create expense with the processed attachment',
+              example: {
+                prepare: 'prepare_attachment({ file_data: image_data, file_name: "receipt.jpg" })',
+                use: 'create_expense({ user: "...", category: "...", attachment: prepared_attachment })'
+              }
+            },
+            invoice_processing: {
+              step1: 'Get PDF or image invoice data',
+              step2: 'Process with prepare_attachment',  
+              step3: 'Attach to bank transaction explanation',
+              example: {
+                prepare: 'prepare_attachment({ file_data: pdf_data, file_name: "invoice.pdf" })',
+                use: 'create_bank_transaction_explanation({ ..., attachment: prepared_attachment })'
+              }
+            }
+          },
+          automatic_processing: {
+            description: 'Expense and transaction explanation tools also have built-in image processing',
+            direct_usage: 'You can pass raw image data directly to create_expense or create_bank_transaction_explanation',
+            example: 'create_expense({ ..., attachment: { data: "raw_image", file_name: "receipt.png" } })',
+            note: 'The tools will automatically process and encode the image data'
           },
           key_benefits: [
-            'Automatic Base64 encoding - no manual conversion needed',
-            'Content type auto-detection from file extensions',
+            'No need for external image processing tools',
+            'Handles all common receipt and invoice formats',
+            'Automatic Base64 encoding eliminates manual conversion',
             'Built-in validation and error handling',
-            'Works with any file format that can be converted to Base64'
+            'Seamless integration with FreeAgent accounting workflows'
           ]
         },
         
@@ -688,106 +726,6 @@ export const registerTools = (server: any) => {
   );
 
 
-  // Prepare complete attachment object
-  server.tool(
-    'prepare_attachment',
-    'Prepare a complete attachment object for expenses and transaction explanations',
-    {
-      file_data: z.string().describe('File data (will be Base64 encoded if not already)'),
-      file_name: z.string().describe('Filename with extension'),
-      description: z.string().optional().describe('Description of the attachment'),
-      auto_detect_content_type: z.boolean().optional().default(true).describe('Auto-detect content type from file extension'),
-      content_type: z.enum(['image/png', 'image/x-png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/x-pdf']).optional().describe('Override content type'),
-    },
-    async (params: any) => {
-      try {
-        let base64Data = params.file_data;
-        
-        // Check if data is already Base64 encoded
-        const isBase64 = (str: string): boolean => {
-          try {
-            return btoa(atob(str)) === str;
-          } catch {
-            return false;
-          }
-        };
-
-        // If not Base64, encode it
-        if (!isBase64(params.file_data)) {
-          try {
-            const buffer = Buffer.from(params.file_data, 'binary');
-            base64Data = buffer.toString('base64');
-          } catch {
-            // Fallback: treat as UTF-8 and encode
-            const buffer = Buffer.from(params.file_data, 'utf8');
-            base64Data = buffer.toString('base64');
-          }
-        }
-
-        // Auto-detect or use provided content type
-        let contentType = params.content_type;
-        if (!contentType && params.auto_detect_content_type !== false) {
-          const ext = params.file_name.toLowerCase().split('.').pop();
-          switch (ext) {
-            case 'png': contentType = 'image/png'; break;
-            case 'jpg':
-            case 'jpeg': contentType = 'image/jpeg'; break;
-            case 'gif': contentType = 'image/gif'; break;
-            case 'pdf': contentType = 'application/x-pdf'; break;
-            default: contentType = 'image/png'; // Default fallback
-          }
-        }
-
-        const attachmentObject = {
-          data: base64Data,
-          file_name: params.file_name,
-          description: params.description,
-          content_type: contentType
-        };
-
-        // Remove undefined values
-        Object.keys(attachmentObject).forEach(key => {
-          if ((attachmentObject as any)[key] === undefined) {
-            delete (attachmentObject as any)[key];
-          }
-        });
-
-        const result = {
-          success: true,
-          attachment: attachmentObject,
-          usage: 'This attachment object can be used directly in create_expense or create_bank_transaction_explanation',
-          example_usage: {
-            expense: {
-              user: 'https://api.freeagent.com/v2/users/123',
-              category: 'https://api.freeagent.com/v2/categories/456', 
-              dated_on: '2024-01-15',
-              ec_status: 'TAXABLE',
-              attachment: attachmentObject
-            }
-          }
-        };
-
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify(result, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              success: false,
-              error: `Failed to prepare attachment: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              file_name: params.file_name
-            }, null, 2),
-          }],
-          isError: true,
-        };
-      }
-    }
-  );
 
   // List timeslips tool
   server.tool(
@@ -1293,9 +1231,10 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage (e.g., 20 for 20%)'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL to associate with'),
-      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.'),
       paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
       receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
+      marked_for_review: z.boolean().optional().describe('Whether explanation is marked for review (true=needs approval, false=approved)'),
     },
     async (params: any, { auth }: any = {}) => {
       try {
@@ -1308,7 +1247,7 @@ export const registerTools = (server: any) => {
           sales_tax_rate: params.sales_tax_rate,
           sales_tax_value: params.sales_tax_value,
           project: params.project,
-          attachment: params.attachment,
+          file: params.file,
           paid_user: params.paid_user,
           receipt_reference: params.receipt_reference,
         };
@@ -1320,10 +1259,6 @@ export const registerTools = (server: any) => {
           explanationData.bank_account = params.bank_account;
         }
 
-        // Process attachment if provided
-        if (explanationData.attachment) {
-          explanationData.attachment = processAttachment(explanationData.attachment);
-        }
 
         // Remove undefined values
         Object.keys(explanationData).forEach(key => {
@@ -1369,9 +1304,10 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL'),
-      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.'),
       paid_user: z.string().optional().describe('User URL for expense payments (Money Paid to User transactions)'),
       receipt_reference: z.string().optional().describe('Receipt reference number or identifier'),
+      marked_for_review: z.boolean().optional().describe('Whether explanation is marked for review (true=needs approval, false=approved)'),
     },
     async ({ id, ...updateData }: any, { auth }: any = {}) => {
       try {
@@ -1578,7 +1514,7 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL to associate with'),
-      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.'),
       currency: z.string().optional().describe('Currency code (e.g., GBP, USD)'),
       mileage: z.number().optional().describe('Mileage for travel expenses'),
       vehicle_type: z.enum(['Car', 'Motorcycle', 'Bicycle']).optional().describe('Vehicle type for mileage claims'),
@@ -1602,7 +1538,7 @@ export const registerTools = (server: any) => {
           sales_tax_rate: params.sales_tax_rate,
           sales_tax_value: params.sales_tax_value,
           project: params.project,
-          attachment: params.attachment,
+          file: params.file,
           currency: params.currency,
           mileage: params.mileage,
           vehicle_type: params.vehicle_type,
@@ -1615,10 +1551,6 @@ export const registerTools = (server: any) => {
           receipt_reference: params.receipt_reference,
         };
 
-        // Process attachment if provided
-        if (expenseData.attachment) {
-          expenseData.attachment = processAttachment(expenseData.attachment);
-        }
 
         // Remove undefined values
         Object.keys(expenseData).forEach(key => {
@@ -1665,7 +1597,7 @@ export const registerTools = (server: any) => {
       sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
       sales_tax_value: z.number().optional().describe('Manual sales tax amount'),
       project: z.string().optional().describe('Project URL'),
-      attachment: AttachmentSchema.optional().describe('File attachment with data and metadata'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first.'),
       currency: z.string().optional().describe('Currency code'),
       mileage: z.number().optional().describe('Mileage for travel expenses'),
       vehicle_type: z.enum(['Car', 'Motorcycle', 'Bicycle']).optional().describe('Vehicle type for mileage claims'),

@@ -1,19 +1,36 @@
 # FreeAgent MCP Server for Vercel
 
-A Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms and development tools to interact with FreeAgent for managing timeslips and timers, with a few new features added.
+A comprehensive Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms and development tools to interact with FreeAgent for full accounting operations including timeslips, expenses, bank transactions, and more.
 
 **Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code
 
 ## Features
 
-- **List Timeslips**: Filter by date range, view options (all/unbilled/running)
-- **Create Timeslips**: Add new time entries with task, user, project details
-- **Update Timeslips**: Modify existing time entries
-- **Get Timeslips**: Retrieve specific timeslips by ID
-- **Delete Timeslips**: Remove time entries from FreeAgent
+### Time Tracking
+- **Timeslips**: Create, update, delete, and list time entries with filtering
 - **Timer Controls**: Start and stop timers for timeslips
-- **Project Management**: List all projects with filtering options
-- **Task Management**: Create new tasks for projects
+- **Project Management**: List projects with filtering options
+- **Task Management**: Create and manage tasks for projects
+
+### Financial Management
+- **Bank Accounts**: List and manage multiple bank accounts
+- **Bank Transactions**: List, filter, and manage bank transactions
+- **Transaction Explanations**: Create detailed explanations for transactions with tax handling
+- **Expenses**: Full expense management with mileage claims and receipt handling
+- **Categories**: Manage expense and income categories
+
+### User Management
+- **Users**: List and manage FreeAgent users for expense assignments
+
+### Attachments
+- **Attachment Management**: Reference and manage existing attachments for expenses and transactions
+- **⚠️ IMPORTANT**: Attachments must be uploaded to FreeAgent via the web interface or mobile app first - Claude and other AI tools can only reference existing attachments, not upload new files
+
+### Advanced Features
+- **Tax Support**: Handle sales tax, VAT, and other tax calculations
+- **Multi-currency**: Support for different currencies
+- **Mileage Claims**: Detailed vehicle and engine type tracking
+- **Tool Introspection**: Built-in documentation and parameter validation
 - **Serverless**: Runs on Vercel's edge functions for global availability
 
 ## Setup
@@ -142,78 +159,46 @@ https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
 
 ## Available Tools
 
-### list_timeslips
-List and filter timeslips from FreeAgent.
+This MCP server provides 40+ tools across multiple categories. Key tools include:
 
-**Parameters:**
-- `from_date` (optional): Start date in YYYY-MM-DD format
-- `to_date` (optional): End date in YYYY-MM-DD format  
-- `view` (optional): Filter view ("all", "unbilled", or "running")
-- `user` (optional): User URL to filter by
-- `project` (optional): Project URL to filter by
-- `task` (optional): Task URL to filter by
+### Time Tracking Tools
+- `list_timeslips` - List and filter timeslips with date ranges and status filters
+- `create_timeslip` - Create new time entries with project, task, and user details
+- `update_timeslip` - Modify existing time entries
+- `start_timer`/`stop_timer` - Control timeslip timers
+- `list_projects` - List projects with filtering options
+- `create_task` - Create new tasks for projects
 
-### create_timeslip
-Create a new timeslip in FreeAgent.
+### Financial Tools
+- `list_bank_accounts` - List all connected bank accounts
+- `list_bank_transactions` - List transactions with comprehensive filtering
+- `create_bank_transaction_explanation` - Explain transactions with tax handling
+- `list_expenses` - List expenses with filtering and categorization
+- `create_expense` - Create expenses with mileage claims and attachments
+- `list_categories` - Manage expense and income categories
 
-**Parameters:**
-- `task`: Task URL or ID
-- `user`: User URL or ID
-- `project`: Project URL or ID
-- `dated_on`: Date in YYYY-MM-DD format
-- `hours`: Number of hours
-- `comment` (optional): Optional comment
+### User Management
+- `list_users` - List FreeAgent users for expense assignments
 
-### update_timeslip
-Update an existing timeslip in FreeAgent.
+### Attachment Tools
+- `get_attachment` - View attachment details
+- `delete_attachment` - Remove unnecessary attachments
 
-**Parameters:**
-- `id`: Timeslip ID
-- `task` (optional): Task URL or ID
-- `user` (optional): User URL or ID
-- `project` (optional): Project URL or ID
-- `dated_on` (optional): Date in YYYY-MM-DD format
-- `hours` (optional): Number of hours
-- `comment` (optional): Comment
+**⚠️ ATTACHMENT IMPORTANT LIMITATIONS**: 
+- Attachments must be uploaded to FreeAgent via the web interface or mobile app first
+- AI tools cannot upload binary files - they can only reference existing attachments by URL
+- FreeAgent's API does not provide a way to list/discover attachments - you must know the attachment URL from the FreeAgent interface
+- **Attachment URLs are impossible to see on the mobile app and not immediately obvious on the web interface**
+- **Workaround**: Use FreeAgent's Smart Capture feature to automatically extract data and create expenses/explanations (limited to 10 smart captures per month for most customers)
 
-### start_timer
-Start a timer for a timeslip in FreeAgent.
+### Tool Discovery
+- `describe_tools` - Get detailed specifications for all available tools
+- `get_api_docs` - Access comprehensive API documentation
+- `validate_parameters` - Validate tool parameters before execution
 
-**Parameters:**
-- `id`: Timeslip ID
+Use the `describe_tools` command within your AI platform to see all available tools with their complete parameter specifications.
 
-### stop_timer
-Stop a timer for a timeslip in FreeAgent.
-
-**Parameters:**
-- `id`: Timeslip ID
-
-### list_projects
-List all projects in FreeAgent.
-
-**Parameters:**
-- `view` (optional): Filter view ("all", "active", or "completed") - default: "active"
-
-### create_task
-Create a new task for a project in FreeAgent.
-
-**Parameters:**
-- `project`: Project URL or ID
-- `name`: Task name
-- `is_recurring` (optional): Whether this is a recurring task (default: false)
-- `status` (optional): Task status ("Active", "Hidden", or "Completed") - default: "Active"
-
-### get_timeslip
-Get a specific timeslip by ID.
-
-**Parameters:**
-- `id`: Timeslip ID
-
-### delete_timeslip
-Delete a timeslip from FreeAgent.
-
-**Parameters:**
-- `id`: Timeslip ID
+**💡 Smart Capture Alternative**: For automated receipt processing, consider using FreeAgent's Smart Capture feature instead of manual attachment handling. Smart Capture automatically extracts data from receipts and creates expenses/explanations, though most customers are limited to 10 smart captures per month (additional captures available as a paid extra).
 
 ## Security Features
 
@@ -230,8 +215,8 @@ This MCP server includes several security measures:
 # Install dependencies
 npm install
 
-# Run locally
-npm run dev
+# Run locally with Vercel CLI
+vercel dev
 
 # Deploy to Vercel
 npm run deploy
