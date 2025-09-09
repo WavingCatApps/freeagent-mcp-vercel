@@ -9,10 +9,11 @@
     "esModuleInterop": true,
     "allowJs": true,
     "strict": true,
-    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "./",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["api/**/*"],
-  "exclude": ["node_modules", ".vercel"]
+  "include": ["src/**/*", "lib/**/*", "api/**/*"],
+  "exclude": ["node_modules", ".vercel", "dist"]
 }

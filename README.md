@@ -1,8 +1,15 @@
-# FreeAgent MCP Server for Vercel
+# FreeAgent MCP Server
 
-A comprehensive Vercel-hosted wrapper for the [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) that enables AI platforms and development tools to interact with FreeAgent for full accounting operations including timeslips, expenses, bank transactions, and more.
+A comprehensive MCP server for the [FreeAgent API](https://dev.freeagent.com) that enables AI platforms and development tools to interact with FreeAgent for full accounting operations including timeslips, expenses, bills, bank transactions, and more.
 
-**Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code
+**Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code, mcpli
+
+## Deployment Options
+
+This server supports **two deployment modes**:
+
+1. **Vercel Deployment** - Run as a hosted HTTP MCP server
+2. **Local stdio** - Run locally for tools like mcpli
 
 ## Features
 
@@ -17,6 +24,7 @@ A comprehensive Vercel-hosted wrapper for the [FreeAgent MCP Server](https://git
 - **Bank Transactions**: List, filter, and manage bank transactions
 - **Transaction Explanations**: Create detailed explanations for transactions with tax handling
 - **Expenses**: Full expense management with mileage claims and receipt handling
+- **Bills**: Complete supplier bill management with line items and VAT Reverse Charge support
 - **Categories**: Manage expense and income categories
 
 ### User Management
@@ -135,6 +143,35 @@ Add the following to your Claude Desktop MCP settings:
   }
 }
 ```
+
+#### mcpli Usage
+For command-line usage with [mcpli](https://github.com/cameroncooke/mcpli):
+
+1. **Install dependencies and build**:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+2. **Set environment variables**:
+   ```bash
+   export FREEAGENT_CLIENT_ID="your_client_id"
+   export FREEAGENT_CLIENT_SECRET="your_client_secret"
+   export FREEAGENT_ACCESS_TOKEN="your_access_token"
+   export FREEAGENT_REFRESH_TOKEN="your_refresh_token"
+   ```
+
+3. **Use with mcpli**:
+   ```bash
+   # List timeslips
+   mcpli list_timeslips -- node ./dist/index.js
+   
+   # List projects
+   mcpli list_projects -- node ./dist/index.js
+   
+   # Get help for all available tools
+   mcpli --help -- node ./dist/index.js
+   ```
 
 #### Other AI Platforms & Development Tools
 Use the HTTP endpoint directly in your platform's MCP configuration:

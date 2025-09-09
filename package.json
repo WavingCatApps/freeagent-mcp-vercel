@@ -4,7 +4,12 @@
   "type": "module",
   "description": "FreeAgent MCP Server for Vercel deployment",
   "main": "api/mcp.ts",
+  "bin": {
+    "freeagent-mcp": "./dist/index.js"
+  },
   "scripts": {
+    "build": "tsc",
+    "start": "node ./dist/index.js",
     "deploy": "vercel deploy",
     "deploy:prod": "vercel deploy --prod",
     "get-tokens": "node scripts/get-oauth-tokens.js"
@@ -19,6 +24,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
     "mcp-handler": "latest",
     "zod": "^3.22.4",
     "freeagent-mcp": "github:markpitt/freeagent-mcp"
