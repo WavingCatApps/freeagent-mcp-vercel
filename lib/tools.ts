@@ -13,7 +13,7 @@ export const registerTools = (server: any) => {
     'Get detailed specifications and parameter information for all available FreeAgent MCP tools',
     {
       tool_name: z.string().optional().describe('Optional: Get details for a specific tool name'),
-      category: z.enum(['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection']).optional().describe('Optional: Filter tools by category'),
+      category: z.enum(['timeslips', 'projects', 'expenses', 'bills', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection']).optional().describe('Optional: Filter tools by category'),
     },
     async (params: any) => {
       const toolSpecs = {
@@ -100,6 +100,60 @@ export const registerTools = (server: any) => {
             name: { type: 'string', required: true, description: 'Task name' },
             is_recurring: { type: 'boolean', optional: true, default: false, description: 'Whether this is a recurring task' },
             status: { type: 'enum', optional: true, values: ['Active', 'Hidden', 'Completed'], default: 'Active', description: 'Task status' }
+          }
+        },
+
+        // Bill tools
+        list_bills: {
+          category: 'bills',
+          description: 'List bills from FreeAgent',
+          parameters: {
+            view: { type: 'enum', optional: true, values: ['all', 'open', 'overdue', 'paid', 'recurring'], description: 'Filter view' },
+            from_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'Start date' },
+            to_date: { type: 'string', optional: true, format: 'YYYY-MM-DD', description: 'End date' },
+            updated_since: { type: 'string', optional: true, format: 'ISO timestamp', description: 'Get bills updated since' },
+            contact: { type: 'string', optional: true, description: 'Contact URL to filter by' },
+            project: { type: 'string', optional: true, description: 'Project URL to filter by' }
+          }
+        },
+        get_bill: {
+          category: 'bills',
+          description: 'Get a specific bill by ID',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bill ID' }
+          }
+        },
+        create_bill: {
+          category: 'bills',
+          description: 'Create a new bill in FreeAgent with full support for line items, attachments, and project rebilling',
+          parameters: {
+            contact: { type: 'string', required: true, description: 'Contact URL who is being billed' },
+            reference: { type: 'string', required: true, description: 'Bill reference number' },
+            dated_on: { type: 'string', required: true, format: 'YYYY-MM-DD', description: 'Bill date' },
+            due_on: { type: 'string', required: true, format: 'YYYY-MM-DD', description: 'Bill due date' },
+            bill_items: { type: 'array', required: true, description: 'Array of bill line items (max 40 items)' },
+            currency: { type: 'string', optional: true, description: 'Currency code (e.g., GBP, USD)' },
+            project: { type: 'string', optional: true, description: 'Project URL to associate with' },
+            ec_status: { type: 'enum', optional: true, values: ['UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS'], description: 'VAT status for reporting purposes' },
+            file: { type: 'string', optional: true, description: 'URL of existing attachment in FreeAgent' },
+            recurring: { type: 'enum', optional: true, values: ['Weekly', 'Every 2 Weeks', 'Every 4 Weeks', 'Monthly', 'Every 2 Months', 'Quarterly', 'Every 6 Months', 'Annually'], description: 'Recurring frequency' },
+            rebill_type: { type: 'enum', optional: true, values: ['marked_up', 'marked_down', 'at_cost'], description: 'Rebill type for project billing' },
+            rebill_factor: { type: 'number', optional: true, description: 'Rebill percentage (0-100)' }
+          }
+        },
+        update_bill: {
+          category: 'bills',
+          description: 'Update an existing bill',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bill ID' }
+            // All other parameters same as create_bill but optional
+          }
+        },
+        delete_bill: {
+          category: 'bills',
+          description: 'Delete a bill',
+          parameters: {
+            id: { type: 'string', required: true, description: 'Bill ID' }
           }
         },
 
@@ -372,7 +426,7 @@ export const registerTools = (server: any) => {
           description: 'Get detailed specifications for all available tools',
           parameters: {
             tool_name: { type: 'string', optional: true, description: 'Get details for a specific tool' },
-            category: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection'], description: 'Filter tools by category' }
+            category: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bills', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection'], description: 'Filter tools by category' }
           }
         },
         get_api_docs: {
@@ -417,7 +471,7 @@ export const registerTools = (server: any) => {
     'get_api_docs',
     'Get FreeAgent API documentation and usage examples',
     {
-      topic: z.enum(['overview', 'authentication', 'expenses', 'bank_transactions', 'attachments', 'image_processing', 'mileage_claims', 'tax_handling']).optional().describe('Specific documentation topic'),
+      topic: z.enum(['overview', 'authentication', 'expenses', 'bills', 'bank_transactions', 'attachments', 'image_processing', 'mileage_claims', 'tax_handling']).optional().describe('Specific documentation topic'),
     },
     async (params: any) => {
       const docs = {
@@ -496,6 +550,57 @@ export const registerTools = (server: any) => {
             gross_value: 45.99,
             description: 'Office supplies',
             receipt_reference: 'REC-2024-001'
+          }
+        },
+        
+        bills: {
+          title: 'Bill Management',
+          description: 'Create and manage supplier bills with comprehensive line item support',
+          key_features: [
+            'Multi-line bill items (up to 40 per bill)',
+            'Multi-currency support',
+            'Project association and rebilling',
+            'VAT/EC status handling including Reverse Charge',
+            'Attachment support (up to 5MB)',
+            'Recurring bill scheduling',
+            'Stock item tracking',
+            'Advanced filtering and status management'
+          ],
+          bill_statuses: [
+            'Zero Value - Bills with no value',
+            'Open - Unpaid bills',
+            'Paid - Fully paid bills', 
+            'Overdue - Bills past due date',
+            'Refunded - Bills that have been refunded'
+          ],
+          recurring_options: ['Weekly', 'Every 2 Weeks', 'Every 4 Weeks', 'Monthly', 'Every 2 Months', 'Quarterly', 'Every 6 Months', 'Annually'],
+          bill_items_structure: {
+            description: 'Each bill item contains',
+            fields: [
+              'description - Item description',
+              'price - Unit price',
+              'quantity - Quantity ordered',
+              'sales_tax_rate - Tax rate percentage', 
+              'category - Category URL for accounting',
+              'project - Optional project association',
+              'stock_item - Optional stock item reference'
+            ]
+          },
+          example_bill: {
+            contact: 'https://api.freeagent.com/v2/contacts/123',
+            reference: 'INV-2024-001',
+            dated_on: '2024-01-15',
+            due_on: '2024-02-14',
+            ec_status: 'Reverse Charge',
+            bill_items: [
+              {
+                description: 'Professional Services',
+                price: 150.00,
+                quantity: 8,
+                sales_tax_rate: 20,
+                category: 'https://api.freeagent.com/v2/categories/456'
+              }
+            ]
           }
         },
         
@@ -1004,6 +1109,239 @@ export const registerTools = (server: any) => {
       try {
         const client = createClient(auth);
         const result = await client.stopTimer(id);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // List bills tool
+  server.tool(
+    'list_bills',
+    'List bills from FreeAgent',
+    {
+      view: z.enum(['all', 'open', 'overdue', 'paid', 'recurring']).optional().describe('Filter view'),
+      from_date: z.string().optional().describe('Start date in YYYY-MM-DD format'),
+      to_date: z.string().optional().describe('End date in YYYY-MM-DD format'),
+      updated_since: z.string().optional().describe('ISO timestamp to get bills updated since'),
+      contact: z.string().optional().describe('Contact URL to filter by'),
+      project: z.string().optional().describe('Project URL to filter by'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const queryParams = new URLSearchParams();
+        
+        if (params.view) queryParams.append('view', params.view);
+        if (params.from_date) queryParams.append('from_date', params.from_date);
+        if (params.to_date) queryParams.append('to_date', params.to_date);
+        if (params.updated_since) queryParams.append('updated_since', params.updated_since);
+        if (params.contact) queryParams.append('contact', params.contact);
+        if (params.project) queryParams.append('project', params.project);
+        
+        const queryString = queryParams.toString();
+        const result = await makeDirectRequest(`/bills${queryString ? `?${queryString}` : ''}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Get single bill tool
+  server.tool(
+    'get_bill',
+    'Get a specific bill by ID',
+    {
+      id: z.string().describe('Bill ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bills/${id}`, {}, auth);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Create bill tool
+  server.tool(
+    'create_bill',
+    'Create a new bill in FreeAgent with full support for line items, attachments, and project rebilling',
+    {
+      contact: z.string().describe('Contact URL who is being billed'),
+      reference: z.string().describe('Bill reference number'),
+      dated_on: z.string().describe('Bill date in YYYY-MM-DD format'),
+      due_on: z.string().describe('Bill due date in YYYY-MM-DD format'),
+      bill_items: z.array(z.object({
+        description: z.string().describe('Item description'),
+        price: z.number().describe('Unit price'),
+        quantity: z.number().describe('Quantity'),
+        sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
+        category: z.string().optional().describe('Category URL for accounting'),
+        project: z.string().optional().describe('Project URL for item'),
+        stock_item: z.string().optional().describe('Stock item reference')
+      })).describe('Array of bill line items (max 40 items)'),
+      currency: z.string().optional().describe('Currency code (e.g., GBP, USD)'),
+      project: z.string().optional().describe('Project URL to associate bill with'),
+      ec_status: z.enum(['UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS']).optional().describe('VAT status for reporting purposes'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent'),
+      recurring: z.enum(['Weekly', 'Every 2 Weeks', 'Every 4 Weeks', 'Monthly', 'Every 2 Months', 'Quarterly', 'Every 6 Months', 'Annually']).optional().describe('Recurring frequency'),
+      rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type for project billing'),
+      rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
+    },
+    async (params: any, { auth }: any = {}) => {
+      try {
+        const billData: any = {
+          contact: params.contact,
+          reference: params.reference,
+          dated_on: params.dated_on,
+          due_on: params.due_on,
+          bill_items: params.bill_items,
+          currency: params.currency,
+          project: params.project,
+          ec_status: params.ec_status,
+          file: params.file,
+          recurring: params.recurring,
+          rebill_type: params.rebill_type,
+          rebill_factor: params.rebill_factor,
+        };
+
+        // Remove undefined values
+        Object.keys(billData).forEach(key => {
+          if (billData[key] === undefined) {
+            delete billData[key];
+          }
+        });
+
+        const result = await makeDirectRequest('/bills', {
+          method: 'POST',
+          body: JSON.stringify({ bill: billData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Update bill tool
+  server.tool(
+    'update_bill',
+    'Update an existing bill in FreeAgent',
+    {
+      id: z.string().describe('Bill ID'),
+      contact: z.string().optional().describe('Contact URL who is being billed'),
+      reference: z.string().optional().describe('Bill reference number'),
+      dated_on: z.string().optional().describe('Bill date in YYYY-MM-DD format'),
+      due_on: z.string().optional().describe('Bill due date in YYYY-MM-DD format'),
+      bill_items: z.array(z.object({
+        description: z.string().describe('Item description'),
+        price: z.number().describe('Unit price'),
+        quantity: z.number().describe('Quantity'),
+        sales_tax_rate: z.number().optional().describe('Sales tax rate as percentage'),
+        category: z.string().optional().describe('Category URL for accounting'),
+        project: z.string().optional().describe('Project URL for item'),
+        stock_item: z.string().optional().describe('Stock item reference')
+      })).optional().describe('Array of bill line items (max 40 items)'),
+      currency: z.string().optional().describe('Currency code (e.g., GBP, USD)'),
+      project: z.string().optional().describe('Project URL to associate bill with'),
+      ec_status: z.enum(['UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS']).optional().describe('VAT status for reporting purposes'),
+      file: z.string().optional().describe('URL of existing attachment in FreeAgent'),
+      recurring: z.enum(['Weekly', 'Every 2 Weeks', 'Every 4 Weeks', 'Monthly', 'Every 2 Months', 'Quarterly', 'Every 6 Months', 'Annually']).optional().describe('Recurring frequency'),
+      rebill_type: z.enum(['marked_up', 'marked_down', 'at_cost']).optional().describe('Rebill type for project billing'),
+      rebill_factor: z.number().optional().describe('Rebill percentage (0-100)'),
+    },
+    async ({ id, ...updateData }: any, { auth }: any = {}) => {
+      try {
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key];
+          }
+        });
+
+        const result = await makeDirectRequest(`/bills/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ bill: updateData })
+        }, auth);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Delete bill tool
+  server.tool(
+    'delete_bill',
+    'Delete a bill from FreeAgent',
+    {
+      id: z.string().describe('Bill ID'),
+    },
+    async ({ id }: any, { auth }: any = {}) => {
+      try {
+        const result = await makeDirectRequest(`/bills/${id}`, {
+          method: 'DELETE'
+        }, auth);
         return {
           content: [{
             type: 'text' as const,
