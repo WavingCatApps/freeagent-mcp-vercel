@@ -2,6 +2,84 @@ import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 import { validateRequest, handleCorsPreflightRequest, handleCorsResponse } from '../lib/security.js';
 import { registerTools } from '../lib/tools.js';
 
+const adaptChatGptActionRequest = async (request: Request): Promise<Request> => {
+  if (request.method !== 'POST') {
+    return request;
+  }
+
+  const contentType = request.headers.get('content-type')?.toLowerCase() || '';
+  if (!contentType.includes('application/json')) {
+    return request;
+  }
+
+  let rawBodyText: string;
+  try {
+    rawBodyText = await request.clone().text();
+  } catch {
+    return request;
+  }
+
+  const trimmedBodyText = rawBodyText.trim();
+  if (!trimmedBodyText) {
+    return request;
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(trimmedBodyText);
+  } catch {
+    return request;
+  }
+
+  if (!parsedBody || typeof parsedBody !== 'object') {
+    return request;
+  }
+
+  const bodyAsRecord = parsedBody as Record<string, unknown>;
+  if (typeof bodyAsRecord.path !== 'string') {
+    return request;
+  }
+
+  const { path, args, id } = bodyAsRecord;
+
+  let parsedArgs: unknown = args;
+  if (typeof parsedArgs === 'string') {
+    const argText = parsedArgs.trim();
+    if (!argText) {
+      parsedArgs = {};
+    } else {
+      try {
+        parsedArgs = JSON.parse(argText);
+      } catch {
+        parsedArgs = { value: parsedArgs };
+      }
+    }
+  }
+
+  if (parsedArgs === undefined || parsedArgs === null) {
+    parsedArgs = {};
+  }
+
+  const jsonRpcPayload = {
+    jsonrpc: '2.0' as const,
+    id: typeof id === 'string' || typeof id === 'number' ? id : `chatgpt-${Date.now()}`,
+    method: 'tools/call' as const,
+    params: {
+      name: path,
+      arguments: typeof parsedArgs === 'object' && parsedArgs !== null ? parsedArgs : { value: parsedArgs },
+    },
+  };
+
+  const headers = new Headers(request.headers);
+  headers.set('content-type', 'application/json');
+
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+    body: JSON.stringify(jsonRpcPayload),
+  });
+};
+
 // Custom auth verification function that extracts credentials from Bearer token
 const verifyToken = async (req: Request, bearerToken?: string) => {
   // Validate request first
@@ -54,8 +132,9 @@ const corsHandler = async (request: Request) => {
   }
 
   try {
+    const normalizedRequest = await adaptChatGptActionRequest(request);
     // Call the original auth handler
-    const response = await authHandler(request);
+    const response = await authHandler(normalizedRequest);
     
     // Add CORS headers to the response
     return handleCorsResponse(request, response);
