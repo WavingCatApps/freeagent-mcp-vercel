@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { z } from 'zod';
 import { createClient, makeDirectRequest, enhanceTimeslipData } from '../lib/utils.js';
 
@@ -21,28 +20,33 @@ function getAuth() {
 }
 
 // Create stdio-compatible MCP server
-const server = new Server(
+const server = new McpServer(
   {
     name: 'freeagent-mcp',
     version: '1.0.0',
     description: 'FreeAgent MCP Server for comprehensive accounting automation'
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
   }
 );
 
-// Add minimal tools for testing - we'll expand these
-server.tool('list_timeslips', 'List and filter timeslips from FreeAgent', {
+const listTimeslipsSchema = z.object({
   from_date: z.string().optional().describe('Start date in YYYY-MM-DD format'),
   to_date: z.string().optional().describe('End date in YYYY-MM-DD format'),
   view: z.enum(['all', 'unbilled', 'running']).optional().describe('Filter view'),
   user: z.string().optional().describe('User URL to filter by'),
   project: z.string().optional().describe('Project URL to filter by'),
   task: z.string().optional().describe('Task URL to filter by'),
-}, async (params: any) => {
+});
+
+type ListTimeslipsParams = z.infer<typeof listTimeslipsSchema>;
+
+const listProjectsSchema = z.object({
+  view: z.enum(['all', 'active', 'completed']).optional().describe('Filter view (default: active)'),
+});
+
+type ListProjectsParams = z.infer<typeof listProjectsSchema>;
+
+// Add minimal tools for testing - we'll expand these
+server.tool('list_timeslips', 'List and filter timeslips from FreeAgent', listTimeslipsSchema.shape, async (params: ListTimeslipsParams) => {
   try {
     const auth = getAuth();
     const client = createClient(auth);
@@ -66,9 +70,7 @@ server.tool('list_timeslips', 'List and filter timeslips from FreeAgent', {
   }
 });
 
-server.tool('list_projects', 'List all projects in FreeAgent', {
-  view: z.enum(['all', 'active', 'completed']).optional().describe('Filter view (default: active)')
-}, async (params: any) => {
+server.tool('list_projects', 'List all projects in FreeAgent', listProjectsSchema.shape, async (params: ListProjectsParams) => {
   try {
     const auth = getAuth();
     const view = params.view || 'active';

@@ -1,7 +1,13 @@
 {
+  "rewrites": [
+    {
+      "source": "/(.+)",
+      "destination": "/api/server"
+    }
+  ],
   "headers": [
     {
-      "source": "/api/mcp",
+      "source": "/(.+)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -23,8 +29,8 @@
     }
   ],
   "functions": {
-    "api/mcp.ts": {
-      "maxDuration": 30
+    "api/server.ts": {
+      "maxDuration": 60
     }
   }
 }

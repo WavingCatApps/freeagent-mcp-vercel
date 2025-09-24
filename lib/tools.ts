@@ -6,6 +6,20 @@ import { createClient, makeDirectRequest, enhanceTimeslipData } from './utils.js
 // Attachments must be uploaded to FreeAgent via web or mobile app first
 const AttachmentSchema = z.string().describe('URL of an existing attachment in FreeAgent. Attachments must be uploaded to FreeAgent via web or mobile app first, then referenced by their URL.');
 
+// Helper function to get auth credentials
+const getAuth = () => {
+  const clientId = process.env.FREEAGENT_CLIENT_ID;
+  const clientSecret = process.env.FREEAGENT_CLIENT_SECRET;
+  const accessToken = process.env.FREEAGENT_ACCESS_TOKEN;
+  const refreshToken = process.env.FREEAGENT_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !accessToken || !refreshToken) {
+    throw new Error('Missing FreeAgent credentials. Please set FREEAGENT_CLIENT_ID, FREEAGENT_CLIENT_SECRET, FREEAGENT_ACCESS_TOKEN, and FREEAGENT_REFRESH_TOKEN environment variables.');
+  }
+
+  return { clientId, clientSecret, accessToken, refreshToken };
+};
+
 export const registerTools = (server: any) => {
   // Tool introspection and documentation tools
   server.tool(
@@ -13,10 +27,29 @@ export const registerTools = (server: any) => {
     'Get detailed specifications and parameter information for all available FreeAgent MCP tools',
     {
       tool_name: z.string().optional().describe('Optional: Get details for a specific tool name'),
-      category: z.enum(['timeslips', 'projects', 'expenses', 'bills', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection']).optional().describe('Optional: Filter tools by category'),
+      category: z.enum(['deep_research', 'timeslips', 'projects', 'expenses', 'bills', 'bank_accounts', 'bank_transactions', 'bank_transaction_explanations', 'categories', 'users', 'introspection']).optional().describe('Optional: Filter tools by category'),
     },
     async (params: any) => {
       const toolSpecs = {
+        // ChatGPT Deep Research tools
+        search: {
+          category: 'deep_research',
+          description: 'Search across FreeAgent data for ChatGPT Deep Research',
+          parameters: {
+            query: { type: 'string', required: true, description: 'Search query to find relevant FreeAgent data' },
+            type: { type: 'enum', optional: true, values: ['timeslips', 'projects', 'expenses', 'bills', 'transactions', 'all'], default: 'all', description: 'Type of data to search' },
+            limit: { type: 'number', optional: true, default: 10, description: 'Maximum number of results to return' }
+          }
+        },
+        fetch: {
+          category: 'deep_research',
+          description: 'Fetch detailed FreeAgent item information for ChatGPT Deep Research',
+          parameters: {
+            id: { type: 'string', required: true, description: 'FreeAgent URL or ID of the item to fetch' },
+            include_related: { type: 'boolean', optional: true, default: false, description: 'Whether to include related data' }
+          }
+        },
+
         // Timeslip tools
         list_timeslips: {
           category: 'timeslips',
@@ -464,6 +497,210 @@ export const registerTools = (server: any) => {
           text: JSON.stringify(result, null, 2),
         }],
       };
+    }
+  );
+
+  // REQUIRED: Search tool for ChatGPT Deep Research
+  server.tool(
+    'search',
+    'Search across FreeAgent data including timeslips, projects, expenses, bills, and transactions',
+    {
+      query: z.string().describe('Search query to find relevant FreeAgent data'),
+      type: z.enum(['timeslips', 'projects', 'expenses', 'bills', 'transactions', 'all']).optional().describe('Type of data to search (default: all)'),
+      limit: z.number().optional().describe('Maximum number of results to return (default: 10)')
+    },
+    async (params: any) => {
+      try {
+        const auth = getAuth();
+        const client = createClient(auth);
+        const query = params.query.toLowerCase();
+        const searchType = params.type || 'all';
+        const limit = params.limit || 10;
+
+        const results: any[] = [];
+
+        // Search timeslips
+        if (searchType === 'all' || searchType === 'timeslips') {
+          try {
+            const timeslips = await client.listTimeslips({ view: 'all' });
+            const enhanced = await enhanceTimeslipData(timeslips, client);
+
+            const matchingTimeslips = enhanced.timeslips?.filter((ts: any) =>
+              ts.comment?.toLowerCase().includes(query) ||
+              ts.project_name?.toLowerCase().includes(query) ||
+              ts.task_name?.toLowerCase().includes(query) ||
+              ts.user_name?.toLowerCase().includes(query)
+            ) || [];
+
+            matchingTimeslips.slice(0, limit).forEach((ts: any) => {
+              results.push({
+                type: 'timeslip',
+                id: ts.url,
+                title: `Timeslip: ${ts.project_name} - ${ts.task_name}`,
+                snippet: `${ts.hours} hours on ${ts.dated_on}${ts.comment ? ': ' + ts.comment : ''}`,
+                data: ts
+              });
+            });
+          } catch (error) {
+            // Continue with other searches if timeslips fail
+          }
+        }
+
+        // Search projects
+        if (searchType === 'all' || searchType === 'projects') {
+          try {
+            const projectsResult = await makeDirectRequest('/projects?view=all', {}, auth);
+            const matchingProjects = projectsResult.projects?.filter((proj: any) =>
+              proj.name?.toLowerCase().includes(query) ||
+              proj.description?.toLowerCase().includes(query) ||
+              proj.contact?.toLowerCase().includes(query)
+            ) || [];
+
+            matchingProjects.slice(0, limit).forEach((proj: any) => {
+              results.push({
+                type: 'project',
+                id: proj.url,
+                title: `Project: ${proj.name}`,
+                snippet: `Status: ${proj.status}${proj.description ? '. ' + proj.description : ''}`,
+                data: proj
+              });
+            });
+          } catch (error) {
+            // Continue with other searches if projects fail
+          }
+        }
+
+        // Search expenses
+        if (searchType === 'all' || searchType === 'expenses') {
+          try {
+            const expensesResult = await makeDirectRequest('/expenses', {}, auth);
+            const matchingExpenses = expensesResult.expenses?.filter((exp: any) =>
+              exp.description?.toLowerCase().includes(query) ||
+              exp.category?.toLowerCase().includes(query) ||
+              exp.vendor?.toLowerCase().includes(query)
+            ) || [];
+
+            matchingExpenses.slice(0, limit).forEach((exp: any) => {
+              results.push({
+                type: 'expense',
+                id: exp.url,
+                title: `Expense: ${exp.description}`,
+                snippet: `£${exp.gross_value} on ${exp.dated_on}${exp.vendor ? ' from ' + exp.vendor : ''}`,
+                data: exp
+              });
+            });
+          } catch (error) {
+            // Continue with other searches if expenses fail
+          }
+        }
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              query: params.query,
+              total_results: results.length,
+              results: results.slice(0, limit)
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error searching FreeAgent data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // REQUIRED: Fetch tool for ChatGPT Deep Research
+  server.tool(
+    'fetch',
+    'Fetch detailed information about a specific FreeAgent item by its URL or ID',
+    {
+      id: z.string().describe('FreeAgent URL or ID of the item to fetch'),
+      include_related: z.boolean().optional().describe('Whether to include related data (default: false)')
+    },
+    async (params: any) => {
+      try {
+        const auth = getAuth();
+        const client = createClient(auth);
+        const url = params.id;
+        const includeRelated = params.include_related || false;
+
+        // Determine the type of item from the URL
+        let result;
+        let itemType;
+
+        if (url.includes('/timeslips/')) {
+          itemType = 'timeslip';
+          const timeslipId = url.split('/').pop();
+          result = await makeDirectRequest(`/timeslips/${timeslipId}`, {}, auth);
+
+          if (includeRelated && result.timeslip) {
+            // Enhance with project/task/user names
+            const enhanced = await enhanceTimeslipData({ timeslips: [result.timeslip] }, client);
+            result.timeslip = enhanced.timeslips[0];
+          }
+        } else if (url.includes('/projects/')) {
+          itemType = 'project';
+          const projectId = url.split('/').pop();
+          result = await makeDirectRequest(`/projects/${projectId}`, {}, auth);
+
+          if (includeRelated && result.project) {
+            // Get project timeslips and tasks
+            try {
+              const timeslipsResult = await client.listTimeslips({ project: url });
+              const tasksResult = await makeDirectRequest(`/projects/${projectId}/tasks`, {}, auth);
+              result.related = {
+                timeslips: timeslipsResult.timeslips || [],
+                tasks: tasksResult.tasks || []
+              };
+            } catch (error) {
+              // Related data fetch failed, but main item succeeded
+            }
+          }
+        } else if (url.includes('/expenses/')) {
+          itemType = 'expense';
+          const expenseId = url.split('/').pop();
+          result = await makeDirectRequest(`/expenses/${expenseId}`, {}, auth);
+        } else if (url.includes('/bills/')) {
+          itemType = 'bill';
+          const billId = url.split('/').pop();
+          result = await makeDirectRequest(`/bills/${billId}`, {}, auth);
+        } else if (url.includes('/bank_transactions/')) {
+          itemType = 'bank_transaction';
+          const transactionId = url.split('/').pop();
+          result = await makeDirectRequest(`/bank_transactions/${transactionId}`, {}, auth);
+        } else {
+          // Try to fetch as a generic URL
+          itemType = 'unknown';
+          result = await makeDirectRequest(url.replace('https://api.freeagent.com/v2', ''), {}, auth);
+        }
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              id: params.id,
+              type: itemType,
+              data: result,
+              include_related: includeRelated
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error fetching item from FreeAgent: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+          isError: true,
+        };
+      }
     }
   );
 

@@ -122,10 +122,18 @@ In your Vercel dashboard, add the following environment variables:
 
 ### 4. Configure Your AI Platform
 
+#### ChatGPT (Connectors)
+1. Enable **Developer Mode** in ChatGPT settings
+2. Go to the **Connectors** tab
+3. Add your MCP server using this URL format:
+```
+https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
+```
+
 #### Claude UI (Connectors)
 Add your MCP server as a connector using this URL format:
 ```
-https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
+https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
 ```
 
 #### Claude Desktop
@@ -139,7 +147,7 @@ Add the following to your Claude Desktop MCP settings:
       "args": [
         "@anthropic-ai/mcp-sdk",
         "mcp-server-http",
-        "https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix"
+        "https://your-deployment.vercel.app/mcp?suffix=your-random-suffix"
       ]
     }
   }
@@ -191,37 +199,71 @@ Use the HTTP endpoint directly in your platform's MCP configuration:
 
 **Endpoint:**
 ```
-https://your-deployment.vercel.app/api/mcp?suffix=your-random-suffix
+https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
 ```
 
 **Note:** If you set `ENDPOINT_PATH_SUFFIX`, include it in your URL as `?suffix=your-suffix-value`
 
-## Available Tools
+## Available MCP Capabilities
 
-This MCP server provides 40+ tools across multiple categories. Key tools include:
+This MCP server provides **full ChatGPT Deep Research compatibility** with:
+- **✅ ChatGPT Deep Research Support** - Required `search` and `fetch` tools implemented
+- **46 Tools** for executing actions and commands across all FreeAgent functionality
+- **Full FreeAgent API Access** across timeslips, projects, expenses, bills, transactions, and more
 
-### Time Tracking Tools
-- `list_timeslips` - List and filter timeslips with date ranges and status filters
-- `create_timeslip` - Create new time entries with project, task, and user details
-- `update_timeslip` - Modify existing time entries
-- `start_timer`/`stop_timer` - Control timeslip timers
-- `list_projects` - List projects with filtering options
-- `create_task` - Create new tasks for projects
+### 🔍 **ChatGPT Deep Research Tools (2 tools)**
+- **`search`** - Search across all FreeAgent data (timeslips, projects, expenses, bills, transactions)
+- **`fetch`** - Fetch detailed information about specific FreeAgent items by URL/ID
 
-### Financial Tools
-- `list_bank_accounts` - List all connected bank accounts
-- `list_bank_transactions` - List transactions with comprehensive filtering
-- `create_bank_transaction_explanation` - Explain transactions with tax handling
-- `list_expenses` - List expenses with filtering and categorization
-- `create_expense` - Create expenses with mileage claims and attachments
-- `list_categories` - Manage expense and income categories
+### 📊 **Tool Discovery & Introspection (3 tools)**
+- `describe_tools` - Get detailed tool specifications and documentation
+- `get_api_docs` - Access comprehensive API documentation
+- `validate_parameters` - Validate tool parameters before execution
 
-### User Management
-- `list_users` - List FreeAgent users for expense assignments
+## Search and Fetch Capabilities
 
-### Attachment Tools
-- `get_attachment` - View attachment details
-- `delete_attachment` - Remove unnecessary attachments
+The **`search`** and **`fetch`** tools provide comprehensive access to your FreeAgent data:
+
+### Search Tool Features
+- **Cross-data search**: Search across timeslips, projects, expenses, bills, and transactions
+- **Smart filtering**: Filter by data type or search across all types
+- **Relevant results**: Returns matching items with titles, snippets, and full data
+- **Configurable limits**: Control the number of results returned
+
+### Fetch Tool Features
+- **Detailed retrieval**: Get complete information about any FreeAgent item
+- **Related data**: Optionally include related information (e.g., project timeslips and tasks)
+- **ID-based access**: Works with FreeAgent URLs or IDs via the `id` parameter
+- **Enhanced data**: Automatically enriches data with human-readable names
+
+## Additional Tools
+
+This MCP server provides 46 specialized tools for direct API access:
+
+### Time Tracking (9 tools)
+- `list_timeslips`, `get_timeslip`, `create_timeslip`, `update_timeslip`, `delete_timeslip` - Full timeslip CRUD operations
+- `start_timer`, `stop_timer` - Control timeslip timers
+- `list_projects`, `create_task` - Project and task management
+
+### Bills (5 tools)
+- `list_bills`, `get_bill`, `create_bill`, `update_bill`, `delete_bill` - Complete supplier bill management with line items and VAT Reverse Charge support
+
+### Bank Accounts & Transactions (9 tools)
+- `list_bank_accounts`, `get_bank_account` - Manage bank accounts
+- `list_bank_transactions`, `get_bank_transaction` - View transactions
+- `list_bank_transaction_explanations`, `get_bank_transaction_explanation`, `create_bank_transaction_explanation`, `update_bank_transaction_explanation`, `delete_bank_transaction_explanation` - Full transaction explanation CRUD with tax handling
+
+### Expenses (5 tools)
+- `list_expenses`, `get_expense`, `create_expense`, `update_expense`, `delete_expense` - Complete expense management with mileage claims and attachments
+
+### Categories (5 tools)
+- `list_categories`, `get_category`, `create_category`, `update_category`, `delete_category` - Manage expense and income categories
+
+### Users (6 tools)
+- `list_users`, `get_user`, `get_current_user`, `create_user`, `update_user`, `delete_user` - Full user management
+
+### Attachments (2 tools)
+- `get_attachment`, `delete_attachment` - View and remove attachments
 
 **⚠️ ATTACHMENT IMPORTANT LIMITATIONS**: 
 - Attachments must be uploaded to FreeAgent via the web interface or mobile app first
@@ -230,12 +272,7 @@ This MCP server provides 40+ tools across multiple categories. Key tools include
 - **Attachment URLs are impossible to see on the mobile app and not immediately obvious on the web interface**
 - **Workaround**: Use FreeAgent's Smart Capture feature to automatically extract data and create expenses/explanations (limited to 10 smart captures per month for most customers)
 
-### Tool Discovery
-- `describe_tools` - Get detailed specifications for all available tools
-- `get_api_docs` - Access comprehensive API documentation
-- `validate_parameters` - Validate tool parameters before execution
-
-Use the `describe_tools` command within your AI platform to see all available tools with their complete parameter specifications.
+Use the `describe_tools` command within your AI platform to see all 46 available tools with their complete parameter specifications.
 
 **💡 Smart Capture Alternative**: For automated receipt processing, consider using FreeAgent's Smart Capture feature instead of manual attachment handling. Smart Capture automatically extracts data from receipts and creates expenses/explanations, though most customers are limited to 10 smart captures per month (additional captures available as a paid extra).
 
