@@ -14,6 +14,7 @@ dist/
 .idea/
 *.swp
 *.swo
+.claude
 
 # OS
 .DS_Store
@@ -22,4 +23,3 @@ Thumbs.db
 # Logs
 logs
 *.log
-.vercel
