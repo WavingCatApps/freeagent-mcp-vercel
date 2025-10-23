@@ -1,36 +1,18 @@
 {
-  "rewrites": [
-    {
-      "source": "/(.+)",
-      "destination": "/api/server"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.+)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, X-Requested-With"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
-        }
-      ]
-    }
-  ],
   "functions": {
-    "api/server.ts": {
+    "api/index.ts": {
+      "memory": 1024,
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/message",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/",
+      "destination": "/api/index"
+    }
+  ]
 }

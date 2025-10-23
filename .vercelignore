@@ -1,0 +1,8 @@
+node_modules
+.git
+.env
+.env.local
+*.log
+.DS_Store
+dist/index.js
+dist/index.d.ts

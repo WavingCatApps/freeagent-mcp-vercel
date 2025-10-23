@@ -1,40 +1,31 @@
 {
-  "name": "freeagent-mcp-vercel",
+  "name": "freeagent-mcp-server",
   "version": "1.0.0",
+  "description": "MCP server for FreeAgent accounting API integration",
   "type": "module",
-  "description": "FreeAgent MCP Server for Vercel deployment",
-  "main": "api/mcp.ts",
-  "bin": {
-    "freeagent-mcp": "./dist/index.js"
-  },
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node ./dist/index.js",
-    "deploy": "vercel deploy",
-    "deploy:prod": "vercel deploy --prod",
-    "get-tokens": "node scripts/get-oauth-tokens.js"
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
   },
-  "keywords": [
-    "freeagent",
-    "mcp",
-    "vercel",
-    "claude",
-    "timeslips"
-  ],
-  "author": "Waving Cat Apps Ltd.",
+  "keywords": ["mcp", "freeagent", "accounting", "api"],
+  "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.3",
-    "mcp-handler": "latest",
-    "zod": "^3.22.4",
-    "freeagent-mcp": "github:markpitt/freeagent-mcp"
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "axios": "^1.7.9",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "vercel": "^33.0.0"
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@vercel/node": "^3.0.0",
+    "typescript": "^5.7.2"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0"
   }
 }

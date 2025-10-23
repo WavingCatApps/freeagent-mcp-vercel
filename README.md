@@ -1,311 +1,397 @@
 # FreeAgent MCP Server
 
-A comprehensive MCP server for the [FreeAgent API](https://dev.freeagent.com) that enables AI platforms and development tools to interact with FreeAgent for full accounting operations including timeslips, expenses, bills, bank transactions, and more.
-
-**Supported Platforms:** Claude, ChatGPT, Gemini, AWS Bedrock, Microsoft Copilot Studio, Replit, Zed, Sourcegraph, Windsurf, Cursor, GitHub Copilot, VS Code, mcpli
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-## Deployment Options
-
-This server supports **two deployment modes**:
-
-1. **Vercel Deployment** - Run as a hosted HTTP MCP server
-2. **Local stdio** - Run locally for tools like mcpli
+A Model Context Protocol (MCP) server that provides seamless integration with the FreeAgent accounting API. This server enables LLMs to interact with FreeAgent to manage contacts, invoices, expenses, projects, and company information.
 
 ## Features
 
-### Time Tracking
-- **Timeslips**: Create, update, delete, and list time entries with filtering
-- **Timer Controls**: Start and stop timers for timeslips
-- **Project Management**: List projects with filtering options
-- **Task Management**: Create and manage tasks for projects
+- **Contact Management**: List, view, and create contacts (customers and suppliers)
+- **Invoice Operations**: List, view, and create invoices with full line item support
+- **Company Information**: Access company details, settings, and configuration
+- **User Management**: List users and their permission levels
+- **OAuth 2.0 Authentication**: Secure access using FreeAgent's OAuth 2.0 flow
+- **Sandbox Support**: Test integrations safely using FreeAgent's sandbox environment
+- **Response Formats**: Choose between human-readable Markdown or structured JSON
+- **Pagination**: Efficient handling of large datasets with proper pagination
+- **Rate Limiting**: Built-in handling of FreeAgent's API rate limits (15 requests/60 seconds)
 
-### Financial Management
-- **Bank Accounts**: List and manage multiple bank accounts
-- **Bank Transactions**: List, filter, and manage bank transactions
-- **Transaction Explanations**: Create detailed explanations for transactions with tax handling
-- **Expenses**: Full expense management with mileage claims and receipt handling
-- **Bills**: Complete supplier bill management with line items and VAT Reverse Charge support
-- **Categories**: Manage expense and income categories
+## Installation
 
-### User Management
-- **Users**: List and manage FreeAgent users for expense assignments
+### Prerequisites
 
-### Attachments
-- **Attachment Management**: Reference and manage existing attachments for expenses and transactions
-- **⚠️ IMPORTANT**: Attachments must be uploaded to FreeAgent via the web interface or mobile app first - Claude and other AI tools can only reference existing attachments, not upload new files
+- Node.js 18 or higher
+- npm or yarn
+- A FreeAgent account (or sandbox account for testing)
+- FreeAgent Developer Dashboard access
 
-### Advanced Features
-- **Tax Support**: Handle sales tax, VAT, and other tax calculations
-- **Multi-currency**: Support for different currencies
-- **Mileage Claims**: Detailed vehicle and engine type tracking
-- **Tool Introspection**: Built-in documentation and parameter validation
-- **Serverless**: Runs on Vercel's edge functions for global availability
+### Deployment Options
 
-## Setup
+This MCP server can be run in two ways:
 
-### 1. Get FreeAgent API Credentials
+1. **Locally via stdio** - For use with Claude Desktop and other local MCP clients
+2. **On Vercel as a serverless function** - For cloud-hosted access via HTTP/SSE
 
-#### Register Your Application
+### Local Setup (stdio)
 
-1. Go to the [FreeAgent Developer Dashboard](https://dev.freeagent.com)
-2. Log in with your FreeAgent credentials
-3. Create a new application with these settings:
-   - **Name**: Choose any name for your MCP server
-   - **Redirect URI**: `http://localhost:3456/oauth/callback`
-   - **Description**: Optional description
-4. Note down your **Client ID** and **Client Secret**
+1. **Clone or download this repository**
 
-#### Get OAuth Tokens
+2. **Install dependencies**
+   ```bash
+   cd freeagent-mcp-server
+   npm install
+   ```
 
-**Option A: Using npx (Recommended)**
+3. **Build the project**
+   ```bash
+   npm run build
+   ```
 
-The easiest way to get your OAuth tokens without cloning the repo:
+### Vercel Deployment (HTTP/SSE)
+
+For cloud deployment, see [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for complete instructions.
+
+## Authentication Setup
+
+### Step 1: Create a FreeAgent Developer Account
+
+1. Go to [FreeAgent Developer Dashboard](https://dev.freeagent.com)
+2. Sign up or log in
+3. Create a new app
+
+### Step 2: Configure OAuth 2.0
+
+1. In your app settings, note your:
+   - OAuth Client ID
+   - OAuth Client Secret
+
+2. Set up redirect URIs (for OAuth flow)
+
+### Step 3: Obtain Access Token
+
+You have several options to obtain an OAuth 2.0 access token:
+
+#### Option A: Using Google OAuth Playground (Recommended for Testing)
+
+1. Go to [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/)
+2. Click the settings icon (⚙️) and select "Use your own OAuth credentials"
+3. Enter your FreeAgent OAuth Client ID and Secret
+4. Set OAuth endpoints:
+   - Authorization endpoint: `https://api.sandbox.freeagent.com/v2/approve_app` (or production URL)
+   - Token endpoint: `https://api.sandbox.freeagent.com/v2/token_endpoint`
+5. Enter any scope name (e.g., "freeagent")
+6. Click "Authorize APIs" and log in to FreeAgent
+7. Exchange authorization code for tokens
+
+#### Option B: Implement OAuth Flow in Your Application
+
+```javascript
+// Example OAuth flow
+const authUrl = `https://api.freeagent.com/v2/approve_app?` +
+  `client_id=${CLIENT_ID}&` +
+  `redirect_uri=${REDIRECT_URI}&` +
+  `response_type=code`;
+
+// After user authorizes, exchange code for token
+const tokenResponse = await fetch('https://api.freeagent.com/v2/token_endpoint', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    grant_type: 'authorization_code',
+    code: authorizationCode,
+    redirect_uri: REDIRECT_URI
+  })
+});
+```
+
+### Step 4: Set Environment Variables
 
 ```bash
-npx freeagent-mcp-vercel get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+export FREEAGENT_ACCESS_TOKEN="your_access_token_here"
+export FREEAGENT_USE_SANDBOX="true"  # Optional: use sandbox API
 ```
 
-**Option B: Clone and Run Locally**
+For production API, omit the `FREEAGENT_USE_SANDBOX` variable or set it to `"false"`.
+
+## Usage
+
+### Running the Server
 
 ```bash
-# Clone and setup this repository
-git clone https://github.com/WavingCatApps/freeagent-mcp-vercel.git
-cd freeagent-mcp-vercel
-npm install
-
-# Run the OAuth token script
-npm run get-tokens YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+npm start
 ```
 
-The script will:
-1. Open your browser to FreeAgent's authorization page
-2. After you approve the application, redirect back to a local server
-3. Exchange the authorization code for access and refresh tokens
-4. Display the tokens in your terminal
+The server runs on stdio and is designed to be used with MCP clients like Claude Desktop.
 
-**Example output:**
-```
-Add these tokens to your Vercel environment variables:
+### Configuration with Claude Desktop
 
-FREEAGENT_ACCESS_TOKEN=your_access_token_here
-FREEAGENT_REFRESH_TOKEN=your_refresh_token_here
-```
+Add this to your Claude Desktop config file:
 
-### 2. Deploy to Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/WavingCatApps/freeagent-mcp-vercel)
-
-### 3. Configure Environment Variables
-
-In your Vercel dashboard, add the following environment variables:
-
-**Required:**
-- `FREEAGENT_API_URL` - FreeAgent API URL (default: https://api.freeagent.com/v2)
-- `FREEAGENT_ACCESS_TOKEN` - Your FreeAgent OAuth access token (from step 1)
-- `FREEAGENT_REFRESH_TOKEN` - Your FreeAgent OAuth refresh token (from step 1)
-- `FREEAGENT_CLIENT_ID` - Your FreeAgent app client ID (from step 1)
-- `FREEAGENT_CLIENT_SECRET` - Your FreeAgent app client secret (from step 1)
-
-**Optional, but recommended, Security:**
-- `ENDPOINT_PATH_SUFFIX` - Random string to make your endpoint URL unpredictable (e.g., `x7k9m2n8p4q1r5s`)
-  
-  Generate a secure random string with:
-  ```bash
-  # Using Node.js
-  node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
-  
-  # Using OpenSSL
-  openssl rand -hex 16
-  ```
-
-### 4. Configure Your AI Platform
-
-#### ChatGPT (Connectors)
-1. Enable **Developer Mode** in ChatGPT settings
-2. Go to the **Connectors** tab
-3. Add your MCP server using this URL format:
-```
-https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
-```
-
-#### Claude UI (Connectors)
-Add your MCP server as a connector using this URL format:
-```
-https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
-```
-
-#### Claude Desktop
-Add the following to your Claude Desktop MCP settings:
+**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "freeagent": {
-      "command": "npx",
-      "args": [
-        "@anthropic-ai/mcp-sdk",
-        "mcp-server-http",
-        "https://your-deployment.vercel.app/mcp?suffix=your-random-suffix"
-      ]
+      "command": "node",
+      "args": ["/absolute/path/to/freeagent-mcp-server/dist/index.js"],
+      "env": {
+        "FREEAGENT_ACCESS_TOKEN": "your_access_token_here",
+        "FREEAGENT_USE_SANDBOX": "true"
+      }
     }
   }
 }
 ```
 
-#### mcpli Usage
-For command-line usage with [mcpli](https://github.com/cameroncooke/mcpli):
+## Available Tools
 
-1. **Install dependencies and build**:
-   ```bash
-   npm install
-   npm run build
-   ```
+### Contact Management
 
-2. **Set environment variables**:
-   ```bash
-   export FREEAGENT_CLIENT_ID="your_client_id"
-   export FREEAGENT_CLIENT_SECRET="your_client_secret"
-   export FREEAGENT_ACCESS_TOKEN="your_access_token"
-   export FREEAGENT_REFRESH_TOKEN="your_refresh_token"
-   ```
+#### `freeagent_list_contacts`
+List all contacts with pagination and sorting.
 
-3. **Use with mcpli**:
-   ```bash
-   # List timeslips
-   mcpli list_timeslips -- node ./dist/index.js
-   
-   # List projects
-   mcpli list_projects -- node ./dist/index.js
-   
-   # Get help for all available tools
-   mcpli --help -- node ./dist/index.js
-   ```
+**Parameters:**
+- `page` (number): Page number (default: 1)
+- `per_page` (number): Items per page (default: 25, max: 100)
+- `sort` (string): Sort field - `created_at`, `updated_at`, `first_name`, `last_name`, `organisation_name`
+- `response_format` (string): `markdown` or `json` (default: `markdown`)
 
-#### Other AI Platforms & Development Tools
-Use the HTTP endpoint directly in your platform's MCP configuration:
-
-**Supported Platforms:**
-- OpenAI ChatGPT
-- Google Gemini / AI Studio  
-- AWS Bedrock
-- Microsoft Copilot Studio
-- Replit
-- Zed Editor
-- Sourcegraph
-- Windsurf
-- Cursor
-
-**Endpoint:**
+**Example:**
 ```
-https://your-deployment.vercel.app/mcp?suffix=your-random-suffix
+List all my FreeAgent contacts
 ```
 
-**Note:** If you set `ENDPOINT_PATH_SUFFIX`, include it in your URL as `?suffix=your-suffix-value`
+#### `freeagent_get_contact`
+Get detailed information about a specific contact.
 
-## Available MCP Capabilities
+**Parameters:**
+- `contact_id` (string): Contact ID or full URL
+- `response_format` (string): `markdown` or `json`
 
-This MCP server provides **full ChatGPT Deep Research compatibility** with:
-- **✅ ChatGPT Deep Research Support** - Required `search` and `fetch` tools implemented
-- **46 Tools** for executing actions and commands across all FreeAgent functionality
-- **Full FreeAgent API Access** across timeslips, projects, expenses, bills, transactions, and more
+**Example:**
+```
+Show me details for contact 12345
+```
 
-### 🔍 **ChatGPT Deep Research Tools (2 tools)**
-- **`search`** - Search across all FreeAgent data (timeslips, projects, expenses, bills, transactions)
-- **`fetch`** - Fetch detailed information about specific FreeAgent items by URL/ID
+#### `freeagent_create_contact`
+Create a new contact.
 
-### 📊 **Tool Discovery & Introspection (3 tools)**
-- `describe_tools` - Get detailed tool specifications and documentation
-- `get_api_docs` - Access comprehensive API documentation
-- `validate_parameters` - Validate tool parameters before execution
+**Parameters:**
+- `first_name` (string): First name
+- `last_name` (string): Last name
+- `organisation_name` (string): Organisation name
+- `email` (string): Email address
+- `phone_number` (string): Phone number
+- Additional address and contact fields
 
-## Search and Fetch Capabilities
+**Example:**
+```
+Create a contact for ABC Limited with email info@abc.com
+```
 
-The **`search`** and **`fetch`** tools provide comprehensive access to your FreeAgent data:
+### Invoice Management
 
-### Search Tool Features
-- **Cross-data search**: Search across timeslips, projects, expenses, bills, and transactions
-- **Smart filtering**: Filter by data type or search across all types
-- **Relevant results**: Returns matching items with titles, snippets, and full data
-- **Configurable limits**: Control the number of results returned
+#### `freeagent_list_invoices`
+List invoices with filtering and pagination.
 
-### Fetch Tool Features
-- **Detailed retrieval**: Get complete information about any FreeAgent item
-- **Related data**: Optionally include related information (e.g., project timeslips and tasks)
-- **ID-based access**: Works with FreeAgent URLs or IDs via the `id` parameter
-- **Enhanced data**: Automatically enriches data with human-readable names
+**Parameters:**
+- `page`, `per_page`: Pagination
+- `view` (string): Filter - `all`, `recent_open_or_overdue`, `draft`, `scheduled`, `sent`, `overdue`
+- `contact` (string): Filter by contact ID
+- `project` (string): Filter by project ID
+- `sort` (string): Sort field
+- `response_format` (string): Output format
 
-## Additional Tools
+**Example:**
+```
+Show me all overdue invoices
+```
 
-This MCP server provides 46 specialized tools for direct API access:
+#### `freeagent_get_invoice`
+Get detailed invoice information including line items.
 
-### Time Tracking (9 tools)
-- `list_timeslips`, `get_timeslip`, `create_timeslip`, `update_timeslip`, `delete_timeslip` - Full timeslip CRUD operations
-- `start_timer`, `stop_timer` - Control timeslip timers
-- `list_projects`, `create_task` - Project and task management
+**Parameters:**
+- `invoice_id` (string): Invoice ID or URL
+- `response_format` (string): Output format
 
-### Bills (5 tools)
-- `list_bills`, `get_bill`, `create_bill`, `update_bill`, `delete_bill` - Complete supplier bill management with line items and VAT Reverse Charge support
+#### `freeagent_create_invoice`
+Create a new invoice in draft status.
 
-### Bank Accounts & Transactions (9 tools)
-- `list_bank_accounts`, `get_bank_account` - Manage bank accounts
-- `list_bank_transactions`, `get_bank_transaction` - View transactions
-- `list_bank_transaction_explanations`, `get_bank_transaction_explanation`, `create_bank_transaction_explanation`, `update_bank_transaction_explanation`, `delete_bank_transaction_explanation` - Full transaction explanation CRUD with tax handling
+**Parameters:**
+- `contact` (string): Contact ID (required)
+- `dated_on` (string): Invoice date YYYY-MM-DD (required)
+- `invoice_items` (array): Line items (required)
+- `due_on` (string): Due date
+- `reference` (string): Invoice reference
+- `currency` (string): Currency code (default: GBP)
+- `comments` (string): Invoice comments
 
-### Expenses (5 tools)
-- `list_expenses`, `get_expense`, `create_expense`, `update_expense`, `delete_expense` - Complete expense management with mileage claims and attachments
+**Example:**
+```
+Create an invoice for contact 123 dated 2024-01-15 with one item: consulting services, 5 hours at £100/hour
+```
 
-### Categories (5 tools)
-- `list_categories`, `get_category`, `create_category`, `update_category`, `delete_category` - Manage expense and income categories
+### Company & Users
 
-### Users (6 tools)
-- `list_users`, `get_user`, `get_current_user`, `create_user`, `update_user`, `delete_user` - Full user management
+#### `freeagent_get_company`
+Get company information including currency, tax status, and accounting dates.
 
-### Attachments (2 tools)
-- `get_attachment`, `delete_attachment` - View and remove attachments
+#### `freeagent_list_users`
+List all users in the account with their roles and permissions.
 
-**⚠️ ATTACHMENT IMPORTANT LIMITATIONS**: 
-- Attachments must be uploaded to FreeAgent via the web interface or mobile app first
-- AI tools cannot upload binary files - they can only reference existing attachments by URL
-- FreeAgent's API does not provide a way to list/discover attachments - you must know the attachment URL from the FreeAgent interface
-- **Attachment URLs are impossible to see on the mobile app and not immediately obvious on the web interface**
-- **Workaround**: Use FreeAgent's Smart Capture feature to automatically extract data and create expenses/explanations (limited to 10 smart captures per month for most customers)
+## Response Formats
 
-Use the `describe_tools` command within your AI platform to see all 46 available tools with their complete parameter specifications.
+### Markdown Format (Default)
+Human-readable format with headers, lists, and formatting. Best for presenting information to users.
 
-**💡 Smart Capture Alternative**: For automated receipt processing, consider using FreeAgent's Smart Capture feature instead of manual attachment handling. Smart Capture automatically extracts data from receipts and creates expenses/explanations, though most customers are limited to 10 smart captures per month (additional captures available as a paid extra).
+### JSON Format
+Structured data format. Best for programmatic processing or when you need to parse specific fields.
 
-## Security Features
+## Rate Limiting
 
-This MCP server includes several security measures:
+FreeAgent API has the following rate limits:
+- **Production**: 15 requests per 60 seconds
+- **Sandbox**: 5 requests per 60 seconds (with `X-RateLimit-Test: true` header)
 
-- **Request validation**: Only allows requests from legitimate AI platforms (Claude, ChatGPT, Gemini, AWS Bedrock), development tools (GitHub Copilot, VS Code), and MCP inspector tools
-- **Rate limiting**: 100 requests per minute per IP address
-- **CORS protection**: Restricts cross-origin requests to legitimate domains
-- **Optional URL suffix**: Add `ENDPOINT_PATH_SUFFIX` environment variable for URL obfuscation
+The server automatically handles rate limit errors and provides clear messages about retry timing.
+
+## Error Handling
+
+The server provides descriptive error messages for common scenarios:
+
+- **401 Unauthorized**: Access token expired or invalid - refresh your token
+- **403 Forbidden**: Insufficient permissions - check account permission level
+- **404 Not Found**: Resource doesn't exist
+- **422 Validation Error**: Invalid input - check field requirements
+- **429 Rate Limit**: Too many requests - wait before retrying
+
+## Sandbox vs Production
+
+### Using Sandbox (Recommended for Development)
+
+```bash
+export FREEAGENT_USE_SANDBOX="true"
+```
+
+- Safe testing environment
+- No real financial data
+- Isolated from production accounts
+- Create free sandbox account at [https://dev.freeagent.com/docs/quick_start](https://dev.freeagent.com/docs/quick_start)
+
+### Using Production
+
+```bash
+export FREEAGENT_USE_SANDBOX="false"
+# or omit the variable entirely
+```
+
+- Real FreeAgent accounts
+- Actual financial data
+- Use with caution for write operations
 
 ## Development
 
-```bash
-# Install dependencies
-npm install
+### Project Structure
 
-# Run locally with Vercel CLI
-vercel dev
-
-# Deploy to Vercel
-npm run deploy
+```
+freeagent-mcp-server/
+├── src/
+│   ├── index.ts              # Main server entry point
+│   ├── constants.ts          # Configuration constants
+│   ├── types.ts              # TypeScript type definitions
+│   ├── schemas/
+│   │   └── index.ts          # Zod validation schemas
+│   ├── services/
+│   │   ├── api-client.ts     # FreeAgent API client
+│   │   └── formatter.ts      # Response formatting utilities
+│   └── tools/
+│       ├── contacts.ts       # Contact management tools
+│       ├── invoices.ts       # Invoice management tools
+│       └── company.ts        # Company & user tools
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
-**Local testing:** Security validation is relaxed in development mode to allow MCP inspector tools.
+### Building
+
+```bash
+npm run build
+```
+
+### Development Mode
+
+```bash
+npm run dev
+```
+
+This runs TypeScript in watch mode, automatically recompiling on changes.
+
+## API Documentation
+
+For complete FreeAgent API documentation, visit:
+- [FreeAgent API Docs](https://dev.freeagent.com/docs)
+- [OAuth 2.0 Guide](https://dev.freeagent.com/docs/oauth)
+- [API Discussion Forum](https://api-discuss.freeagent.com)
+
+## Troubleshooting
+
+### "Authentication failed" Error
+
+- Check that your access token is valid
+- Access tokens expire - use refresh token to obtain new access token
+- Verify you're using the correct API (sandbox vs production)
+
+### "Rate limit exceeded" Error
+
+- Wait 60 seconds before retrying
+- Reduce request frequency
+- Consider caching frequently accessed data
+
+### "Resource not found" Error
+
+- Verify the ID or URL is correct
+- Check if resource was deleted
+- Ensure you have permission to access the resource
+
+### Connection Issues
+
+- Check internet connectivity
+- Verify API endpoint is correct (sandbox vs production)
+- Ensure firewall allows HTTPS connections
+
+## Security Best Practices
+
+1. **Never commit access tokens** to version control
+2. **Use environment variables** for sensitive configuration
+3. **Rotate access tokens** regularly
+4. **Use sandbox** for development and testing
+5. **Monitor API usage** to detect unusual patterns
+6. **Implement token refresh** for long-running applications
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT
 
-## Attribution
+## Support
 
-- OAuth token setup script adapted from [FreeAgent MCP Server](https://github.com/markpitt/freeagent-mcp) by Mark Pitt.
-- Original FreeAgent MCP implementation by [markpitt/freeagent-mcp](https://github.com/markpitt/freeagent-mcp).
-- FreeAgent for their [excellent API documentation](https://dev.freeagent.com/).
+- For FreeAgent API issues: [FreeAgent Support](https://support.freeagent.com)
+- For API discussions: [FreeAgent API Forum](https://api-discuss.freeagent.com)
+- For FreeAgent account issues: Contact FreeAgent support
+
+## Contributing
+
+Contributions are welcome! Please ensure:
+- Code follows TypeScript best practices
+- All tools have comprehensive descriptions
+- Error handling is robust
+- Documentation is updated
+
+## Acknowledgments
+
+Built with:
+- [Model Context Protocol SDK](https://github.com/modelcontextprotocol)
+- [FreeAgent API](https://dev.freeagent.com)
+- TypeScript, Zod, Axios
