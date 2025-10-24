@@ -254,6 +254,54 @@ export const CreateProjectInputSchema = z.object({
     .describe("Include unbilled time in profit calculations")
 }).strict();
 
+// Task schemas
+export const ListTasksInputSchema = z.object({
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  view: z.enum(["active", "completed", "hidden", "all"])
+    .optional()
+    .describe("Filter tasks by status"),
+  project: z.string()
+    .optional()
+    .describe("Filter by project URL or ID"),
+  updated_since: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+    .optional()
+    .describe("Filter tasks updated since this timestamp (ISO 8601)"),
+  sort: z.enum(["name", "project", "billing_rate", "created_at", "updated_at"])
+    .optional()
+    .describe("Field to sort by"),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetTaskInputSchema = z.object({
+  task_id: z.string()
+    .min(1)
+    .describe("The FreeAgent task ID (numeric) or full URL"),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const CreateTaskInputSchema = z.object({
+  project: z.string()
+    .min(1)
+    .describe("Project URL or ID this task belongs to"),
+  name: z.string()
+    .min(1)
+    .describe("Name of the task"),
+  is_billable: z.boolean()
+    .default(true)
+    .describe("Whether this task is billable"),
+  status: z.enum(["Active", "Completed", "Hidden"])
+    .default("Active")
+    .describe("Status of the task"),
+  billing_rate: z.string()
+    .optional()
+    .describe("Billing rate (decimal string)"),
+  billing_period: z.enum(["hour", "day"])
+    .optional()
+    .describe("Billing period (hour or day)")
+}).strict();
+
 // Bank account schemas
 export const ListBankAccountsInputSchema = z.object({
   response_format: ResponseFormatSchema
@@ -410,6 +458,9 @@ export type CreateExpenseInput = z.infer<typeof CreateExpenseInputSchema>;
 export type ListProjectsInput = z.infer<typeof ListProjectsInputSchema>;
 export type GetProjectInput = z.infer<typeof GetProjectInputSchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
+export type ListTasksInput = z.infer<typeof ListTasksInputSchema>;
+export type GetTaskInput = z.infer<typeof GetTaskInputSchema>;
+export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
 export type ListBankAccountsInput = z.infer<typeof ListBankAccountsInputSchema>;
 export type GetBankAccountInput = z.infer<typeof GetBankAccountInputSchema>;
 export type ListBankTransactionsInput = z.infer<typeof ListBankTransactionsInputSchema>;

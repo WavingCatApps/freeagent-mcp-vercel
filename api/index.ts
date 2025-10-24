@@ -24,6 +24,7 @@ import { listBankAccounts, getBankAccount, listBankTransactions } from "../src/t
 import { createBankTransactionExplanation } from "../src/tools/bank-transactions.js";
 import { getCompany, listUsers } from "../src/tools/company.js";
 import { listProjects, getProject, createProject } from "../src/tools/projects.js";
+import { listTasks, getTask, createTask } from "../src/tools/tasks.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
@@ -32,13 +33,15 @@ import {
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema,
   CreateBankTransactionExplanationInputSchema, GetCompanyInputSchema, ListUsersInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
+  ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
   type ListContactsInput, type GetContactInput, type CreateContactInput,
   type ListInvoicesInput, type GetInvoiceInput, type CreateInvoiceInput,
   type ListExpensesInput, type GetExpenseInput, type CreateExpenseInput,
   type ListTimeslipsInput, type GetTimeslipInput, type CreateTimeslipInput,
   type ListBankAccountsInput, type GetBankAccountInput, type ListBankTransactionsInput,
   type CreateBankTransactionExplanationInput, type GetCompanyInput, type ListUsersInput,
-  type ListProjectsInput, type GetProjectInput, type CreateProjectInput
+  type ListProjectsInput, type GetProjectInput, type CreateProjectInput,
+  type ListTasksInput, type GetTaskInput, type CreateTaskInput
 } from "../src/schemas/index.js";
 
 // Configuration
@@ -262,6 +265,27 @@ function createMcpServer(freeagentToken: string): McpServer {
     inputSchema: CreateProjectInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
   }, createProject);
+
+  registerTool("freeagent_list_tasks", {
+    title: "List FreeAgent Tasks",
+    description: "List tasks in your FreeAgent account with filtering and pagination.",
+    inputSchema: ListTasksInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, listTasks);
+
+  registerTool("freeagent_get_task", {
+    title: "Get FreeAgent Task Details",
+    description: "Retrieve detailed information about a specific task by ID.",
+    inputSchema: GetTaskInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, getTask);
+
+  registerTool("freeagent_create_task", {
+    title: "Create FreeAgent Task",
+    description: "Create a new task within a project in FreeAgent.",
+    inputSchema: CreateTaskInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, createTask);
 
   registerTool("freeagent_get_company", {
     title: "Get FreeAgent Company Information",
