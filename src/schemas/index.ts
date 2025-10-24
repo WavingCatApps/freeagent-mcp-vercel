@@ -205,6 +205,55 @@ export const GetProjectInputSchema = z.object({
   response_format: ResponseFormatSchema
 }).strict();
 
+export const CreateProjectInputSchema = z.object({
+  contact: z.string()
+    .min(1)
+    .describe("Contact URL or ID this project is for"),
+  name: z.string()
+    .min(1)
+    .describe("Name of the project"),
+  budget: z.string()
+    .describe("Budget amount (decimal string)"),
+  budget_units: z.enum(["Hours", "Days", "Monetary"])
+    .describe("Units for the budget"),
+  status: z.enum(["Active", "Completed", "Cancelled", "Hidden"])
+    .default("Active")
+    .describe("Status of the project"),
+  currency: z.string()
+    .length(3)
+    .default("GBP")
+    .describe("Currency code (e.g., GBP, USD, EUR)"),
+  uses_project_invoice_sequence: z.boolean()
+    .default(false)
+    .describe("Use project-specific invoice numbering"),
+  is_ir35: z.boolean()
+    .default(false)
+    .describe("Whether project is subject to IR35"),
+  contract_po_reference: z.string()
+    .optional()
+    .describe("Purchase order reference"),
+  starts_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Project start date (YYYY-MM-DD)"),
+  ends_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Project end date (YYYY-MM-DD)"),
+  normal_billing_rate: z.string()
+    .optional()
+    .describe("Billing rate (decimal string)"),
+  billing_period: z.enum(["hour", "day"])
+    .optional()
+    .describe("Billing period"),
+  hours_per_day: z.string()
+    .default("8")
+    .describe("Hours per working day (decimal string)"),
+  include_unbilled_time_in_profitability: z.boolean()
+    .optional()
+    .describe("Include unbilled time in profit calculations")
+}).strict();
+
 // Bank account schemas
 export const ListBankAccountsInputSchema = z.object({
   response_format: ResponseFormatSchema
@@ -360,6 +409,7 @@ export type GetExpenseInput = z.infer<typeof GetExpenseInputSchema>;
 export type CreateExpenseInput = z.infer<typeof CreateExpenseInputSchema>;
 export type ListProjectsInput = z.infer<typeof ListProjectsInputSchema>;
 export type GetProjectInput = z.infer<typeof GetProjectInputSchema>;
+export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
 export type ListBankAccountsInput = z.infer<typeof ListBankAccountsInputSchema>;
 export type GetBankAccountInput = z.infer<typeof GetBankAccountInputSchema>;
 export type ListBankTransactionsInput = z.infer<typeof ListBankTransactionsInputSchema>;

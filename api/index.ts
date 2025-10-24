@@ -23,6 +23,7 @@ import { listTimeslips, getTimeslip, createTimeslip } from "../src/tools/timesli
 import { listBankAccounts, getBankAccount, listBankTransactions } from "../src/tools/bank-accounts.js";
 import { createBankTransactionExplanation } from "../src/tools/bank-transactions.js";
 import { getCompany, listUsers } from "../src/tools/company.js";
+import { listProjects, getProject, createProject } from "../src/tools/projects.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
@@ -30,12 +31,14 @@ import {
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema,
   CreateBankTransactionExplanationInputSchema, GetCompanyInputSchema, ListUsersInputSchema,
+  ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
   type ListContactsInput, type GetContactInput, type CreateContactInput,
   type ListInvoicesInput, type GetInvoiceInput, type CreateInvoiceInput,
   type ListExpensesInput, type GetExpenseInput, type CreateExpenseInput,
   type ListTimeslipsInput, type GetTimeslipInput, type CreateTimeslipInput,
   type ListBankAccountsInput, type GetBankAccountInput, type ListBankTransactionsInput,
-  type CreateBankTransactionExplanationInput, type GetCompanyInput, type ListUsersInput
+  type CreateBankTransactionExplanationInput, type GetCompanyInput, type ListUsersInput,
+  type ListProjectsInput, type GetProjectInput, type CreateProjectInput
 } from "../src/schemas/index.js";
 
 // Configuration
@@ -238,6 +241,27 @@ function createMcpServer(freeagentToken: string): McpServer {
     inputSchema: CreateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
   }, createBankTransactionExplanation);
+
+  registerTool("freeagent_list_projects", {
+    title: "List FreeAgent Projects",
+    description: "List all projects in your FreeAgent account with filtering and pagination.",
+    inputSchema: ListProjectsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, listProjects);
+
+  registerTool("freeagent_get_project", {
+    title: "Get FreeAgent Project Details",
+    description: "Retrieve detailed information about a specific project by ID.",
+    inputSchema: GetProjectInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, getProject);
+
+  registerTool("freeagent_create_project", {
+    title: "Create FreeAgent Project",
+    description: "Create a new project in FreeAgent.",
+    inputSchema: CreateProjectInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  }, createProject);
 
   registerTool("freeagent_get_company", {
     title: "Get FreeAgent Company Information",
