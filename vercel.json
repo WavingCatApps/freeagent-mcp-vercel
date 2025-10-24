@@ -1,11 +1,40 @@
 {
+  "buildCommand": "pnpm install && pnpm run build",
+  "installCommand": "pnpm install",
   "functions": {
     "api/index.ts": {
-      "memory": 1024,
       "maxDuration": 60
     }
   },
   "rewrites": [
+    {
+      "source": "/oauth/callback",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/authorize",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/token",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/register",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/.well-known/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/mcp",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/mcp/message",
+      "destination": "/api/index"
+    },
     {
       "source": "/message",
       "destination": "/api/index"

@@ -1,19 +1,20 @@
 /**
- * FreeAgent MCP Server with OAuth (Simplified)
+ * FreeAgent MCP Server with Full OAuth Proxy
  *
- * This server acts as a Resource Server that:
- * - Accepts FreeAgent OAuth tokens directly (no token mapping)
- * - Validates tokens by calling FreeAgent's API
- * - Uses the same token for FreeAgent API calls
- * - Provides OAuth metadata for Claude to discover FreeAgent's auth endpoints
+ * This server acts as a complete OAuth Authorization Server that proxies to FreeAgent:
+ * 1. Claude connects and discovers OAuth endpoints
+ * 2. Users are redirected to FreeAgent for login
+ * 3. FreeAgent redirects back with auth code
+ * 4. We exchange for FreeAgent tokens and issue MCP tokens
+ * 5. MCP tokens are mapped to FreeAgent tokens for API calls
  */
 
-import express from "express";
+import express, { Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
-import { mcpAuthMetadataRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
-import { createFreeAgentTokenVerifier } from "../src/services/freeagent-auth.js";
+import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../src/services/api-client.js";
 import { listContacts, getContact, createContact } from "../src/tools/contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "../src/tools/invoices.js";
@@ -39,40 +40,68 @@ import {
 
 // Configuration
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
-const FREEAGENT_CLIENT_ID = process.env.FREEAGENT_CLIENT_ID;
-const VERCEL_URL = process.env.VERCEL_URL;
-const BASE_URL = VERCEL_URL ? `https://${VERCEL_URL}` : (process.env.BASE_URL || "http://localhost:3000");
 
-const FREEAGENT_BASE_URL = USE_SANDBOX
-  ? "https://api.sandbox.freeagent.com"
-  : "https://api.freeagent.com";
+// Determine base URL
+// IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
+// Example: PRODUCTION_URL=freeagent-mcp-vercel-simonrices-projects.vercel.app
+// This ensures OAuth callbacks use a consistent URL instead of per-deployment URLs
+const PRODUCTION_URL = process.env.PRODUCTION_URL;
+const VERCEL_BRANCH_URL = process.env.VERCEL_BRANCH_URL;
+const VERCEL_URL = process.env.VERCEL_URL;
+
+const BASE_URL = PRODUCTION_URL
+  ? `https://${PRODUCTION_URL}`
+  : (VERCEL_BRANCH_URL
+    ? `https://${VERCEL_BRANCH_URL}`
+    : (VERCEL_URL ? `https://${VERCEL_URL}` : (process.env.BASE_URL || "http://localhost:3000")));
 
 // Create Express app
 const app = express();
 app.use(express.json());
 
-// Create FreeAgent token verifier
-const tokenVerifier = createFreeAgentTokenVerifier();
+// Create JWT-based OAuth provider (stateless)
+const oauthProvider = createFreeAgentJWTOAuthProvider();
 
-// Install OAuth metadata router
-// This provides /.well-known/oauth-protected-resource endpoint
-// Claude will use this to discover where to send users for authorization
-app.use(mcpAuthMetadataRouter({
-  oauthMetadata: {
-    issuer: FREEAGENT_BASE_URL,
-    authorization_endpoint: `${FREEAGENT_BASE_URL}/v2/approve_app`,
-    token_endpoint: `${FREEAGENT_BASE_URL}/v2/token_endpoint`,
-    token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    response_types_supported: ["code"],
-    scopes_supported: ["freeagent"],
-    code_challenge_methods_supported: ["S256"],
-  },
-  resourceServerUrl: new URL(BASE_URL),
+// Install full OAuth router (provides /authorize, /token, /register, etc.)
+app.use(mcpAuthRouter({
+  provider: oauthProvider,
+  issuerUrl: new URL(BASE_URL),
+  baseUrl: new URL(BASE_URL),
   serviceDocumentationUrl: new URL("https://dev.freeagent.com/docs/oauth"),
   scopesSupported: ["freeagent"],
-  resourceName: "FreeAgent MCP Server"
+  resourceName: "FreeAgent MCP Server",
+  resourceServerUrl: new URL(BASE_URL),
 }));
+
+// OAuth callback handler (receives redirect from FreeAgent)
+app.get("/oauth/callback", async (req: Request, res: Response) => {
+  try {
+    const { code, state, error } = req.query;
+
+    if (error) {
+      return res.status(400).send(`FreeAgent authorization failed: ${error}`);
+    }
+
+    if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
+      return res.status(400).send("Invalid callback parameters");
+    }
+
+    // Handle the FreeAgent callback
+    const result = await oauthProvider.handleFreeAgentCallback(state, code);
+
+    // Redirect back to Claude with our authorization code
+    const redirectUrl = new URL(result.redirectUri);
+    redirectUrl.searchParams.set("code", result.code);
+    if (result.state) {
+      redirectUrl.searchParams.set("state", result.state);
+    }
+
+    res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error("OAuth callback error:", error);
+    res.status(500).send(`Callback error: ${error}`);
+  }
+});
 
 // Create MCP server with tools
 function createMcpServer(freeagentToken: string): McpServer {
@@ -81,10 +110,8 @@ function createMcpServer(freeagentToken: string): McpServer {
     version: "1.0.0"
   });
 
-  // Initialize API client with the FreeAgent token
   const apiClient = new FreeAgentApiClient(freeagentToken, USE_SANDBOX);
 
-  // Helper function for tool registration
   const registerTool = (
     name: string,
     config: any,
@@ -100,7 +127,6 @@ function createMcpServer(freeagentToken: string): McpServer {
     });
   };
 
-  // Register all tools
   registerTool("freeagent_list_contacts", {
     title: "List FreeAgent Contacts",
     description: "List all contacts in your FreeAgent account with pagination support.",
@@ -230,87 +256,87 @@ function createMcpServer(freeagentToken: string): McpServer {
   return server;
 }
 
-// MCP SSE endpoint - PROTECTED with FreeAgent bearer token
-app.get(
+// MCP endpoint - PROTECTED with bearer token (handles both GET and POST)
+app.all(
+  "/mcp",
+  requireBearerAuth({
+    verifier: oauthProvider,
+    resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const mcpToken = req.headers.authorization?.replace("Bearer ", "");
+      if (!mcpToken) {
+        return res.status(401).json({ error: "No authorization token" });
+      }
+
+      const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
+      if (!freeagentToken) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
+      const server = createMcpServer(freeagentToken);
+      // Use StreamableHTTPServerTransport in stateless mode (perfect for serverless!)
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // Stateless mode
+      });
+
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error("MCP endpoint error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  }
+);
+
+// Root endpoint - MCP with bearer auth (handles both GET and POST)
+app.all(
   "/",
   requireBearerAuth({
-    verifier: tokenVerifier,
-    requiredScopes: ["freeagent"],
+    verifier: oauthProvider,
     resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
   }),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
-      // Extract the FreeAgent token from the Authorization header
-      const freeagentToken = req.headers.authorization?.replace("Bearer ", "");
-
-      if (!freeagentToken) {
-        return res.status(401).json({ error: "No authorization token provided" });
+      const mcpToken = req.headers.authorization?.replace("Bearer ", "");
+      if (!mcpToken) {
+        return res.status(401).json({ error: "No authorization token" });
       }
 
-      // Create MCP server with the FreeAgent token
+      const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
+      if (!freeagentToken) {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+
       const server = createMcpServer(freeagentToken);
-
-      // Create SSE transport
-      const transport = new SSEServerTransport("/message", res);
-
-      // Connect the server
-      await server.connect(transport);
-
-      // Set up SSE headers
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+      // Use StreamableHTTPServerTransport in stateless mode (perfect for serverless!)
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // Stateless mode
       });
+
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error("Error in MCP endpoint:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  }
-);
-
-// MCP message endpoint - PROTECTED with FreeAgent bearer token
-app.post(
-  "/message",
-  requireBearerAuth({
-    verifier: tokenVerifier,
-    requiredScopes: ["freeagent"],
-    resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
-  }),
-  async (req, res) => {
-    try {
-      // Extract the FreeAgent token
-      const freeagentToken = req.headers.authorization?.replace("Bearer ", "");
-
-      if (!freeagentToken) {
-        return res.status(401).json({ error: "No authorization token provided" });
+      console.error("Root MCP endpoint error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Internal server error" });
       }
-
-      // Create MCP server with the FreeAgent token
-      const server = createMcpServer(freeagentToken);
-
-      // Create SSE transport and handle the message
-      const transport = new SSEServerTransport("/message", res);
-      await transport.handlePostMessage(req.body, res);
-    } catch (error) {
-      console.error("Error in MCP message endpoint:", error);
-      res.status(500).json({ error: "Internal server error" });
     }
   }
 );
 
-// Health check endpoint (unprotected)
-app.get("/health", (req, res) => {
+// Health check
+app.get("/health", (req: Request, res: Response) => {
   res.json({
     status: "ok",
     service: "freeagent-mcp-server",
     version: "1.0.0",
-    oauth_enabled: true,
+    oauth_mode: "jwt-stateless",
     freeagent_environment: USE_SANDBOX ? "sandbox" : "production",
-    client_id_configured: !!FREEAGENT_CLIENT_ID,
-    timestamp: new Date().toISOString()
   });
 });
 
-// Export for Vercel
 export default app;
