@@ -19,7 +19,7 @@ export async function listTasks(
   if (params.per_page) queryParams.set("per_page", params.per_page.toString());
 
   const url = `/tasks${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-  const response = await apiClient.get(url);
+  const response = await apiClient.get(url) as any;
 
   if (!response.tasks || response.tasks.length === 0) {
     return "No tasks found.";
@@ -56,7 +56,7 @@ export async function getTask(
   params: GetTaskInput
 ): Promise<string> {
   const taskId = params.task_id.replace(/^.*\/tasks\//, "");
-  const response = await apiClient.get(`/tasks/${taskId}`);
+  const response = await apiClient.get(`/tasks/${taskId}`) as any;
   const task = response.task;
 
   if (params.response_format === ResponseFormat.JSON) {
@@ -100,7 +100,7 @@ export async function createTask(
   if (params.billing_rate) taskData.billing_rate = params.billing_rate;
   if (params.billing_period) taskData.billing_period = params.billing_period;
 
-  const response = await apiClient.post("/tasks", { task: taskData });
+  const response = await apiClient.post("/tasks", { task: taskData }) as any;
   const task = response.task;
 
   return [

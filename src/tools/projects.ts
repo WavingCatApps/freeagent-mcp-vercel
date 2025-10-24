@@ -17,7 +17,7 @@ export async function listProjects(
   if (params.per_page) queryParams.set("per_page", params.per_page.toString());
 
   const url = `/projects${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-  const response = await apiClient.get(url);
+  const response = await apiClient.get(url) as any;
 
   if (!response.projects || response.projects.length === 0) {
     return "No projects found.";
@@ -56,7 +56,7 @@ export async function getProject(
   params: GetProjectInput
 ): Promise<string> {
   const projectId = params.project_id.replace(/^.*\/projects\//, "");
-  const response = await apiClient.get(`/projects/${projectId}`);
+  const response = await apiClient.get(`/projects/${projectId}`) as any;
   const project = response.project;
 
   if (params.response_format === ResponseFormat.JSON) {
@@ -117,7 +117,7 @@ export async function createProject(
     projectData.include_unbilled_time_in_profitability = params.include_unbilled_time_in_profitability;
   }
 
-  const response = await apiClient.post("/projects", { project: projectData });
+  const response = await apiClient.post("/projects", { project: projectData }) as any;
   const project = response.project;
 
   return [
