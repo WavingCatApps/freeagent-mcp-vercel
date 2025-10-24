@@ -100,7 +100,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
   async authorize(
     client: OAuthClientInformationFull,
     params: AuthorizationParams,
-    res: express.Response
+    res: any
   ): Promise<void> {
     try {
       const ourAuthCode = crypto.randomBytes(32).toString('base64url');

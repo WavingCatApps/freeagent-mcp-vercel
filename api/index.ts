@@ -9,7 +9,7 @@
  * 5. MCP tokens are mapped to FreeAgent tokens for API calls
  */
 
-import express, { Request, Response } from "express";
+import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
@@ -74,7 +74,7 @@ app.use(mcpAuthRouter({
 }));
 
 // OAuth callback handler (receives redirect from FreeAgent)
-app.get("/oauth/callback", async (req: Request, res: Response) => {
+app.get("/oauth/callback", async (req: any, res: any) => {
   try {
     const { code, state, error } = req.query;
 
@@ -263,7 +263,7 @@ app.all(
     verifier: oauthProvider,
     resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
   }),
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
       const mcpToken = req.headers.authorization?.replace("Bearer ", "");
       if (!mcpToken) {
@@ -299,7 +299,7 @@ app.all(
     verifier: oauthProvider,
     resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
   }),
-  async (req: Request, res: Response) => {
+  async (req: any, res: any) => {
     try {
       const mcpToken = req.headers.authorization?.replace("Bearer ", "");
       if (!mcpToken) {
@@ -329,7 +329,7 @@ app.all(
 );
 
 // Health check
-app.get("/health", (req: Request, res: Response) => {
+app.get("/health", (req: any, res: any) => {
   res.json({
     status: "ok",
     service: "freeagent-mcp-server",
