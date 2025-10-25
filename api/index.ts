@@ -25,6 +25,7 @@ import { createBankTransactionExplanation } from "../src/tools/bank-transactions
 import { getCompany, listUsers } from "../src/tools/company.js";
 import { listProjects, getProject, createProject } from "../src/tools/projects.js";
 import { listTasks, getTask, createTask } from "../src/tools/tasks.js";
+import { listCategories, getCategory } from "../src/tools/categories.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
@@ -34,6 +35,7 @@ import {
   CreateBankTransactionExplanationInputSchema, GetCompanyInputSchema, ListUsersInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
   ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
+  ListCategoriesInputSchema, GetCategoryInputSchema,
   type ListContactsInput, type GetContactInput, type CreateContactInput,
   type ListInvoicesInput, type GetInvoiceInput, type CreateInvoiceInput,
   type ListExpensesInput, type GetExpenseInput, type CreateExpenseInput,
@@ -41,7 +43,8 @@ import {
   type ListBankAccountsInput, type GetBankAccountInput, type ListBankTransactionsInput,
   type CreateBankTransactionExplanationInput, type GetCompanyInput, type ListUsersInput,
   type ListProjectsInput, type GetProjectInput, type CreateProjectInput,
-  type ListTasksInput, type GetTaskInput, type CreateTaskInput
+  type ListTasksInput, type GetTaskInput, type CreateTaskInput,
+  type ListCategoriesInput, type GetCategoryInput
 } from "../src/schemas/index.js";
 
 // Configuration
@@ -63,10 +66,42 @@ const BASE_URL = PRODUCTION_URL
 
 // Create Express app
 const app = express();
+
+// Enable trust proxy for Vercel (required for rate limiting and X-Forwarded-For headers)
+// Use number of proxies instead of 'true' to satisfy express-rate-limit security requirements
+// Vercel is 1 proxy hop away, so we trust the first proxy
+app.set('trust proxy', 1);
+
 app.use(express.json());
 
 // Create JWT-based OAuth provider (stateless)
 const oauthProvider = createFreeAgentJWTOAuthProvider();
+
+// Add error logging for OAuth token endpoint
+app.use((req: any, res: any, next: any) => {
+  if (req.path === '/token') {
+    const originalJson = res.json.bind(res);
+
+    // Only log errors, not successful requests
+    res.json = function(body: any) {
+      if (body.error) {
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "error",
+          component: "oauth-token-error",
+          message: "Token endpoint error",
+          data: {
+            grantType: req.body?.grant_type,
+            error: body.error,
+            errorDescription: body.error_description,
+          }
+        }));
+      }
+      return originalJson(body);
+    };
+  }
+  next();
+});
 
 // Install full OAuth router (provides /authorize, /token, /register, etc.)
 app.use(mcpAuthRouter({
@@ -287,6 +322,20 @@ function createMcpServer(freeagentToken: string): McpServer {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
   }, createTask);
 
+  registerTool("freeagent_list_categories", {
+    title: "List FreeAgent Categories",
+    description: "List all categories in your FreeAgent account for expenses, invoices, and transactions.",
+    inputSchema: ListCategoriesInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, listCategories);
+
+  registerTool("freeagent_get_category", {
+    title: "Get FreeAgent Category Details",
+    description: "Retrieve detailed information about a specific category by nominal code.",
+    inputSchema: GetCategoryInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  }, getCategory);
+
   registerTool("freeagent_get_company", {
     title: "Get FreeAgent Company Information",
     description: "Retrieve information about your FreeAgent company account.",
@@ -315,11 +364,13 @@ app.all(
     try {
       const mcpToken = req.headers.authorization?.replace("Bearer ", "");
       if (!mcpToken) {
+        console.error("/mcp: No authorization token provided");
         return res.status(401).json({ error: "No authorization token" });
       }
 
       const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
       if (!freeagentToken) {
+        console.error("/mcp: Invalid or expired JWT token");
         return res.status(401).json({ error: "Invalid token" });
       }
 

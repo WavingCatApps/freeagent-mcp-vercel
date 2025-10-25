@@ -26,6 +26,12 @@ const FREEAGENT_CLIENT_SECRET = process.env.FREEAGENT_CLIENT_SECRET!;
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
 
+// Testing: Override token expiry for testing OAuth refresh
+// Set MCP_TOKEN_EXPIRY_SECONDS=60 to test 1-minute expiry
+const MCP_TOKEN_EXPIRY_SECONDS = process.env.MCP_TOKEN_EXPIRY_SECONDS
+  ? parseInt(process.env.MCP_TOKEN_EXPIRY_SECONDS, 10)
+  : undefined; // undefined = use FreeAgent's expires_in
+
 // Determine base URL
 // IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
 // Example: PRODUCTION_URL=freeagent-mcp-vercel-simonrices-projects.vercel.app
@@ -68,10 +74,39 @@ const clients = new Map<string, OAuthClientInformationFull>();
 
 /**
  * Client store for dynamic registration
+ * Handles serverless cold starts by allowing "lost" clients to be reconstructed
  */
 class JWTClientsStore implements OAuthRegisteredClientsStore {
   async getClient(clientId: string): Promise<OAuthClientInformationFull | undefined> {
-    return clients.get(clientId);
+    const existingClient = clients.get(clientId);
+    if (existingClient) {
+      return existingClient;
+    }
+
+    // If client not found in memory (serverless cold start), create a placeholder
+    // The real validation happens in exchangeRefreshToken via the JWT
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "warn",
+      component: "client-store",
+      message: "Client not in memory (cold start), creating placeholder for refresh validation",
+      data: { clientId }
+    }));
+
+    // Return a minimal valid client that will pass SDK validation
+    // The refresh token JWT contains the full client metadata anyway
+    const placeholderClient: OAuthClientInformationFull = {
+      client_id: clientId,
+      client_name: "Claude Desktop (Recovered)",
+      redirect_uris: [],
+      grant_types: ["refresh_token", "authorization_code"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+    };
+
+    // Re-register it so future requests in this instance don't need reconstruction
+    clients.set(clientId, placeholderClient);
+    return placeholderClient;
   }
 
   async registerClient(clientMetadata: OAuthClientInformationFull): Promise<OAuthClientInformationFull> {
@@ -205,13 +240,18 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       const freeagentTokens = await tokenResponse.json();
 
       // Create JWT payload with FreeAgent tokens
+      const now = Math.floor(Date.now() / 1000);
+      // Use override for testing, otherwise use FreeAgent's expires_in
+      const expiresIn = MCP_TOKEN_EXPIRY_SECONDS ?? (freeagentTokens.expires_in || 3600);
+      const expiresAt = now + expiresIn;
+
       const payload: JWTPayload = {
         freeagentAccessToken: freeagentTokens.access_token,
         freeagentRefreshToken: freeagentTokens.refresh_token,
         clientId: client.client_id,
         scopes: ["freeagent"],
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (freeagentTokens.expires_in || 3600),
+        iat: now,
+        exp: expiresAt,
       };
 
       // Sign the JWT
@@ -220,15 +260,40 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       });
 
       // Create refresh token (also a JWT)
+      // IMPORTANT: Embed full client metadata to survive serverless cold starts
       const refreshPayload = {
         freeagentRefreshToken: freeagentTokens.refresh_token,
         clientId: client.client_id,
         type: 'refresh',
+        // Store full client info so we can reconstruct it after cold start
+        clientMetadata: {
+          client_id: client.client_id,
+          client_name: client.client_name,
+          redirect_uris: client.redirect_uris,
+          grant_types: client.grant_types,
+          response_types: client.response_types,
+          token_endpoint_auth_method: client.token_endpoint_auth_method,
+        },
       };
       const mcpRefreshToken = jwt.sign(refreshPayload, JWT_SECRET, {
         algorithm: 'HS256',
         expiresIn: '30d', // Refresh tokens last longer
       });
+
+      // Log token creation (simplified)
+      if (MCP_TOKEN_EXPIRY_SECONDS !== undefined) {
+        // Only log in test mode
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "info",
+          component: "oauth-token-exchange",
+          message: "MCP tokens created (test mode)",
+          data: {
+            testExpiresIn: expiresIn,
+            expiresAt: new Date(expiresAt * 1000).toISOString(),
+          }
+        }));
+      }
 
       // Clean up auth code (no longer needed)
       authCodes.delete(authorizationCode);
@@ -236,7 +301,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       return {
         access_token: mcpAccessToken,
         token_type: "bearer",
-        expires_in: freeagentTokens.expires_in || 3600,
+        expires_in: expiresIn,
         refresh_token: mcpRefreshToken,
       };
     } catch (error) {
@@ -255,11 +320,54 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
     _resource?: URL
   ): Promise<OAuthTokens> {
     try {
+
       // Verify and decode the refresh token JWT
       const decoded = jwt.verify(refreshToken, JWT_SECRET) as any;
 
-      if (decoded.type !== 'refresh' || decoded.clientId !== client.client_id) {
+      if (decoded.type !== 'refresh') {
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "error",
+          component: "oauth-refresh",
+          message: "Invalid refresh token type",
+          data: {
+            expectedType: "refresh",
+            actualType: decoded.type,
+          }
+        }));
         throw new Error("Invalid refresh token");
+      }
+
+      // Validate client_id matches (with flexibility for cold starts)
+      if (decoded.clientId !== client.client_id) {
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "error",
+          component: "oauth-refresh",
+          message: "Client ID mismatch",
+          data: {
+            expectedClientId: client.client_id,
+            actualClientId: decoded.clientId,
+            hasClientMetadata: !!decoded.clientMetadata,
+          }
+        }));
+        throw new Error("Invalid refresh token - client mismatch");
+      }
+
+      // If client was reconstructed as placeholder, restore real metadata from JWT
+      if (client.client_name === "Claude Desktop (Recovered)" && decoded.clientMetadata) {
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "info",
+          component: "oauth-refresh",
+          message: "Restored client metadata from refresh token JWT",
+          data: {
+            clientId: decoded.clientId,
+          }
+        }));
+        // Update the in-memory client with real metadata
+        const restoredClient: OAuthClientInformationFull = decoded.clientMetadata;
+        clients.set(restoredClient.client_id, restoredClient);
       }
 
       // Use FreeAgent refresh token to get new FreeAgent tokens
@@ -276,32 +384,74 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       });
 
       if (!tokenResponse.ok) {
-        throw new Error("FreeAgent refresh failed");
+        const errorText = await tokenResponse.text();
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "error",
+          component: "oauth-refresh",
+          message: "FreeAgent token refresh failed",
+          data: {
+            status: tokenResponse.status,
+            statusText: tokenResponse.statusText,
+            error: errorText,
+          }
+        }));
+        throw new Error(`FreeAgent refresh failed: ${tokenResponse.status} ${errorText}`);
       }
 
       const freeagentTokens = await tokenResponse.json();
 
       // Create new JWT with new FreeAgent tokens
+      const now = Math.floor(Date.now() / 1000);
+      // Use override for testing, otherwise use FreeAgent's expires_in
+      const expiresIn = MCP_TOKEN_EXPIRY_SECONDS ?? (freeagentTokens.expires_in || 3600);
+      const expiresAt = now + expiresIn;
+
       const payload: JWTPayload = {
         freeagentAccessToken: freeagentTokens.access_token,
         freeagentRefreshToken: freeagentTokens.refresh_token,
         clientId: client.client_id,
         scopes: ["freeagent"],
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (freeagentTokens.expires_in || 3600),
+        iat: now,
+        exp: expiresAt,
       };
 
       const newMcpAccessToken = jwt.sign(payload, JWT_SECRET, {
         algorithm: 'HS256',
       });
 
+      // Log successful refresh (simplified)
+      if (MCP_TOKEN_EXPIRY_SECONDS !== undefined) {
+        // Only log details in test mode
+        console.error(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "info",
+          component: "oauth-refresh",
+          message: "Token refresh successful (test mode)",
+          data: {
+            testExpiresIn: expiresIn,
+            expiresAt: new Date(expiresAt * 1000).toISOString(),
+          }
+        }));
+      }
+
       return {
         access_token: newMcpAccessToken,
         token_type: "bearer",
-        expires_in: freeagentTokens.expires_in || 3600,
+        expires_in: expiresIn,
         refresh_token: refreshToken, // Same refresh token can be reused
       };
     } catch (error) {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        component: "oauth-refresh",
+        message: "Token refresh failed",
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        }
+      }));
       throw new Error(`Refresh token exchange failed: ${error}`);
     }
   }
@@ -321,8 +471,10 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       };
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
+        console.error("Access token expired");
         throw new Error("Access token expired");
       }
+      console.error("Invalid access token:", error);
       throw new Error("Invalid access token");
     }
   }

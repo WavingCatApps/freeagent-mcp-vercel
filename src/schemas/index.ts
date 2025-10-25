@@ -302,6 +302,21 @@ export const CreateTaskInputSchema = z.object({
     .describe("Billing period (hour or day)")
 }).strict();
 
+// Category schemas
+export const ListCategoriesInputSchema = z.object({
+  view: z.enum(["all", "standard", "custom"])
+    .optional()
+    .describe("Filter categories by type (all, standard system categories, or custom user-created)"),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetCategoryInputSchema = z.object({
+  nominal_code: z.string()
+    .min(1)
+    .describe("The FreeAgent category nominal code or full URL"),
+  response_format: ResponseFormatSchema
+}).strict();
+
 // Bank account schemas
 export const ListBankAccountsInputSchema = z.object({
   response_format: ResponseFormatSchema
@@ -461,6 +476,8 @@ export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
 export type ListTasksInput = z.infer<typeof ListTasksInputSchema>;
 export type GetTaskInput = z.infer<typeof GetTaskInputSchema>;
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;
+export type ListCategoriesInput = z.infer<typeof ListCategoriesInputSchema>;
+export type GetCategoryInput = z.infer<typeof GetCategoryInputSchema>;
 export type ListBankAccountsInput = z.infer<typeof ListBankAccountsInputSchema>;
 export type GetBankAccountInput = z.infer<typeof GetBankAccountInputSchema>;
 export type ListBankTransactionsInput = z.infer<typeof ListBankTransactionsInputSchema>;

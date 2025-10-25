@@ -84,7 +84,7 @@ export class FreeAgentApiClient {
   private handleError(error: unknown): Error {
     if (axios.isAxiosError(error)) {
       const axiosError = error as AxiosError<FreeAgentApiError>;
-      
+
       if (axiosError.response) {
         const status = axiosError.response.status;
         const data = axiosError.response.data;
