@@ -171,7 +171,8 @@ export async function listBankTransactions(
         amount: txn.amount,
         unexplained_amount: txn.unexplained_amount,
         is_manual: txn.is_manual,
-        bank_account: txn.bank_account
+        bank_account: txn.bank_account,
+        bank_transaction_explanations: txn.bank_transaction_explanations || []
       })),
       pagination: {
         page,
@@ -211,11 +212,16 @@ export async function listBankTransactions(
         const unexplained = parseFloat(txn.unexplained_amount || '0');
         const status = unexplained !== 0 ? ' ⚠️ UNEXPLAINED' : ' ✓ Explained';
         const manual = txn.is_manual ? ' [MANUAL]' : '';
+        const explanations = txn.bank_transaction_explanations || [];
+        const explanationCount = explanations.length > 0 ? ` (${explanations.length} explanation${explanations.length > 1 ? 's' : ''})` : '';
 
-        lines.push(`## ${txn.dated_on} - ${amountStr}${status} (ID: ${id})`);
+        lines.push(`## ${txn.dated_on} - ${amountStr}${status}${explanationCount} (ID: ${id})`);
         lines.push(`${desc}${manual}`);
         if (unexplained !== 0) {
           lines.push(`*Unexplained amount: ${unexplained}*`);
+        }
+        if (explanations.length > 0) {
+          lines.push(`Explanations: ${explanations.join(', ')}`);
         }
         lines.push("");
       }
@@ -266,6 +272,17 @@ export async function getBankTransaction(
 
       if (txn.uploaded_at) {
         lines.push(`- **Uploaded**: ${txn.uploaded_at}`);
+      }
+
+      // Show explanations if any exist
+      const explanations = txn.bank_transaction_explanations || [];
+      if (explanations.length > 0) {
+        lines.push("");
+        lines.push(`**Explanations (${explanations.length}):**`);
+        explanations.forEach((expUrl: string, index: number) => {
+          const expId = extractIdFromUrl(expUrl);
+          lines.push(`  ${index + 1}. ID: ${expId} - ${expUrl}`);
+        });
       }
 
       lines.push("");
