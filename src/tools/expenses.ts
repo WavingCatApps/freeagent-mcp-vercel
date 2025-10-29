@@ -9,7 +9,8 @@ import type { FreeAgentApiClient } from "../services/api-client.js";
 import type {
   ListExpensesInput,
   GetExpenseInput,
-  CreateExpenseInput
+  CreateExpenseInput,
+  UpdateExpenseInput
 } from "../schemas/index.js";
 import { ResponseFormat } from "../constants.js";
 import {
@@ -202,18 +203,33 @@ export async function createExpense(
   }
   if (params.currency) expensePayload.currency = params.currency;
   if (params.project) expensePayload.project = params.project;
+  if (params.receipt_reference) expensePayload.receipt_reference = params.receipt_reference;
+
+  // Recurring expense fields
+  if (params.recurring) expensePayload.recurring = params.recurring;
+  if (params.next_recurs_on) expensePayload.next_recurs_on = params.next_recurs_on;
+  if (params.recurring_end_date) expensePayload.recurring_end_date = params.recurring_end_date;
 
   // Mileage-specific fields
   if (isMileage) {
-    expensePayload.miles = params.miles;
+    expensePayload.mileage = params.miles; // API field is "mileage"
     if (params.mileage_vehicle_type) {
-      expensePayload.vehicle_type = params.mileage_vehicle_type;
+      expensePayload.vehicle_type = params.mileage_vehicle_type; // API field is "vehicle_type"
     }
     if (params.initial_mileage) {
       expensePayload.initial_mileage = params.initial_mileage;
     }
     if (params.mileage_type) {
       expensePayload.mileage_type = params.mileage_type;
+    }
+    if (params.engine_type) {
+      expensePayload.engine_type = params.engine_type;
+    }
+    if (params.engine_size) {
+      expensePayload.engine_size = params.engine_size;
+    }
+    if (params.reclaim_mileage !== undefined) {
+      expensePayload.reclaim_mileage = params.reclaim_mileage;
     }
   }
 
@@ -240,6 +256,78 @@ export async function createExpense(
     `**Expense ID**: ${expenseId}\n` +
     `**Date**: ${expense.dated_on}\n` +
     `**Amount**: ${expense.currency || 'GBP'} ${expense.gross_value}\n` +
+    (isMileage ? `**Miles**: ${expense.miles}\n` : '') +
+    `**URL**: ${expense.url}`;
+}
+
+/**
+ * Update an existing expense
+ */
+export async function updateExpense(
+  client: FreeAgentApiClient,
+  params: UpdateExpenseInput
+): Promise<string> {
+  const { expense_id, ...updateFields } = params;
+  const expenseUrl = expense_id.startsWith('http')
+    ? expense_id
+    : `/expenses/${expense_id}`;
+
+  // Build expense payload with only provided fields
+  const expensePayload: any = {};
+
+  // Add optional fields only if provided
+  if (updateFields.user !== undefined) expensePayload.user = updateFields.user;
+  if (updateFields.category !== undefined) expensePayload.category = updateFields.category;
+  if (updateFields.dated_on !== undefined) expensePayload.dated_on = updateFields.dated_on;
+  if (updateFields.description !== undefined) expensePayload.description = updateFields.description;
+  if (updateFields.gross_value !== undefined) expensePayload.gross_value = updateFields.gross_value;
+  if (updateFields.sales_tax_rate !== undefined) expensePayload.sales_tax_rate = updateFields.sales_tax_rate;
+  if (updateFields.manual_sales_tax_amount !== undefined) {
+    expensePayload.manual_sales_tax_amount = updateFields.manual_sales_tax_amount;
+  }
+  if (updateFields.currency !== undefined) expensePayload.currency = updateFields.currency;
+  if (updateFields.ec_status !== undefined) expensePayload.ec_status = updateFields.ec_status;
+  if (updateFields.project !== undefined) expensePayload.project = updateFields.project;
+  if (updateFields.receipt_reference !== undefined) expensePayload.receipt_reference = updateFields.receipt_reference;
+
+  // Recurring expense fields
+  if (updateFields.recurring !== undefined) expensePayload.recurring = updateFields.recurring;
+  if (updateFields.next_recurs_on !== undefined) expensePayload.next_recurs_on = updateFields.next_recurs_on;
+  if (updateFields.recurring_end_date !== undefined) expensePayload.recurring_end_date = updateFields.recurring_end_date;
+
+  // Mileage-specific fields
+  if (updateFields.miles !== undefined) expensePayload.mileage = updateFields.miles; // API field is "mileage"
+  if (updateFields.mileage_vehicle_type !== undefined) {
+    expensePayload.vehicle_type = updateFields.mileage_vehicle_type; // API field is "vehicle_type"
+  }
+  if (updateFields.initial_mileage !== undefined) {
+    expensePayload.initial_mileage = updateFields.initial_mileage;
+  }
+  if (updateFields.mileage_type !== undefined) {
+    expensePayload.mileage_type = updateFields.mileage_type;
+  }
+  if (updateFields.engine_type !== undefined) {
+    expensePayload.engine_type = updateFields.engine_type;
+  }
+  if (updateFields.engine_size !== undefined) {
+    expensePayload.engine_size = updateFields.engine_size;
+  }
+  if (updateFields.reclaim_mileage !== undefined) {
+    expensePayload.reclaim_mileage = updateFields.reclaim_mileage;
+  }
+
+  const response = await client.put<{ expense: any }>(expenseUrl, { expense: expensePayload });
+  const expense = response.expense;
+  const expenseId = extractIdFromUrl(expense.url);
+
+  const isMileage = expense.miles !== null && expense.miles !== undefined;
+  const type = isMileage ? "mileage expense" : "expense";
+
+  return `✅ Successfully updated ${type}\n\n` +
+    `**Expense ID**: ${expenseId}\n` +
+    `**Date**: ${expense.dated_on}\n` +
+    `**Amount**: ${expense.currency || 'GBP'} ${expense.gross_value}\n` +
+    (expense.description ? `**Description**: ${expense.description}\n` : '') +
     (isMileage ? `**Miles**: ${expense.miles}\n` : '') +
     `**URL**: ${expense.url}`;
 }

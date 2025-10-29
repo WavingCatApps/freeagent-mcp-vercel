@@ -8,7 +8,8 @@ import type { FreeAgentApiClient } from "../services/api-client.js";
 import type {
   ListBankAccountsInput,
   GetBankAccountInput,
-  ListBankTransactionsInput
+  ListBankTransactionsInput,
+  GetBankTransactionInput
 } from "../schemas/index.js";
 import { ResponseFormat } from "../constants.js";
 import {
@@ -218,6 +219,58 @@ export async function listBankTransactions(
         }
         lines.push("");
       }
+
+      return lines.join("\n");
+    }
+  );
+}
+
+/**
+ * Get detailed information about a specific bank transaction
+ */
+export async function getBankTransaction(
+  client: FreeAgentApiClient,
+  params: GetBankTransactionInput
+): Promise<string> {
+  const { bank_transaction_id, response_format } = params;
+  const transactionUrl = bank_transaction_id.startsWith('http')
+    ? bank_transaction_id
+    : `/bank_transactions/${bank_transaction_id}`;
+
+  const response = await client.get<{ bank_transaction: any }>(transactionUrl);
+  const txn = response.bank_transaction;
+
+  // Format response
+  return formatResponse(
+    txn,
+    response_format,
+    () => {
+      const lines: string[] = ["# Bank Transaction Details", ""];
+
+      const amount = parseFloat(txn.amount || txn.gross_value || '0');
+      const amountStr = amount >= 0 ? `+${amount}` : `${amount}`;
+      const unexplained = parseFloat(txn.unexplained_amount || '0');
+      const status = unexplained !== 0 ? '⚠️ UNEXPLAINED' : '✓ Explained';
+
+      lines.push(`- **Date**: ${txn.dated_on}`);
+      lines.push(`- **Amount**: ${amountStr}`);
+      lines.push(`- **Description**: ${txn.description || 'N/A'}`);
+      lines.push(`- **Status**: ${status}`);
+
+      if (unexplained !== 0) {
+        lines.push(`- **Unexplained Amount**: ${unexplained}`);
+      }
+
+      lines.push(`- **Manual Entry**: ${txn.is_manual ? 'Yes' : 'No'}`);
+      lines.push(`- **Bank Account**: ${txn.bank_account}`);
+
+      if (txn.uploaded_at) {
+        lines.push(`- **Uploaded**: ${txn.uploaded_at}`);
+      }
+
+      lines.push("");
+      lines.push(`- **Created**: ${txn.created_at}`);
+      lines.push(`- **Updated**: ${txn.updated_at}`);
 
       return lines.join("\n");
     }

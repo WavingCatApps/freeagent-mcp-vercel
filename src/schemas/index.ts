@@ -166,25 +166,130 @@ export const CreateExpenseInputSchema = z.object({
   ec_status: z.enum(["EC Services", "EC Goods", "Non-EC"])
     .optional()
     .describe("EC (European Community) status for the expense"),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Receipt reference identifier"),
   attachment: AttachmentSchema
     .optional()
     .describe("File attachment (receipt) for the expense"),
   project: z.string()
     .optional()
     .describe("Project URL or ID to associate with expense"),
+  // Recurring expense fields
+  recurring: z.enum(["Weekly", "Two Weekly", "Four Weekly", "Two Monthly", "Quarterly", "Biannually", "Annually", "2-Yearly"])
+    .optional()
+    .describe("Recurring frequency for repeating expenses"),
+  next_recurs_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Next recurrence date in YYYY-MM-DD format (for recurring expenses)"),
+  recurring_end_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("End date for recurring expenses in YYYY-MM-DD format"),
   // Mileage-specific fields
   mileage_vehicle_type: z.enum(["Car", "Motorcycle", "Bicycle"])
     .optional()
-    .describe("Vehicle type for mileage expenses"),
+    .describe("Vehicle type for mileage expenses (API field: vehicle_type)"),
   miles: z.string()
     .optional()
-    .describe("Distance traveled in miles (decimal string)"),
+    .describe("Distance traveled in miles (decimal string) (API field: mileage)"),
   initial_mileage: z.string()
     .optional()
     .describe("Starting odometer reading"),
   mileage_type: z.enum(["Business", "Personal"])
     .optional()
-    .describe("Type of mileage")
+    .describe("Type of mileage"),
+  engine_type: z.enum(["Petrol", "Diesel", "LPG", "Electric", "Electric (Home charger)", "Electric (Public charger)"])
+    .optional()
+    .describe("Engine type for mileage expenses (affects rate calculation)"),
+  engine_size: z.string()
+    .optional()
+    .describe("Engine size (depends on engine_type selection)"),
+  reclaim_mileage: z.number()
+    .int()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Mileage reclaim method: 0 = rebill only (default), 1 = AMAP rate")
+}).strict();
+
+export const UpdateExpenseInputSchema = z.object({
+  expense_id: z.string()
+    .min(1)
+    .describe("The FreeAgent expense ID (numeric) or full URL"),
+  user: z.string()
+    .optional()
+    .describe("User URL or ID who incurred the expense"),
+  category: z.string()
+    .optional()
+    .describe("Expense category URL or ID"),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Date of expense in YYYY-MM-DD format"),
+  description: z.string()
+    .optional()
+    .describe("Description of the expense"),
+  gross_value: z.string()
+    .optional()
+    .describe("Total amount including tax (decimal string)"),
+  sales_tax_rate: z.string()
+    .optional()
+    .describe("Sales tax rate as decimal (e.g., '0.20' for 20%)"),
+  manual_sales_tax_amount: z.string()
+    .optional()
+    .describe("Manual sales tax amount (overrides sales_tax_rate)"),
+  currency: z.string()
+    .length(3)
+    .optional()
+    .describe("Currency code (e.g., GBP, USD, EUR)"),
+  ec_status: z.enum(["EC Services", "EC Goods", "Non-EC"])
+    .optional()
+    .describe("EC (European Community) status for the expense"),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Receipt reference identifier"),
+  project: z.string()
+    .optional()
+    .describe("Project URL or ID to associate with expense"),
+  // Recurring expense fields
+  recurring: z.enum(["Weekly", "Two Weekly", "Four Weekly", "Two Monthly", "Quarterly", "Biannually", "Annually", "2-Yearly"])
+    .optional()
+    .describe("Recurring frequency for repeating expenses"),
+  next_recurs_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Next recurrence date in YYYY-MM-DD format (for recurring expenses)"),
+  recurring_end_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("End date for recurring expenses in YYYY-MM-DD format"),
+  // Mileage-specific fields
+  mileage_vehicle_type: z.enum(["Car", "Motorcycle", "Bicycle"])
+    .optional()
+    .describe("Vehicle type for mileage expenses (API field: vehicle_type)"),
+  miles: z.string()
+    .optional()
+    .describe("Distance traveled in miles (decimal string) (API field: mileage)"),
+  initial_mileage: z.string()
+    .optional()
+    .describe("Starting odometer reading"),
+  mileage_type: z.enum(["Business", "Personal"])
+    .optional()
+    .describe("Type of mileage"),
+  engine_type: z.enum(["Petrol", "Diesel", "LPG", "Electric", "Electric (Home charger)", "Electric (Public charger)"])
+    .optional()
+    .describe("Engine type for mileage expenses (affects rate calculation)"),
+  engine_size: z.string()
+    .optional()
+    .describe("Engine size (depends on engine_type selection)"),
+  reclaim_mileage: z.number()
+    .int()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Mileage reclaim method: 0 = rebill only (default), 1 = AMAP rate")
 }).strict();
 
 // Project schemas
@@ -350,6 +455,13 @@ export const ListBankTransactionsInputSchema = z.object({
   response_format: ResponseFormatSchema
 }).strict();
 
+export const GetBankTransactionInputSchema = z.object({
+  bank_transaction_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bank transaction ID (numeric) or full URL"),
+  response_format: ResponseFormatSchema
+}).strict();
+
 // Timeslip schemas
 export const ListTimeslipsInputSchema = z.object({
   page: PaginationSchema.shape.page,
@@ -420,6 +532,15 @@ export const CreateBankTransactionExplanationInputSchema = z.object({
   category: z.string()
     .optional()
     .describe("Category URL or ID for the transaction"),
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge", "EC VAT MOSS"])
+    .optional()
+    .describe("EC (European Community) status for the transaction (Note: EC Goods and EC Services invalid for transactions dated 2021-01-01+ in Great Britain)"),
+  marked_for_review: z.boolean()
+    .optional()
+    .describe("Whether the explanation is marked for review (true if guessed/awaiting approval, false otherwise)"),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Reference identifier for the receipt or transaction"),
   // Link to other entities
   paid_invoice: z.string()
     .optional()
@@ -450,6 +571,58 @@ export const CreateBankTransactionExplanationInputSchema = z.object({
     .describe("Optional file attachment for the explanation")
 }).strict();
 
+export const UpdateBankTransactionExplanationInputSchema = z.object({
+  bank_transaction_explanation_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bank transaction explanation ID (numeric) or full URL"),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Transaction date in YYYY-MM-DD format"),
+  description: z.string()
+    .optional()
+    .describe("Description of the transaction"),
+  gross_value: z.string()
+    .optional()
+    .describe("Transaction amount (decimal string, negative for debits)"),
+  category: z.string()
+    .optional()
+    .describe("Category URL or ID for the transaction"),
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge", "EC VAT MOSS"])
+    .optional()
+    .describe("EC (European Community) status for the transaction (Note: EC Goods and EC Services invalid for transactions dated 2021-01-01+ in Great Britain)"),
+  marked_for_review: z.boolean()
+    .optional()
+    .describe("Whether the explanation is marked for review (true if guessed/awaiting approval, false otherwise)"),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Reference identifier for the receipt or transaction"),
+  // Link to other entities
+  paid_invoice: z.string()
+    .optional()
+    .describe("Invoice URL or ID that this transaction pays"),
+  paid_bill: z.string()
+    .optional()
+    .describe("Bill URL or ID that this transaction pays"),
+  paid_user: z.string()
+    .optional()
+    .describe("User URL or ID for money paid to/from user"),
+  project: z.string()
+    .optional()
+    .describe("Project URL or ID to associate with transaction"),
+  // Tax information
+  sales_tax_rate: z.string()
+    .optional()
+    .describe("Sales tax rate as decimal (e.g., '0.20' for 20%)"),
+  sales_tax_value: z.string()
+    .optional()
+    .describe("Sales tax amount"),
+  // Transfer information
+  transfer_bank_account: z.string()
+    .optional()
+    .describe("Destination bank account URL or ID for transfers")
+}).strict();
+
 // Company schema
 export const GetCompanyInputSchema = z.object({
   response_format: ResponseFormatSchema
@@ -470,6 +643,7 @@ export type CreateInvoiceInput = z.infer<typeof CreateInvoiceInputSchema>;
 export type ListExpensesInput = z.infer<typeof ListExpensesInputSchema>;
 export type GetExpenseInput = z.infer<typeof GetExpenseInputSchema>;
 export type CreateExpenseInput = z.infer<typeof CreateExpenseInputSchema>;
+export type UpdateExpenseInput = z.infer<typeof UpdateExpenseInputSchema>;
 export type ListProjectsInput = z.infer<typeof ListProjectsInputSchema>;
 export type GetProjectInput = z.infer<typeof GetProjectInputSchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
@@ -481,9 +655,11 @@ export type GetCategoryInput = z.infer<typeof GetCategoryInputSchema>;
 export type ListBankAccountsInput = z.infer<typeof ListBankAccountsInputSchema>;
 export type GetBankAccountInput = z.infer<typeof GetBankAccountInputSchema>;
 export type ListBankTransactionsInput = z.infer<typeof ListBankTransactionsInputSchema>;
+export type GetBankTransactionInput = z.infer<typeof GetBankTransactionInputSchema>;
 export type ListTimeslipsInput = z.infer<typeof ListTimeslipsInputSchema>;
 export type GetTimeslipInput = z.infer<typeof GetTimeslipInputSchema>;
 export type CreateTimeslipInput = z.infer<typeof CreateTimeslipInputSchema>;
 export type CreateBankTransactionExplanationInput = z.infer<typeof CreateBankTransactionExplanationInputSchema>;
+export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTransactionExplanationInputSchema>;
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;
 export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;

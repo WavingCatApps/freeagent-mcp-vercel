@@ -11,10 +11,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { FreeAgentApiClient, formatErrorForLLM } from "./services/api-client.js";
 import { listContacts, getContact, createContact } from "./tools/contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./tools/invoices.js";
-import { listExpenses, getExpense, createExpense } from "./tools/expenses.js";
+import { listExpenses, getExpense, createExpense, updateExpense } from "./tools/expenses.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./tools/timeslips.js";
-import { listBankAccounts, getBankAccount, listBankTransactions } from "./tools/bank-accounts.js";
-import { createBankTransactionExplanation } from "./tools/bank-transactions.js";
+import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./tools/bank-accounts.js";
+import { createBankTransactionExplanation, updateBankTransactionExplanation } from "./tools/bank-transactions.js";
+import { listCategories, getCategory } from "./tools/categories.js";
 import { getCompany, listUsers } from "./tools/company.js";
 import {
   ListContactsInputSchema,
@@ -26,13 +27,18 @@ import {
   ListExpensesInputSchema,
   GetExpenseInputSchema,
   CreateExpenseInputSchema,
+  UpdateExpenseInputSchema,
   ListTimeslipsInputSchema,
   GetTimeslipInputSchema,
   CreateTimeslipInputSchema,
   ListBankAccountsInputSchema,
   GetBankAccountInputSchema,
   ListBankTransactionsInputSchema,
+  GetBankTransactionInputSchema,
   CreateBankTransactionExplanationInputSchema,
+  UpdateBankTransactionExplanationInputSchema,
+  ListCategoriesInputSchema,
+  GetCategoryInputSchema,
   GetCompanyInputSchema,
   ListUsersInputSchema,
   type ListContactsInput,
@@ -44,13 +50,18 @@ import {
   type ListExpensesInput,
   type GetExpenseInput,
   type CreateExpenseInput,
+  type UpdateExpenseInput,
   type ListTimeslipsInput,
   type GetTimeslipInput,
   type CreateTimeslipInput,
   type ListBankAccountsInput,
   type GetBankAccountInput,
   type ListBankTransactionsInput,
+  type GetBankTransactionInput,
   type CreateBankTransactionExplanationInput,
+  type UpdateBankTransactionExplanationInput,
+  type ListCategoriesInput,
+  type GetCategoryInput,
   type GetCompanyInput,
   type ListUsersInput
 } from "./schemas/index.js";
@@ -582,6 +593,7 @@ Args:
   - manual_sales_tax_amount (string): Manual sales tax amount (optional)
   - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
   - ec_status (string): One of: 'EC Services', 'EC Goods', 'Non-EC' (optional)
+  - receipt_reference (string): Receipt reference identifier (optional)
   - project (string): Project URL or ID to associate with expense (optional)
   - attachment (object): File attachment for receipt (optional):
     - data (string): Base64 encoded file content
@@ -589,11 +601,19 @@ Args:
     - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
     - description (string): Optional attachment description
 
+  Recurring expense fields:
+  - recurring (string): One of: 'Weekly', 'Two Weekly', 'Four Weekly', 'Two Monthly', 'Quarterly', 'Biannually', 'Annually', '2-Yearly' (optional)
+  - next_recurs_on (string): Next recurrence date in YYYY-MM-DD format (optional)
+  - recurring_end_date (string): End date for recurring expenses in YYYY-MM-DD format (optional)
+
   Mileage-specific fields (use instead of gross_value):
   - miles (string): Distance traveled in miles (decimal string, required for mileage)
   - mileage_vehicle_type (string): One of: 'Car', 'Motorcycle', 'Bicycle' (optional)
   - initial_mileage (string): Starting odometer reading (optional)
   - mileage_type (string): One of: 'Business', 'Personal' (optional)
+  - engine_type (string): One of: 'Petrol', 'Diesel', 'LPG', 'Electric', 'Electric (Home charger)', 'Electric (Public charger)' (optional)
+  - engine_size (string): Engine size, depends on engine_type selection (optional)
+  - reclaim_mileage (number): 0 = rebill only (default), 1 = AMAP rate (optional)
 
 Returns:
   Success message with expense ID, date, amount, and URL. For mileage expenses, includes miles traveled.
@@ -623,6 +643,92 @@ Error Handling:
   async (params: CreateExpenseInput) => {
     try {
       const result = await createExpense(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_update_expense
+ * Update an existing expense
+ */
+server.registerTool(
+  "freeagent_update_expense",
+  {
+    title: "Update FreeAgent Expense",
+    description: `Update an existing expense in FreeAgent.
+
+This tool allows you to modify fields on an existing expense, including description and category. All fields are optional - only provide the fields you want to update.
+
+Args:
+  - expense_id (string): Expense ID (numeric) or full URL (required)
+  - user (string): User URL or ID who incurred the expense (optional)
+  - category (string): Expense category URL or ID (optional)
+  - dated_on (string): Date of expense in YYYY-MM-DD format (optional)
+  - description (string): Description of the expense (optional)
+  - gross_value (string): Total amount including tax (decimal string) (optional)
+  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
+  - manual_sales_tax_amount (string): Manual sales tax amount (optional)
+  - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
+  - ec_status (string): One of: 'EC Services', 'EC Goods', 'Non-EC' (optional)
+  - receipt_reference (string): Receipt reference identifier (optional)
+  - project (string): Project URL or ID to associate with expense (optional)
+
+  Recurring expense fields:
+  - recurring (string): One of: 'Weekly', 'Two Weekly', 'Four Weekly', 'Two Monthly', 'Quarterly', 'Biannually', 'Annually', '2-Yearly' (optional)
+  - next_recurs_on (string): Next recurrence date in YYYY-MM-DD format (optional)
+  - recurring_end_date (string): End date for recurring expenses in YYYY-MM-DD format (optional)
+
+  Mileage-specific fields:
+  - miles (string): Distance traveled in miles (decimal string) (optional)
+  - mileage_vehicle_type (string): One of: 'Car', 'Motorcycle', 'Bicycle' (optional)
+  - initial_mileage (string): Starting odometer reading (optional)
+  - mileage_type (string): One of: 'Business', 'Personal' (optional)
+  - engine_type (string): One of: 'Petrol', 'Diesel', 'LPG', 'Electric', 'Electric (Home charger)', 'Electric (Public charger)' (optional)
+  - engine_size (string): Engine size, depends on engine_type selection (optional)
+  - reclaim_mileage (number): 0 = rebill only (default), 1 = AMAP rate (optional)
+
+Returns:
+  Success message with updated expense details including ID, date, amount, description, and URL.
+
+Examples:
+  - Use when: "Update expense description to 'Client dinner'" → expense_id="123", description="Client dinner"
+  - Use when: "Change expense category" → expense_id="123", category="[category_url]"
+  - Use when: "Update expense amount to £200" → expense_id="123", gross_value="200.00"
+
+Tips:
+  - Only provide the fields you want to change
+  - Use freeagent_list_categories to find the correct category URL
+  - You can update both description and category in a single call
+
+Error Handling:
+  - Returns 404 if expense doesn't exist
+  - Returns validation errors (422) if invalid data provided
+  - Suggests checking expense ID and field formats`,
+    inputSchema: UpdateExpenseInputSchema.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: UpdateExpenseInput) => {
+    try {
+      const result = await updateExpense(apiClient, params);
       return {
         content: [{
           type: "text",
@@ -1074,6 +1180,81 @@ Error Handling:
 );
 
 /**
+ * Tool: freeagent_get_bank_transaction
+ * Get detailed information about a specific bank transaction
+ */
+server.registerTool(
+  "freeagent_get_bank_transaction",
+  {
+    title: "Get FreeAgent Bank Transaction",
+    description: `Get detailed information about a specific bank transaction.
+
+This tool retrieves complete details for a single bank transaction including its description, amount, explanation status, and timestamps.
+
+Args:
+  - bank_transaction_id (string): Bank transaction ID (numeric) or full URL (required)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format: Complete transaction object with all fields:
+  {
+    "url": string,
+    "dated_on": string,
+    "amount": string,
+    "description": string,
+    "unexplained_amount": string,
+    "is_manual": boolean,
+    "bank_account": string,
+    "uploaded_at": string,
+    "created_at": string,
+    "updated_at": string
+  }
+
+  For Markdown format: Human-readable transaction details with formatted amounts and status.
+
+Examples:
+  - Use when: "Show details for transaction 12345" → bank_transaction_id="12345"
+  - Use when: "What's the description of this transaction?" → Fetch transaction to see its description
+  - Use when: "Get transaction information" → Use this to retrieve full transaction details
+
+Tips:
+  - Use this to check a transaction's current description and explanation status
+  - Check unexplained_amount to see if the transaction needs explanation
+  - The description field shows the transaction's current description
+
+Error Handling:
+  - Returns 404 if transaction doesn't exist
+  - Suggests checking the transaction ID`,
+    inputSchema: GetBankTransactionInputSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: GetBankTransactionInput) => {
+    try {
+      const result = await getBankTransaction(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
  * Tool: freeagent_create_bank_transaction_explanation
  * Create a bank transaction explanation
  */
@@ -1091,6 +1272,10 @@ Args:
   - gross_value (string): Transaction amount as decimal string (negative for debits) (required)
   - description (string): Description of the transaction (optional)
   - category (string): Category URL or ID for the transaction (optional)
+  - ec_status (string): EC status - one of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS' (optional)
+    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
+  - marked_for_review (boolean): Mark as requiring review/approval (optional)
+  - receipt_reference (string): Reference identifier for the receipt (optional)
 
   Link to entities (choose one or more):
   - paid_invoice (string): Invoice URL or ID that this transaction pays (optional)
@@ -1140,6 +1325,86 @@ Error Handling:
   async (params: CreateBankTransactionExplanationInput) => {
     try {
       const result = await createBankTransactionExplanation(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_update_bank_transaction_explanation
+ * Update an existing bank transaction explanation
+ */
+server.registerTool(
+  "freeagent_update_bank_transaction_explanation",
+  {
+    title: "Update FreeAgent Bank Transaction Explanation",
+    description: `Update an existing bank transaction explanation to modify its description, category, or other fields.
+
+This tool allows you to edit an existing explanation that was previously created for a bank transaction. All fields are optional - only provide the fields you want to update.
+
+Args:
+  - bank_transaction_explanation_id (string): Explanation ID (numeric) or full URL (required)
+  - dated_on (string): Transaction date in YYYY-MM-DD format (optional)
+  - description (string): Description of the transaction (optional)
+  - gross_value (string): Transaction amount as decimal string (optional)
+  - category (string): Category URL or ID for the transaction (optional)
+  - ec_status (string): EC status - one of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS' (optional)
+  - marked_for_review (boolean): Mark as requiring review/approval (optional)
+  - receipt_reference (string): Reference identifier for the receipt (optional)
+
+  Link to entities:
+  - paid_invoice (string): Invoice URL or ID that this transaction pays (optional)
+  - paid_bill (string): Bill URL or ID that this transaction pays (optional)
+  - paid_user (string): User URL or ID for money paid to/from user (optional)
+  - transfer_bank_account (string): Destination bank account URL or ID for transfers (optional)
+  - project (string): Project URL or ID to associate with transaction (optional)
+
+  Tax information:
+  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
+  - sales_tax_value (string): Sales tax amount (optional)
+
+Returns:
+  Success message with updated explanation details including ID, date, amount, description, category, and URL.
+
+Examples:
+  - Use when: "Update transaction explanation description" → bank_transaction_explanation_id="123", description="New description"
+  - Use when: "Change transaction category" → bank_transaction_explanation_id="123", category="[category_url]"
+  - Use when: "Update explanation category and description" → Provide both fields in one call
+
+Tips:
+  - Only provide the fields you want to change
+  - Use freeagent_list_categories to find the correct category URL
+  - You can update both description and category in a single call
+  - First use freeagent_list_bank_transactions with view="all" to find transactions with their explanation IDs
+
+Error Handling:
+  - Returns 404 if explanation doesn't exist
+  - Returns validation errors (422) if invalid data provided
+  - Suggests checking explanation ID and field formats`,
+    inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: UpdateBankTransactionExplanationInput) => {
+    try {
+      const result = await updateBankTransactionExplanation(apiClient, params);
       return {
         content: [{
           type: "text",
@@ -1246,6 +1511,167 @@ Error Handling:
   async (params: ListUsersInput) => {
     try {
       const result = await listUsers(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_list_categories
+ * List all categories (expense/income categories)
+ */
+server.registerTool(
+  "freeagent_list_categories",
+  {
+    title: "List FreeAgent Categories",
+    description: `List all expense and income categories in your FreeAgent account.
+
+This tool retrieves accounting categories used for categorizing expenses, income, bills, and invoices. Categories are essential for proper bookkeeping and tax reporting.
+
+Args:
+  - view (string): Filter categories by type - one of: all, standard, custom (optional)
+    - "standard": System-provided categories (default FreeAgent categories)
+    - "custom": User-created custom categories
+    - "all": Both standard and custom categories (default)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format: Array of category objects with:
+  {
+    "description": string,        // Category name/description
+    "nominal_code": string,        // Unique nominal/account code
+    "url": string,                 // Category URL
+    "group_description": string,   // Category group (optional)
+    "allowable_for_tax": boolean,  // Tax deductible status
+    "tax_reporting_name": string,  // Tax reporting classification
+    "auto_sales_tax_rate": number  // Default tax rate (optional)
+  }
+
+  For Markdown format: Human-readable list with category names, codes, groups, and tax information.
+
+Examples:
+  - Use when: "What expense categories are available?" → list all categories
+  - Use when: "Show me custom categories" → view="custom"
+  - Use when: "Find category for office expenses" → list categories and search
+  - Use when: "Which categories are tax deductible?" → list and check allowable_for_tax
+
+Common Category Uses:
+  - Expenses: Categorize business expenses for tax reporting
+  - Bank Transactions: Assign categories when explaining transactions
+  - Invoices/Bills: Link income and expenditure to correct accounts
+  - Tax Planning: Identify tax-deductible expense categories
+
+Tips:
+  - Use the nominal_code or url when creating/updating expenses and transactions
+  - Standard categories are UK tax system compliant
+  - Custom categories allow business-specific classification
+  - Check allowable_for_tax to identify tax-deductible categories
+
+Error Handling:
+  - Returns authentication error if token invalid
+  - Always returns results (may be empty if no custom categories for view="custom")`,
+    inputSchema: ListCategoriesInputSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: ListCategoriesInput) => {
+    try {
+      const result = await listCategories(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_get_category
+ * Get detailed information about a specific category
+ */
+server.registerTool(
+  "freeagent_get_category",
+  {
+    title: "Get FreeAgent Category",
+    description: `Get detailed information about a specific expense or income category.
+
+This tool retrieves complete details for a single category including its nominal code, tax treatment, and associated metadata.
+
+Args:
+  - nominal_code (string): Category nominal code or full URL (required)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format: Complete category object with all fields including:
+  {
+    "description": string,
+    "nominal_code": string,
+    "url": string,
+    "group_description": string,
+    "allowable_for_tax": boolean,
+    "tax_reporting_name": string,
+    "auto_sales_tax_rate": number,
+    "bank_account": string (optional),
+    "capital_asset_type": string (optional),
+    "user": string (optional),
+    "created_at": string,
+    "updated_at": string
+  }
+
+  For Markdown format: Human-readable category details with all available information.
+
+Examples:
+  - Use when: "Show me details for category 001" → nominal_code="001"
+  - Use when: "What's the tax rate for Travel category?" → Get category and check auto_sales_tax_rate
+  - Use when: "Is this category tax deductible?" → Get category and check allowable_for_tax
+
+Tips:
+  - Use nominal_code from freeagent_list_categories results
+  - Can accept either the code (e.g., "001") or full URL
+  - Check allowable_for_tax to determine if expenses in this category are tax deductible
+  - auto_sales_tax_rate shows the default VAT/sales tax rate for this category
+
+Error Handling:
+  - Returns 404 if category doesn't exist
+  - Suggests checking the nominal_code is correct`,
+    inputSchema: GetCategoryInputSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: GetCategoryInput) => {
+    try {
+      const result = await getCategory(apiClient, params);
       return {
         content: [{
           type: "text",
