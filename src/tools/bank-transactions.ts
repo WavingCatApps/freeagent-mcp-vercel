@@ -6,8 +6,197 @@
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
-import type { CreateBankTransactionExplanationInput, UpdateBankTransactionExplanationInput } from "../schemas/index.js";
-import { extractIdFromUrl } from "../services/formatter.js";
+import type {
+  ListBankTransactionExplanationsInput,
+  GetBankTransactionExplanationInput,
+  CreateBankTransactionExplanationInput,
+  UpdateBankTransactionExplanationInput
+} from "../schemas/index.js";
+import { ResponseFormat } from "../constants.js";
+import {
+  formatResponse,
+  createPaginationMetadata,
+  extractIdFromUrl
+} from "../services/formatter.js";
+
+/**
+ * List bank transaction explanations with optional filtering and pagination
+ */
+export async function listBankTransactionExplanations(
+  client: FreeAgentApiClient,
+  params: ListBankTransactionExplanationsInput
+): Promise<string> {
+  const { page, per_page, bank_account, from_date, to_date, response_format } = params;
+
+  // Build query parameters
+  const queryParams: Record<string, string> = {
+    page: page.toString(),
+    per_page: per_page.toString()
+  };
+
+  if (bank_account) queryParams.bank_account = bank_account;
+  if (from_date) queryParams.from_date = from_date;
+  if (to_date) queryParams.to_date = to_date;
+
+  const response = await client.get<{ bank_transaction_explanations: any[] }>(
+    "/bank_transaction_explanations",
+    queryParams
+  );
+  const explanations = response.bank_transaction_explanations || [];
+  const pagination = client.parsePaginationHeaders(
+    (response as any).headers || {}
+  );
+
+  // Format response
+  return formatResponse(
+    {
+      explanations: explanations.map((exp: any) => ({
+        url: exp.url,
+        dated_on: exp.dated_on,
+        description: exp.description,
+        gross_value: exp.gross_value,
+        bank_transaction: exp.bank_transaction,
+        category: exp.category,
+        ec_status: exp.ec_status,
+        receipt_reference: exp.receipt_reference,
+        marked_for_review: exp.marked_for_review,
+        paid_invoice: exp.paid_invoice,
+        paid_bill: exp.paid_bill,
+        paid_user: exp.paid_user,
+        transfer_bank_account: exp.transfer_bank_account
+      })),
+      pagination: {
+        page,
+        per_page,
+        total_count: pagination.totalCount,
+        has_more: pagination.hasMore,
+        next_page: pagination.nextPage
+      }
+    },
+    response_format,
+    () => {
+      const lines: string[] = ["# Bank Transaction Explanations", ""];
+
+      if (pagination.totalCount !== undefined) {
+        lines.push(
+          createPaginationMetadata({
+            page,
+            perPage: per_page,
+            totalCount: pagination.totalCount,
+            hasMore: pagination.hasMore,
+            nextPage: pagination.nextPage
+          })
+        );
+        lines.push("");
+      }
+
+      if (explanations.length === 0) {
+        lines.push("No explanations found matching the criteria.");
+        return lines.join("\n");
+      }
+
+      for (const exp of explanations) {
+        const id = extractIdFromUrl(exp.url);
+        const amount = parseFloat(exp.gross_value || '0');
+        const amountStr = amount >= 0 ? `+${amount}` : `${amount}`;
+        const desc = exp.description || 'No description';
+        const reviewStatus = exp.marked_for_review ? ' ⚠️ NEEDS REVIEW' : '';
+
+        lines.push(`## ${exp.dated_on} - ${amountStr}${reviewStatus} (ID: ${id})`);
+        lines.push(`${desc}`);
+        if (exp.category) lines.push(`Category: ${exp.category}`);
+        if (exp.paid_invoice) lines.push(`Paid Invoice: ${exp.paid_invoice}`);
+        if (exp.paid_bill) lines.push(`Paid Bill: ${exp.paid_bill}`);
+        if (exp.transfer_bank_account) lines.push(`Transfer to: ${exp.transfer_bank_account}`);
+        lines.push("");
+      }
+
+      return lines.join("\n");
+    }
+  );
+}
+
+/**
+ * Get detailed information about a specific bank transaction explanation
+ */
+export async function getBankTransactionExplanation(
+  client: FreeAgentApiClient,
+  params: GetBankTransactionExplanationInput
+): Promise<string> {
+  const { bank_transaction_explanation_id, response_format } = params;
+  const explanationUrl = bank_transaction_explanation_id.startsWith('http')
+    ? bank_transaction_explanation_id
+    : `/bank_transaction_explanations/${bank_transaction_explanation_id}`;
+
+  const response = await client.get<{ bank_transaction_explanation: any }>(explanationUrl);
+  const exp = response.bank_transaction_explanation;
+
+  // Format response
+  return formatResponse(
+    exp,
+    response_format,
+    () => {
+      const lines: string[] = ["# Bank Transaction Explanation Details", ""];
+
+      const amount = parseFloat(exp.gross_value || '0');
+      const amountStr = amount >= 0 ? `+${amount}` : `${amount}`;
+
+      lines.push(`- **Date**: ${exp.dated_on}`);
+      lines.push(`- **Amount**: ${amountStr}`);
+      lines.push(`- **Description**: ${exp.description || 'N/A'}`);
+      lines.push(`- **Bank Transaction**: ${exp.bank_transaction}`);
+
+      if (exp.category) {
+        lines.push(`- **Category**: ${exp.category}`);
+      }
+
+      if (exp.ec_status) {
+        lines.push(`- **EC Status**: ${exp.ec_status}`);
+      }
+
+      if (exp.receipt_reference) {
+        lines.push(`- **Receipt Reference**: ${exp.receipt_reference}`);
+      }
+
+      lines.push(`- **Marked for Review**: ${exp.marked_for_review ? 'Yes' : 'No'}`);
+
+      // Entity links
+      if (exp.paid_invoice) {
+        lines.push(`- **Paid Invoice**: ${exp.paid_invoice}`);
+      }
+      if (exp.paid_bill) {
+        lines.push(`- **Paid Bill**: ${exp.paid_bill}`);
+      }
+      if (exp.paid_user) {
+        lines.push(`- **Paid User**: ${exp.paid_user}`);
+      }
+      if (exp.transfer_bank_account) {
+        lines.push(`- **Transfer to Account**: ${exp.transfer_bank_account}`);
+      }
+      if (exp.project) {
+        lines.push(`- **Project**: ${exp.project}`);
+      }
+
+      // Tax information
+      if (exp.sales_tax_rate) {
+        lines.push(`- **Sales Tax Rate**: ${parseFloat(exp.sales_tax_rate) * 100}%`);
+      }
+      if (exp.sales_tax_value) {
+        lines.push(`- **Sales Tax Value**: ${exp.sales_tax_value}`);
+      }
+
+      if (exp.attachment_count && exp.attachment_count > 0) {
+        lines.push(`- **Attachments**: ${exp.attachment_count} file(s)`);
+      }
+
+      lines.push("");
+      lines.push(`- **Created**: ${exp.created_at}`);
+      lines.push(`- **Updated**: ${exp.updated_at}`);
+
+      return lines.join("\n");
+    }
+  );
+}
 
 /**
  * Create a bank transaction explanation

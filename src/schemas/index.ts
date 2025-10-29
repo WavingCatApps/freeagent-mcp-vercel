@@ -517,6 +517,30 @@ export const CreateTimeslipInputSchema = z.object({
 }).strict();
 
 // Bank transaction explanation schemas
+export const ListBankTransactionExplanationsInputSchema = z.object({
+  bank_account: z.string()
+    .optional()
+    .describe("Filter by bank account URL or ID"),
+  from_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Filter explanations from this date (YYYY-MM-DD)"),
+  to_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Filter explanations to this date (YYYY-MM-DD)"),
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetBankTransactionExplanationInputSchema = z.object({
+  bank_transaction_explanation_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bank transaction explanation ID (numeric) or full URL"),
+  response_format: ResponseFormatSchema
+}).strict();
+
 export const CreateBankTransactionExplanationInputSchema = z.object({
   bank_transaction: z.string()
     .min(1)
@@ -659,6 +683,8 @@ export type GetBankTransactionInput = z.infer<typeof GetBankTransactionInputSche
 export type ListTimeslipsInput = z.infer<typeof ListTimeslipsInputSchema>;
 export type GetTimeslipInput = z.infer<typeof GetTimeslipInputSchema>;
 export type CreateTimeslipInput = z.infer<typeof CreateTimeslipInputSchema>;
+export type ListBankTransactionExplanationsInput = z.infer<typeof ListBankTransactionExplanationsInputSchema>;
+export type GetBankTransactionExplanationInput = z.infer<typeof GetBankTransactionExplanationInputSchema>;
 export type CreateBankTransactionExplanationInput = z.infer<typeof CreateBankTransactionExplanationInputSchema>;
 export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTransactionExplanationInputSchema>;
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;

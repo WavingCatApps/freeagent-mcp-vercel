@@ -14,7 +14,7 @@ import { listInvoices, getInvoice, createInvoice } from "./tools/invoices.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./tools/expenses.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./tools/timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./tools/bank-accounts.js";
-import { createBankTransactionExplanation, updateBankTransactionExplanation } from "./tools/bank-transactions.js";
+import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./tools/bank-transactions.js";
 import { listCategories, getCategory } from "./tools/categories.js";
 import { getCompany, listUsers } from "./tools/company.js";
 import {
@@ -35,6 +35,8 @@ import {
   GetBankAccountInputSchema,
   ListBankTransactionsInputSchema,
   GetBankTransactionInputSchema,
+  ListBankTransactionExplanationsInputSchema,
+  GetBankTransactionExplanationInputSchema,
   CreateBankTransactionExplanationInputSchema,
   UpdateBankTransactionExplanationInputSchema,
   ListCategoriesInputSchema,
@@ -58,6 +60,8 @@ import {
   type GetBankAccountInput,
   type ListBankTransactionsInput,
   type GetBankTransactionInput,
+  type ListBankTransactionExplanationsInput,
+  type GetBankTransactionExplanationInput,
   type CreateBankTransactionExplanationInput,
   type UpdateBankTransactionExplanationInput,
   type ListCategoriesInput,
@@ -1236,6 +1240,157 @@ Error Handling:
   async (params: GetBankTransactionInput) => {
     try {
       const result = await getBankTransaction(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_list_bank_transaction_explanations
+ * List bank transaction explanations with filtering
+ */
+server.registerTool(
+  "freeagent_list_bank_transaction_explanations",
+  {
+    title: "List FreeAgent Bank Transaction Explanations",
+    description: `List all bank transaction explanations with optional filtering and pagination.
+
+This tool retrieves the explanations that have been created for bank transactions, showing how each transaction was categorized or linked to invoices, bills, or transfers.
+
+Args:
+  - bank_account (string): Filter by bank account URL or ID (optional)
+  - from_date (string): Filter explanations from this date in YYYY-MM-DD format (optional)
+  - to_date (string): Filter explanations to this date in YYYY-MM-DD format (optional)
+  - page (number): Page number for pagination (default: 1)
+  - per_page (number): Items per page, max 100 (default: 25)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format: Structured list with:
+  {
+    "explanations": [
+      {
+        "url": string,
+        "dated_on": string,
+        "description": string,
+        "gross_value": string,
+        "bank_transaction": string,
+        "category": string,
+        "ec_status": string,
+        "receipt_reference": string,
+        "marked_for_review": boolean,
+        "paid_invoice": string,
+        "paid_bill": string,
+        "paid_user": string,
+        "transfer_bank_account": string
+      }
+    ],
+    "pagination": {...}
+  }
+
+  For Markdown format: Human-readable list with dates, amounts, descriptions, and explanation types.
+
+Examples:
+  - Use when: "Show all bank transaction explanations" → List all
+  - Use when: "List explanations for account 123" → bank_account="123"
+  - Use when: "Show explanations from January" → from_date="2024-01-01", to_date="2024-01-31"
+  - Use when: "Which transactions need review?" → Check marked_for_review field
+
+Tips:
+  - Use date filters to narrow results to specific periods
+  - Filter by bank_account to see explanations for a specific account
+  - Check marked_for_review to find explanations that need approval
+  - Use this to verify transactions have been properly categorized
+
+Error Handling:
+  - Returns authentication error if token invalid
+  - Returns empty list if no explanations match criteria`,
+    inputSchema: ListBankTransactionExplanationsInputSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: ListBankTransactionExplanationsInput) => {
+    try {
+      const result = await listBankTransactionExplanations(apiClient, params);
+      return {
+        content: [{
+          type: "text",
+          text: result
+        }]
+      };
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: formatErrorForLLM(error as Error)
+        }]
+      };
+    }
+  }
+);
+
+/**
+ * Tool: freeagent_get_bank_transaction_explanation
+ * Get detailed information about a specific explanation
+ */
+server.registerTool(
+  "freeagent_get_bank_transaction_explanation",
+  {
+    title: "Get FreeAgent Bank Transaction Explanation",
+    description: `Get detailed information about a specific bank transaction explanation.
+
+This tool retrieves complete details for a single explanation including all categorization, tax information, and entity links.
+
+Args:
+  - bank_transaction_explanation_id (string): Explanation ID (numeric) or full URL (required)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format: Complete explanation object with all fields
+  For Markdown format: Human-readable explanation details
+
+Examples:
+  - Use when: "Show details for explanation 456" → bank_transaction_explanation_id="456"
+  - Use when: "What's the category for this explanation?" → Get full details to see category
+  - Use when: "Check if explanation needs review" → Get details and check marked_for_review
+
+Tips:
+  - Use this to see complete details before updating an explanation
+  - Check all entity links (invoices, bills, transfers) in one view
+  - Verify tax information is correct
+
+Error Handling:
+  - Returns 404 if explanation doesn't exist
+  - Suggests checking the explanation ID`,
+    inputSchema: GetBankTransactionExplanationInputSchema.shape,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params: GetBankTransactionExplanationInput) => {
+    try {
+      const result = await getBankTransactionExplanation(apiClient, params);
       return {
         content: [{
           type: "text",
