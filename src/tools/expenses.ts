@@ -5,6 +5,7 @@
  * with support for file attachments.
  */
 
+import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type {
   ListExpensesInput,
@@ -191,7 +192,7 @@ export async function createExpense(
     user: params.user,
     category: params.category,
     dated_on: params.dated_on,
-    ec_status: params.ec_status || "Non-EC"
+    ec_status: params.ec_status || "UK/Non-EC"
   };
 
   // Add optional fields
@@ -235,8 +236,24 @@ export async function createExpense(
 
   // Add attachment if provided
   if (params.attachment) {
+    let attachmentData = params.attachment.data;
+
+    // If attachment is gzipped, decompress it before sending to FreeAgent
+    if (params.attachment.is_gzipped) {
+      try {
+        // Decode Base64 to Buffer
+        const compressedBuffer = Buffer.from(attachmentData, 'base64');
+        // Decompress using gunzip
+        const decompressedBuffer = gunzipSync(compressedBuffer);
+        // Re-encode to Base64
+        attachmentData = decompressedBuffer.toString('base64');
+      } catch (error) {
+        throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
     expensePayload.attachment = {
-      data: params.attachment.data,
+      data: attachmentData,
       file_name: params.attachment.file_name,
       content_type: params.attachment.content_type
     };

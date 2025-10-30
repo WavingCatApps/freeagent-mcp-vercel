@@ -123,9 +123,41 @@ export class FreeAgentApiClient {
 
         // Validation errors
         if (status === 422 && data && data.errors) {
-          const errorMessages = Object.entries(data.errors)
-            .map(([field, messages]) => `${field}: ${messages.join(", ")}`)
-            .join("; ");
+          let errorMessages: string;
+
+          // Check if errors is an array or object
+          if (Array.isArray(data.errors)) {
+            // Handle array of error objects
+            errorMessages = data.errors
+              .map((error: any) => {
+                if (typeof error === 'string') return error;
+                if (error && error.message) return error.message;
+                return JSON.stringify(error);
+              })
+              .join("; ");
+          } else {
+            // Handle object with field names as keys
+            errorMessages = Object.entries(data.errors)
+              .map(([field, messages]: [string, any]) => {
+                // Handle different error message formats
+                let messageStr: string;
+                if (Array.isArray(messages)) {
+                  messageStr = messages.join(", ");
+                } else if (typeof messages === 'object' && messages !== null) {
+                  // Handle nested error objects
+                  if ('message' in messages) {
+                    messageStr = String(messages.message);
+                  } else {
+                    messageStr = JSON.stringify(messages);
+                  }
+                } else {
+                  messageStr = String(messages);
+                }
+                return `${field}: ${messageStr}`;
+              })
+              .join("; ");
+          }
+
           return new Error(
             `Validation error: ${errorMessages}. Please check your input and try again.`
           );

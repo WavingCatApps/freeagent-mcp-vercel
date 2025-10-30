@@ -9,25 +9,55 @@ export async function listCategories(
   apiClient: FreeAgentApiClient,
   params: ListCategoriesInput
 ): Promise<string> {
-  const queryParams = new URLSearchParams();
+  const response = await apiClient.get("/categories") as any;
 
-  if (params.view) queryParams.set("view", params.view);
+  // Categories are returned in four separate arrays
+  const adminExpenses = response.admin_expenses_categories || [];
+  const costOfSales = response.cost_of_sales_categories || [];
+  const income = response.income_categories || [];
+  const general = response.general_categories || [];
 
-  const url = `/categories${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-  const response = await apiClient.get(url) as any;
+  // Combine all categories based on view filter
+  let allCategories: any[] = [];
 
-  if (!response.categories || response.categories.length === 0) {
+  if (!params.view || params.view === "all") {
+    allCategories = [
+      ...adminExpenses.map((c: any) => ({ ...c, type: "Admin Expenses" })),
+      ...costOfSales.map((c: any) => ({ ...c, type: "Cost of Sales" })),
+      ...income.map((c: any) => ({ ...c, type: "Income" })),
+      ...general.map((c: any) => ({ ...c, type: "General" }))
+    ];
+  } else if (params.view === "standard") {
+    // Standard categories are the first three types
+    allCategories = [
+      ...adminExpenses.map((c: any) => ({ ...c, type: "Admin Expenses" })),
+      ...costOfSales.map((c: any) => ({ ...c, type: "Cost of Sales" })),
+      ...income.map((c: any) => ({ ...c, type: "Income" }))
+    ];
+  } else if (params.view === "custom") {
+    // Custom categories would typically be in general
+    allCategories = general.map((c: any) => ({ ...c, type: "General" }));
+  }
+
+  if (allCategories.length === 0) {
     return "No categories found.";
   }
 
   if (params.response_format === ResponseFormat.JSON) {
-    return JSON.stringify(response.categories, null, 2);
+    return JSON.stringify({
+      admin_expenses_categories: adminExpenses,
+      cost_of_sales_categories: costOfSales,
+      income_categories: income,
+      general_categories: general,
+      total_count: allCategories.length
+    }, null, 2);
   }
 
-  const categoryList = response.categories
+  const categoryList = allCategories
     .map((category: any) => {
       const parts = [
         `Category: ${category.description}`,
+        `  Type: ${category.type}`,
         `  Nominal Code: ${category.nominal_code}`,
         `  URL: ${category.url}`,
       ];
@@ -52,7 +82,7 @@ export async function listCategories(
     })
     .join("\n\n");
 
-  return `Found ${response.categories.length} category(ies):\n\n${categoryList}`;
+  return `Found ${allCategories.length} category(ies):\n\n${categoryList}`;
 }
 
 /**

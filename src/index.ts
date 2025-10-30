@@ -596,13 +596,19 @@ Args:
   - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
   - manual_sales_tax_amount (string): Manual sales tax amount (optional)
   - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
-  - ec_status (string): One of: 'EC Services', 'EC Goods', 'Non-EC' (optional)
+  - ec_status (string): One of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge' (optional)
+    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
   - receipt_reference (string): Receipt reference identifier (optional)
   - project (string): Project URL or ID to associate with expense (optional)
   - attachment (object): File attachment for receipt (optional):
-    - data (string): Base64 encoded file content
+    - data (string): Base64 encoded file content (or gzip-compressed then Base64 encoded if is_gzipped=true)
+      ⚠️ PERFORMANCE TIP: For large files (>50KB), gzip compress BEFORE Base64 encoding, then set is_gzipped=true.
+      This dramatically reduces size and speeds up LLM processing (which processes character-by-character).
+      Example workflow: file → gzip → base64 encode → set is_gzipped=true
     - file_name (string): Original filename
     - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
+    - is_gzipped (boolean): Set to true if data is gzip-compressed before Base64 encoding (default: false)
+      Server will automatically decompress before uploading to FreeAgent
     - description (string): Optional attachment description
 
   Recurring expense fields:
@@ -628,9 +634,13 @@ Examples:
   - Use when: "Add receipt for taxi expense" → Include attachment with Base64 data
 
 Tips:
-  - Use the file-to-base64 skill to prepare receipt attachments from image/PDF files
-  - For mileage expenses, provide miles instead of gross_value
-  - FreeAgent will auto-calculate mileage expenses based on HMRC rates
+  - For mileage expenses, provide miles instead of gross_value (FreeAgent auto-calculates based on HMRC rates)
+  - ATTACHMENTS - Best practices for speed:
+    1. RECOMMENDED: Use gzip compression (file → gzip → base64 → set is_gzipped=true) for files >50KB
+       Gzip typically reduces size by 70-90%, dramatically speeding up LLM processing
+    2. Resize images before encoding: 800x600px at 70-80% JPEG quality is sufficient for receipts
+    3. For PDFs: Use low-resolution export settings
+  - Without gzip, large attachments (>100KB) can take significantly longer due to character-by-character LLM processing
 
 Error Handling:
   - Returns validation errors (422) if required fields missing
@@ -687,7 +697,8 @@ Args:
   - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
   - manual_sales_tax_amount (string): Manual sales tax amount (optional)
   - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
-  - ec_status (string): One of: 'EC Services', 'EC Goods', 'Non-EC' (optional)
+  - ec_status (string): One of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge' (optional)
+    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
   - receipt_reference (string): Receipt reference identifier (optional)
   - project (string): Project URL or ID to associate with expense (optional)
 
@@ -887,24 +898,19 @@ Args:
   - dated_on (string): Date of work in YYYY-MM-DD format (required)
   - hours (string): Hours worked as decimal string, e.g., '7.5' (required)
   - comment (string): Description or comment about the work performed (optional)
-  - attachment (object): Optional file attachment for the timeslip:
-    - data (string): Base64 encoded file content
-    - file_name (string): Original filename
-    - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
-    - description (string): Optional attachment description
 
 Returns:
   Success message with timeslip ID, date, hours, project, and URL.
 
 Examples:
   - Use when: "Log 8 hours on project 123 task 456" → hours="8", project="123", task="456"
-  - Use when: "Track 3.5 hours of work with attachment" → hours="3.5", include attachment with Base64 data
+  - Use when: "Track 3.5 hours of work" → hours="3.5"
   - Use when: "Record time worked today" → dated_on=today's date, hours="..."
 
 Tips:
-  - Use the file-to-base64 skill to prepare attachments from files
   - Hours can be decimal values (e.g., 7.5 for 7 hours 30 minutes)
   - Timeslips can later be included on invoices
+  - Use the comment field to describe the work performed
 
 Error Handling:
   - Returns validation errors (422) if required fields missing
@@ -1445,9 +1451,12 @@ Args:
 
   Attachment:
   - attachment (object): Optional supporting document:
-    - data (string): Base64 encoded file content
+    - data (string): Base64 encoded file content (or gzip-compressed then Base64 encoded if is_gzipped=true)
+      ⚠️ PERFORMANCE TIP: For large files (>50KB), gzip compress BEFORE Base64 encoding, then set is_gzipped=true.
+      This dramatically reduces size and speeds up LLM processing. Workflow: file → gzip → base64 → set is_gzipped=true
     - file_name (string): Original filename
     - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
+    - is_gzipped (boolean): Set to true if data is gzip-compressed before Base64 encoding (default: false)
     - description (string): Optional attachment description
 
 Returns:
@@ -1460,10 +1469,10 @@ Examples:
   - Use when: "Explain transaction with receipt" → include category and attachment
 
 Tips:
-  - Use the file-to-base64 skill to attach supporting documents
   - Explaining transactions is crucial for bank reconciliation
   - Link to invoices/bills for automatic matching
   - Use categories for general income/expenses
+  - ATTACHMENTS: For files >50KB, use gzip compression (file → gzip → base64 → is_gzipped=true) to speed up processing by 70-90%
 
 Error Handling:
   - Returns validation errors if required fields missing
@@ -1694,28 +1703,41 @@ server.registerTool(
     title: "List FreeAgent Categories",
     description: `List all expense and income categories in your FreeAgent account.
 
-This tool retrieves accounting categories used for categorizing expenses, income, bills, and invoices. Categories are essential for proper bookkeeping and tax reporting.
+This tool retrieves accounting categories used for categorizing expenses, income, bills, and invoices. Categories are organized into four types:
+  - Admin Expenses: Administrative and general business expenses
+  - Cost of Sales: Direct costs related to producing goods/services
+  - Income: Revenue and income categories
+  - General: Other accounting categories
 
 Args:
   - view (string): Filter categories by type - one of: all, standard, custom (optional)
-    - "standard": System-provided categories (default FreeAgent categories)
-    - "custom": User-created custom categories
-    - "all": Both standard and custom categories (default)
+    - "all": All categories from all four types (default)
+    - "standard": Admin expenses, cost of sales, and income categories
+    - "custom": General/custom categories
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
 
 Returns:
-  For JSON format: Array of category objects with:
+  For JSON format: Object with four category arrays:
   {
-    "description": string,        // Category name/description
-    "nominal_code": string,        // Unique nominal/account code
-    "url": string,                 // Category URL
-    "group_description": string,   // Category group (optional)
-    "allowable_for_tax": boolean,  // Tax deductible status
-    "tax_reporting_name": string,  // Tax reporting classification
-    "auto_sales_tax_rate": number  // Default tax rate (optional)
+    "admin_expenses_categories": [...],
+    "cost_of_sales_categories": [...],
+    "income_categories": [...],
+    "general_categories": [...],
+    "total_count": number
   }
 
-  For Markdown format: Human-readable list with category names, codes, groups, and tax information.
+  Each category object contains:
+  {
+    "description": string,         // Category name/description
+    "nominal_code": string,         // Unique nominal/account code
+    "url": string,                  // Category URL
+    "group_description": string,    // Category group (optional)
+    "allowable_for_tax": boolean,   // Tax deductible status (spending only)
+    "tax_reporting_name": string,   // Tax reporting classification
+    "auto_sales_tax_rate": number   // Default tax rate (optional)
+  }
+
+  For Markdown format: Human-readable list with category type, names, codes, groups, and tax information.
 
 Examples:
   - Use when: "What expense categories are available?" → list all categories

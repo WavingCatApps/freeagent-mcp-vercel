@@ -5,6 +5,7 @@
  * expenses, and other accounting entries.
  */
 
+import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type {
   ListBankTransactionExplanationsInput,
@@ -243,8 +244,24 @@ export async function createBankTransactionExplanation(
 
   // Add attachment if provided
   if (params.attachment) {
+    let attachmentData = params.attachment.data;
+
+    // If attachment is gzipped, decompress it before sending to FreeAgent
+    if (params.attachment.is_gzipped) {
+      try {
+        // Decode Base64 to Buffer
+        const compressedBuffer = Buffer.from(attachmentData, 'base64');
+        // Decompress using gunzip
+        const decompressedBuffer = gunzipSync(compressedBuffer);
+        // Re-encode to Base64
+        attachmentData = decompressedBuffer.toString('base64');
+      } catch (error) {
+        throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
     explanationPayload.attachment = {
-      data: params.attachment.data,
+      data: attachmentData,
       file_name: params.attachment.file_name,
       content_type: params.attachment.content_type
     };

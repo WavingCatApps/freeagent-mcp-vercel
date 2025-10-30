@@ -1,7 +1,7 @@
 /**
  * Timeslip Management Tools
  *
- * Tools for listing, viewing, and creating timeslips with support for file attachments.
+ * Tools for listing, viewing, and creating timeslips (time tracking entries).
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
@@ -177,25 +177,11 @@ export async function createTimeslip(
   // Add optional fields
   if (params.comment) timeslipPayload.comment = params.comment;
 
-  // Add attachment if provided
-  if (params.attachment) {
-    timeslipPayload.attachment = {
-      data: params.attachment.data,
-      file_name: params.attachment.file_name,
-      content_type: params.attachment.content_type
-    };
-    if (params.attachment.description) {
-      timeslipPayload.attachment.description = params.attachment.description;
-    }
-  }
-
   const response = await client.post<{ timeslip: any }>("/timeslips", { timeslip: timeslipPayload });
   const timeslip = response.timeslip;
   const timeslipId = extractIdFromUrl(timeslip.url);
 
-  const attachmentInfo = params.attachment ? ` with attachment (${params.attachment.file_name})` : '';
-
-  return `✅ Successfully created timeslip${attachmentInfo}\n\n` +
+  return `✅ Successfully created timeslip\n\n` +
     `**Timeslip ID**: ${timeslipId}\n` +
     `**Date**: ${timeslip.dated_on}\n` +
     `**Hours**: ${timeslip.hours}\n` +

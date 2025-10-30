@@ -128,9 +128,14 @@ export const GetExpenseInputSchema = z.object({
   response_format: ResponseFormatSchema
 }).strict();
 
-// Attachment schema for expenses and timeslips
+// Attachment schema for expenses and bank transaction explanations
+// PERFORMANCE NOTE: For large files, use gzip compression before Base64 encoding to significantly reduce size
+// and speed up LLM processing (which processes character-by-character). The server will automatically decompress.
 const AttachmentSchema = z.object({
-  data: z.string().describe("Base64 encoded file content"),
+  data: z.string().describe("Base64 encoded file content. For large files, gzip compress first then Base64 encode, and set is_gzipped=true"),
+  is_gzipped: z.boolean()
+    .optional()
+    .describe("Set to true if the data is gzip-compressed before Base64 encoding (default: false). Server will automatically decompress before uploading to FreeAgent."),
   file_name: z.string().describe("Original filename"),
   content_type: z.enum(["application/pdf", "image/png", "image/jpeg", "image/gif"])
     .describe("MIME type of the file"),
@@ -143,7 +148,7 @@ export const CreateExpenseInputSchema = z.object({
     .describe("User URL or ID who incurred the expense"),
   category: z.string()
     .min(1)
-    .describe("Expense category URL or ID"),
+    .describe("Expense category URL or ID (use 'Mileage' for mileage expenses)"),
   dated_on: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .describe("Date of expense in YYYY-MM-DD format"),
@@ -163,9 +168,9 @@ export const CreateExpenseInputSchema = z.object({
     .length(3)
     .optional()
     .describe("Currency code (e.g., GBP, USD, EUR)"),
-  ec_status: z.enum(["EC Services", "EC Goods", "Non-EC"])
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
     .optional()
-    .describe("EC (European Community) status for the expense"),
+    .describe("EC (European Community) status for the expense (Note: EC Goods and EC Services invalid for transactions dated 2021-01-01+ in Great Britain)"),
   receipt_reference: z.string()
     .optional()
     .describe("Receipt reference identifier"),
@@ -244,9 +249,9 @@ export const UpdateExpenseInputSchema = z.object({
     .length(3)
     .optional()
     .describe("Currency code (e.g., GBP, USD, EUR)"),
-  ec_status: z.enum(["EC Services", "EC Goods", "Non-EC"])
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
     .optional()
-    .describe("EC (European Community) status for the expense"),
+    .describe("EC (European Community) status for the expense (Note: EC Goods and EC Services invalid for transactions dated 2021-01-01+ in Great Britain)"),
   receipt_reference: z.string()
     .optional()
     .describe("Receipt reference identifier"),
@@ -510,10 +515,7 @@ export const CreateTimeslipInputSchema = z.object({
     .describe("Hours worked (decimal string, e.g., '7.5')"),
   comment: z.string()
     .optional()
-    .describe("Description or comment about the work performed"),
-  attachment: AttachmentSchema
-    .optional()
-    .describe("Optional file attachment for the timeslip")
+    .describe("Description or comment about the work performed")
 }).strict();
 
 // Bank transaction explanation schemas
