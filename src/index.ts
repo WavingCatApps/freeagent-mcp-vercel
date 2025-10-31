@@ -593,6 +593,8 @@ Args:
   - dated_on (string): Date of expense in YYYY-MM-DD format (required)
   - description (string): Description of the expense (optional)
   - gross_value (string): Total amount including tax (decimal string, required for non-mileage)
+    ⚠️ CRITICAL: Use NEGATIVE values for normal expenses (e.g., "-10.00" for a £10 expense)
+    Positive values create refunds due FROM the claimant, not payments TO them
   - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
   - manual_sales_tax_amount (string): Manual sales tax amount (optional)
   - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
@@ -629,11 +631,13 @@ Returns:
   Success message with expense ID, date, amount, and URL. For mileage expenses, includes miles traveled.
 
 Examples:
-  - Use when: "Create expense for hotel £150" → gross_value="150.00", category="Accommodation"
+  - Use when: "Create expense for hotel £150" → gross_value="-150.00", category="Accommodation" (NEGATIVE for expenses!)
   - Use when: "Log 50 miles by car" → miles="50", mileage_vehicle_type="Car"
-  - Use when: "Add receipt for taxi expense" → Include attachment with Base64 data
+  - Use when: "Record a £50 refund received" → gross_value="50.00" (POSITIVE for refunds from claimant)
 
 Tips:
+  - EXPENSE VALUES: Always use NEGATIVE values for normal expenses (e.g., "-10.00" for £10 spent)
+    Only use POSITIVE values for refunds received from the claimant
   - For mileage expenses, provide miles instead of gross_value (FreeAgent auto-calculates based on HMRC rates)
   - ATTACHMENTS - Best practices for speed:
     1. RECOMMENDED: Use gzip compression (file → gzip → base64 → set is_gzipped=true) for files >50KB
@@ -694,6 +698,7 @@ Args:
   - dated_on (string): Date of expense in YYYY-MM-DD format (optional)
   - description (string): Description of the expense (optional)
   - gross_value (string): Total amount including tax (decimal string) (optional)
+    ⚠️ CRITICAL: Use NEGATIVE values for normal expenses (e.g., "-10.00"). Positive = refund from claimant
   - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
   - manual_sales_tax_amount (string): Manual sales tax amount (optional)
   - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
@@ -722,10 +727,11 @@ Returns:
 Examples:
   - Use when: "Update expense description to 'Client dinner'" → expense_id="123", description="Client dinner"
   - Use when: "Change expense category" → expense_id="123", category="[category_url]"
-  - Use when: "Update expense amount to £200" → expense_id="123", gross_value="200.00"
+  - Use when: "Update expense amount to £200" → expense_id="123", gross_value="-200.00" (NEGATIVE for expense!)
 
 Tips:
   - Only provide the fields you want to change
+  - REMEMBER: Use NEGATIVE values when updating expense amounts (e.g., "-200.00" for £200 spent)
   - Use freeagent_list_categories to find the correct category URL
   - You can update both description and category in a single call
 

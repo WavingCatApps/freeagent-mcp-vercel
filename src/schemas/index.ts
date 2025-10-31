@@ -157,7 +157,7 @@ export const CreateExpenseInputSchema = z.object({
     .describe("Description of the expense"),
   gross_value: z.string()
     .optional()
-    .describe("Total amount including tax (decimal string)"),
+    .describe("Total amount including tax (decimal string). IMPORTANT: Use NEGATIVE values for normal expenses (e.g., '-10.00' for a £10 expense). Positive values create refunds due FROM the claimant. Required unless category is 'Mileage'."),
   sales_tax_rate: z.string()
     .optional()
     .describe("Sales tax rate as decimal (e.g., '0.20' for 20%)"),
@@ -238,7 +238,7 @@ export const UpdateExpenseInputSchema = z.object({
     .describe("Description of the expense"),
   gross_value: z.string()
     .optional()
-    .describe("Total amount including tax (decimal string)"),
+    .describe("Total amount including tax (decimal string). IMPORTANT: Use NEGATIVE values for normal expenses (e.g., '-10.00' for a £10 expense). Positive values create refunds due FROM the claimant. Required unless category is 'Mileage'."),
   sales_tax_rate: z.string()
     .optional()
     .describe("Sales tax rate as decimal (e.g., '0.20' for 20%)"),
