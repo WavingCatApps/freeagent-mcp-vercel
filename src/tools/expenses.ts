@@ -48,25 +48,11 @@ export async function listExpenses(
     (response as any).headers || {}
   );
 
-  // Format response
+  // Format response - return full expense objects like get_expense does
+  // This ensures consistency and includes all fields from the API
   return formatResponse(
     {
-      expenses: expenses.map((expense: any) => ({
-        url: expense.url,
-        user: expense.user,
-        category: expense.category,
-        dated_on: expense.dated_on,
-        description: expense.description,
-        gross_value: expense.gross_value,
-        native_gross_value: expense.native_gross_value,
-        currency: expense.currency,
-        sales_tax_rate: expense.sales_tax_rate,
-        ec_status: expense.ec_status,
-        attachment_count: expense.attachment_count,
-        project: expense.project,
-        miles: expense.miles,
-        vehicle_type: expense.vehicle_type
-      })),
+      expenses: expenses,
       pagination: {
         page,
         per_page,
@@ -104,12 +90,41 @@ export async function listExpenses(
         const attachments = expense.attachment_count > 0
           ? ` (${expense.attachment_count} attachment${expense.attachment_count > 1 ? 's' : ''})`
           : '';
-        const mileage = expense.miles
-          ? ` | ${expense.miles} miles (${expense.vehicle_type})`
+        const mileage = expense.miles || expense.mileage
+          ? ` | ${expense.miles || expense.mileage} miles (${expense.vehicle_type}${expense.engine_type ? `, ${expense.engine_type}` : ''})`
           : '';
 
         lines.push(`## ${expense.dated_on} - ${amount} (ID: ${id})`);
         lines.push(`${desc}${mileage}${attachments}`);
+
+        // Add tax details if present
+        const taxDetails: string[] = [];
+        if (expense.sales_tax_value) {
+          taxDetails.push(`Tax: ${expense.currency || 'GBP'} ${expense.sales_tax_value}`);
+        }
+        if (expense.sales_tax_status) {
+          taxDetails.push(`Status: ${expense.sales_tax_status}`);
+        }
+        if (expense.sales_tax_rate) {
+          taxDetails.push(`Rate: ${parseFloat(expense.sales_tax_rate) * 100}%`);
+        }
+        if (taxDetails.length > 0) {
+          lines.push(`**Tax**: ${taxDetails.join(' | ')}`);
+        }
+
+        // Add rebilling info if present
+        if (expense.rebill_type) {
+          const rebillInfo = `**Rebilling**: ${expense.rebill_type}`;
+          lines.push(expense.rebilled_on_invoice
+            ? `${rebillInfo} (invoiced: ${expense.rebilled_on_invoice})`
+            : rebillInfo);
+        }
+
+        // Add receipt reference if present
+        if (expense.receipt_reference) {
+          lines.push(`**Receipt**: ${expense.receipt_reference}`);
+        }
+
         lines.push("");
       }
 
