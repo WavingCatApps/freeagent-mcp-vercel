@@ -18,7 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@modelcontextprotocol/sdk": "^1.24.3",
     "axios": "^1.7.9",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
