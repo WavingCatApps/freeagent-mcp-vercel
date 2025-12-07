@@ -21,7 +21,6 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
 ### 3. Code Ready
 - [ ] Dependencies installed: `npm install`
 - [ ] Build successful: `npm run build`
-- [ ] Express and express-rate-limit dependencies added
 
 ## 🚀 Deployment Steps
 

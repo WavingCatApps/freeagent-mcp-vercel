@@ -67,8 +67,7 @@ const BASE_URL = PRODUCTION_URL
 // Create Express app
 const app = express();
 
-// Enable trust proxy for Vercel (required for rate limiting and X-Forwarded-For headers)
-// Use number of proxies instead of 'true' to satisfy express-rate-limit security requirements
+// Enable trust proxy for Vercel (required for X-Forwarded-For headers)
 // Vercel is 1 proxy hop away, so we trust the first proxy
 app.set('trust proxy', 1);
 
