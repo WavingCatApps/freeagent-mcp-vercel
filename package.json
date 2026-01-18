@@ -18,7 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "axios": "^1.13.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
