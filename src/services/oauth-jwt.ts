@@ -32,9 +32,10 @@ const MCP_TOKEN_EXPIRY_SECONDS = process.env.MCP_TOKEN_EXPIRY_SECONDS
   ? parseInt(process.env.MCP_TOKEN_EXPIRY_SECONDS, 10)
   : undefined; // undefined = use FreeAgent's expires_in
 
-// Refresh token lifetime - how long before a user must re-authenticate
+// Refresh token lifetime - how long of inactivity before a user must re-authenticate
+// Uses rolling refresh: each successful refresh issues a new token with a fresh window
 // Set MCP_REFRESH_TOKEN_EXPIRY to a value like '30d', '90d', '365d'
-const MCP_REFRESH_TOKEN_EXPIRY = process.env.MCP_REFRESH_TOKEN_EXPIRY || '365d';
+const MCP_REFRESH_TOKEN_EXPIRY = process.env.MCP_REFRESH_TOKEN_EXPIRY || '90d';
 
 // Determine base URL
 // IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
@@ -424,6 +425,29 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
         algorithm: 'HS256',
       });
 
+      // Rolling refresh: issue a new refresh token with a fresh expiry window
+      // This means active users never need to re-authenticate — only inactive
+      // users (no refresh within the expiry window) will need to re-auth.
+      // FreeAgent refresh tokens themselves don't expire (valid until revoked),
+      // so we let FreeAgent be the source of truth for revocation.
+      const newRefreshPayload = {
+        freeagentRefreshToken: freeagentTokens.refresh_token,
+        clientId: client.client_id,
+        type: 'refresh',
+        clientMetadata: {
+          client_id: client.client_id,
+          client_name: client.client_name,
+          redirect_uris: client.redirect_uris,
+          grant_types: client.grant_types,
+          response_types: client.response_types,
+          token_endpoint_auth_method: client.token_endpoint_auth_method,
+        },
+      };
+      const newMcpRefreshToken = jwt.sign(newRefreshPayload, JWT_SECRET, {
+        algorithm: 'HS256',
+        expiresIn: MCP_REFRESH_TOKEN_EXPIRY,
+      });
+
       // Log successful refresh (simplified)
       if (MCP_TOKEN_EXPIRY_SECONDS !== undefined) {
         // Only log details in test mode
@@ -443,7 +467,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
         access_token: newMcpAccessToken,
         token_type: "bearer",
         expires_in: expiresIn,
-        refresh_token: refreshToken, // Same refresh token can be reused
+        refresh_token: newMcpRefreshToken, // Rolling refresh: fresh token with new expiry
       };
     } catch (error) {
       console.error(JSON.stringify({
