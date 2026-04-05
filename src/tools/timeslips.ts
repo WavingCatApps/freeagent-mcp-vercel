@@ -10,7 +10,6 @@ import type {
   GetTimeslipInput,
   CreateTimeslipInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -42,10 +41,8 @@ export async function listTimeslips(
     "/timeslips",
     queryParams
   );
-  const timeslips = response.timeslips || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const timeslips = response.data.timeslips || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   return formatResponse(
@@ -123,7 +120,7 @@ export async function getTimeslip(
     : `/timeslips/${timeslip_id}`;
 
   const response = await client.get<{ timeslip: any }>(timeslipUrl);
-  const timeslip = response.timeslip;
+  const timeslip = response.data.timeslip;
 
   // Format response
   return formatResponse(
@@ -178,7 +175,7 @@ export async function createTimeslip(
   if (params.comment) timeslipPayload.comment = params.comment;
 
   const response = await client.post<{ timeslip: any }>("/timeslips", { timeslip: timeslipPayload });
-  const timeslip = response.timeslip;
+  const timeslip = response.data.timeslip;
   const timeslipId = extractIdFromUrl(timeslip.url);
 
   return `✅ Successfully created timeslip\n\n` +

@@ -9,13 +9,13 @@ export async function listCategories(
   apiClient: FreeAgentApiClient,
   params: ListCategoriesInput
 ): Promise<string> {
-  const response = await apiClient.get("/categories") as any;
+  const response = await apiClient.get<any>("/categories");
 
   // Categories are returned in four separate arrays
-  const adminExpenses = response.admin_expenses_categories || [];
-  const costOfSales = response.cost_of_sales_categories || [];
-  const income = response.income_categories || [];
-  const general = response.general_categories || [];
+  const adminExpenses = response.data.admin_expenses_categories || [];
+  const costOfSales = response.data.cost_of_sales_categories || [];
+  const income = response.data.income_categories || [];
+  const general = response.data.general_categories || [];
 
   // Combine all categories based on view filter
   let allCategories: any[] = [];
@@ -93,8 +93,8 @@ export async function getCategory(
   params: GetCategoryInput
 ): Promise<string> {
   const nominalCode = params.nominal_code.replace(/^.*\/categories\//, "");
-  const response = await apiClient.get(`/categories/${nominalCode}`) as any;
-  const category = response.category;
+  const response = await apiClient.get<any>(`/categories/${nominalCode}`);
+  const category = response.data.category;
 
   if (params.response_format === ResponseFormat.JSON) {
     return JSON.stringify(category, null, 2);

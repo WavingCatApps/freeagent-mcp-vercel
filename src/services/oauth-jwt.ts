@@ -13,12 +13,12 @@
  */
 
 import jwt from "jsonwebtoken";
-import express from "express";
 import { AuthorizationParams, OAuthServerProvider } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import { OAuthClientInformationFull, OAuthTokens, OAuthTokenRevocationRequest } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import crypto from "crypto";
+import { getBaseUrl } from "../constants.js";
 
 // Configuration
 const FREEAGENT_CLIENT_ID = process.env.FREEAGENT_CLIENT_ID!;
@@ -37,19 +37,7 @@ const MCP_TOKEN_EXPIRY_SECONDS = process.env.MCP_TOKEN_EXPIRY_SECONDS
 // Set MCP_REFRESH_TOKEN_EXPIRY to a value like '30d', '90d', '365d'
 const MCP_REFRESH_TOKEN_EXPIRY = (process.env.MCP_REFRESH_TOKEN_EXPIRY || '90d') as import('ms').StringValue;
 
-// Determine base URL
-// IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
-// Example: PRODUCTION_URL=freeagent-mcp-vercel-simonrices-projects.vercel.app
-// This ensures OAuth callbacks use a consistent URL instead of per-deployment URLs
-const PRODUCTION_URL = process.env.PRODUCTION_URL;
-const VERCEL_BRANCH_URL = process.env.VERCEL_BRANCH_URL;
-const VERCEL_URL = process.env.VERCEL_URL;
-
-const BASE_URL = PRODUCTION_URL
-  ? `https://${PRODUCTION_URL}`
-  : (VERCEL_BRANCH_URL
-    ? `https://${VERCEL_BRANCH_URL}`
-    : (VERCEL_URL ? `https://${VERCEL_URL}` : (process.env.BASE_URL || "http://localhost:3000")));
+const BASE_URL = getBaseUrl();
 
 const FREEAGENT_BASE = USE_SANDBOX
   ? "https://api.sandbox.freeagent.com"
@@ -528,7 +516,7 @@ export function getFreeAgentTokenFromJWT(mcpToken: string): string | undefined {
   try {
     const decoded = jwt.verify(mcpToken, JWT_SECRET) as JWTPayload;
     return decoded.freeagentAccessToken;
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }

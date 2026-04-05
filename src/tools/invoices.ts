@@ -57,10 +57,8 @@ export async function listInvoices(
     queryParams
   );
 
-  const invoices = response.invoices || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const invoices = response.data.invoices || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   const formattedResponse = formatResponse(
     {
@@ -145,11 +143,11 @@ export async function getInvoice(
 ): Promise<string> {
   // Normalize invoice ID
   const endpoint = params.invoice_id.startsWith("http")
-    ? params.invoice_id.replace(/^https?:\/\/[^\/]+\/v2/, "")
+    ? params.invoice_id.replace(/^https?:\/\/[^/]+\/v2/, "")
     : `/invoices/${params.invoice_id}`;
 
   const response = await client.get<{ invoice: FreeAgentInvoice }>(endpoint);
-  const invoice = response.invoice;
+  const invoice = response.data.invoice;
 
   const formattedResponse = formatResponse(
     { invoice },
@@ -289,7 +287,7 @@ export async function createInvoice(
     { invoice: invoiceData }
   );
 
-  const invoice = response.invoice;
+  const invoice = response.data.invoice;
   const id = extractIdFromUrl(invoice.url);
   const ref = invoice.reference || id;
 

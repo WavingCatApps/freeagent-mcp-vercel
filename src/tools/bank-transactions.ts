@@ -13,7 +13,6 @@ import type {
   CreateBankTransactionExplanationInput,
   UpdateBankTransactionExplanationInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -43,10 +42,8 @@ export async function listBankTransactionExplanations(
     "/bank_transaction_explanations",
     queryParams
   );
-  const explanations = response.bank_transaction_explanations || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const explanations = response.data.bank_transaction_explanations || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   return formatResponse(
@@ -130,7 +127,7 @@ export async function getBankTransactionExplanation(
     : `/bank_transaction_explanations/${bank_transaction_explanation_id}`;
 
   const response = await client.get<{ bank_transaction_explanation: any }>(explanationUrl);
-  const exp = response.bank_transaction_explanation;
+  const exp = response.data.bank_transaction_explanation;
 
   // Format response
   return formatResponse(
@@ -275,7 +272,7 @@ export async function createBankTransactionExplanation(
     { bank_transaction_explanation: explanationPayload }
   );
 
-  const explanation = response.bank_transaction_explanation;
+  const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
   // Determine explanation type
@@ -343,7 +340,7 @@ export async function updateBankTransactionExplanation(
     { bank_transaction_explanation: explanationPayload }
   );
 
-  const explanation = response.bank_transaction_explanation;
+  const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
   // Determine explanation type

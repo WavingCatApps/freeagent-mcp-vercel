@@ -13,7 +13,6 @@ import type {
   CreateExpenseInput,
   UpdateExpenseInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -43,10 +42,8 @@ export async function listExpenses(
     "/expenses",
     queryParams
   );
-  const expenses = response.expenses || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const expenses = response.data.expenses || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response - return full expense objects like get_expense does
   // This ensures consistency and includes all fields from the API
@@ -146,7 +143,7 @@ export async function getExpense(
     : `/expenses/${expense_id}`;
 
   const response = await client.get<{ expense: any }>(expenseUrl);
-  const expense = response.expense;
+  const expense = response.data.expense;
 
   // Format response
   return formatResponse(
@@ -278,7 +275,7 @@ export async function createExpense(
   }
 
   const response = await client.post<{ expense: any }>("/expenses", { expense: expensePayload });
-  const expense = response.expense;
+  const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const type = isMileage ? "mileage expense" : "expense";
@@ -349,7 +346,7 @@ export async function updateExpense(
   }
 
   const response = await client.put<{ expense: any }>(expenseUrl, { expense: expensePayload });
-  const expense = response.expense;
+  const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const isMileage = expense.miles !== null && expense.miles !== undefined;

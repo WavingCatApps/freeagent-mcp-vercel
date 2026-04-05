@@ -6,6 +6,11 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 import { API_BASE_URL, SANDBOX_API_BASE_URL, API_VERSION } from "../constants.js";
 import type { FreeAgentApiError } from "../types.js";
 
+export interface ApiResponse<T> {
+  data: T;
+  headers: Record<string, string>;
+}
+
 export class FreeAgentApiClient {
   private axiosInstance: AxiosInstance;
   private accessToken: string;
@@ -32,11 +37,11 @@ export class FreeAgentApiClient {
   /**
    * Make a GET request to the FreeAgent API
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
     try {
       const config: AxiosRequestConfig = { params };
       const response = await this.axiosInstance.get<T>(endpoint, config);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -45,10 +50,10 @@ export class FreeAgentApiClient {
   /**
    * Make a POST request to the FreeAgent API
    */
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.post<T>(endpoint, data);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -57,10 +62,10 @@ export class FreeAgentApiClient {
   /**
    * Make a PUT request to the FreeAgent API
    */
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.put<T>(endpoint, data);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -69,10 +74,10 @@ export class FreeAgentApiClient {
   /**
    * Make a DELETE request to the FreeAgent API
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.delete<T>(endpoint);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }

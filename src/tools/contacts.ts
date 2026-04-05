@@ -12,7 +12,6 @@ import {
   createPaginationMetadata,
   extractIdFromUrl
 } from "../services/formatter.js";
-import { ResponseFormat } from "../constants.js";
 import type {
   ListContactsInput,
   GetContactInput,
@@ -40,10 +39,8 @@ export async function listContacts(
     queryParams
   );
 
-  const contacts = response.contacts || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const contacts = response.data.contacts || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   const formattedResponse = formatResponse(
@@ -124,11 +121,11 @@ export async function getContact(
 ): Promise<string> {
   // Normalize contact ID - handle both numeric IDs and full URLs
   const endpoint = params.contact_id.startsWith("http")
-    ? params.contact_id.replace(/^https?:\/\/[^\/]+\/v2/, "")
+    ? params.contact_id.replace(/^https?:\/\/[^/]+\/v2/, "")
     : `/contacts/${params.contact_id}`;
 
   const response = await client.get<{ contact: FreeAgentContact }>(endpoint);
-  const contact = response.contact;
+  const contact = response.data.contact;
 
   const formattedResponse = formatResponse(
     { contact },
@@ -220,7 +217,7 @@ export async function createContact(
     { contact: params }
   );
 
-  const contact = response.contact;
+  const contact = response.data.contact;
   const name = formatContactName(contact);
 
   return `✅ Contact created successfully: ${name} (ID: ${extractIdFromUrl(contact.url)})\n\nURL: ${contact.url}`;

@@ -11,7 +11,6 @@ import type {
   ListBankTransactionsInput,
   GetBankTransactionInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -28,7 +27,7 @@ export async function listBankAccounts(
   const { response_format } = params;
 
   const response = await client.get<{ bank_accounts: any[] }>("/bank_accounts");
-  const bankAccounts = response.bank_accounts || [];
+  const bankAccounts = response.data.bank_accounts || [];
 
   // Format response
   return formatResponse(
@@ -84,7 +83,7 @@ export async function getBankAccount(
     : `/bank_accounts/${bank_account_id}`;
 
   const response = await client.get<{ bank_account: any }>(accountUrl);
-  const account = response.bank_account;
+  const account = response.data.bank_account;
 
   // Format response
   return formatResponse(
@@ -156,10 +155,8 @@ export async function listBankTransactions(
     "/bank_transactions",
     queryParams
   );
-  const transactions = response.bank_transactions || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const transactions = response.data.bank_transactions || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   return formatResponse(
@@ -244,7 +241,7 @@ export async function getBankTransaction(
     : `/bank_transactions/${bank_transaction_id}`;
 
   const response = await client.get<{ bank_transaction: any }>(transactionUrl);
-  const txn = response.bank_transaction;
+  const txn = response.data.bank_transaction;
 
   // Format response
   return formatResponse(

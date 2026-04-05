@@ -23,3 +23,18 @@ export enum ResponseFormat {
   MARKDOWN = "markdown",
   JSON = "json"
 }
+
+/**
+ * Compute the base URL for the server, supporting Vercel deployment URLs.
+ * Priority: PRODUCTION_URL > VERCEL_BRANCH_URL > VERCEL_URL > BASE_URL > localhost
+ */
+export function getBaseUrl(): string {
+  const PRODUCTION_URL = process.env.PRODUCTION_URL;
+  const VERCEL_BRANCH_URL = process.env.VERCEL_BRANCH_URL;
+  const VERCEL_URL = process.env.VERCEL_URL;
+
+  if (PRODUCTION_URL) return `https://${PRODUCTION_URL}`;
+  if (VERCEL_BRANCH_URL) return `https://${VERCEL_BRANCH_URL}`;
+  if (VERCEL_URL) return `https://${VERCEL_URL}`;
+  return process.env.BASE_URL || "http://localhost:3000";
+}

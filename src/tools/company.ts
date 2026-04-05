@@ -19,7 +19,7 @@ export async function getCompany(
   params: GetCompanyInput
 ): Promise<string> {
   const response = await client.get<{ company: FreeAgentCompany }>("/company");
-  const company = response.company;
+  const company = response.data.company;
 
   const formattedResponse = formatResponse(
     { company },
@@ -62,7 +62,7 @@ export async function listUsers(
   params: ListUsersInput
 ): Promise<string> {
   const response = await client.get<{ users: FreeAgentUser[] }>("/users");
-  const users = response.users || [];
+  const users = response.data.users || [];
 
   const formattedResponse = formatResponse(
     { users },

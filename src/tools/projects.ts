@@ -17,17 +17,17 @@ export async function listProjects(
   if (params.per_page) queryParams.set("per_page", params.per_page.toString());
 
   const url = `/projects${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-  const response = await apiClient.get(url) as any;
+  const response = await apiClient.get<any>(url);
 
-  if (!response.projects || response.projects.length === 0) {
+  if (!response.data.projects || response.data.projects.length === 0) {
     return "No projects found.";
   }
 
   if (params.response_format === ResponseFormat.JSON) {
-    return JSON.stringify(response.projects, null, 2);
+    return JSON.stringify(response.data.projects, null, 2);
   }
 
-  const projectList = response.projects
+  const projectList = response.data.projects
     .map((project: any) => {
       return [
         `Project: ${project.name}`,
@@ -45,7 +45,7 @@ export async function listProjects(
     })
     .join("\n\n");
 
-  return `Found ${response.projects.length} project(s):\n\n${projectList}`;
+  return `Found ${response.data.projects.length} project(s):\n\n${projectList}`;
 }
 
 /**
@@ -56,8 +56,8 @@ export async function getProject(
   params: GetProjectInput
 ): Promise<string> {
   const projectId = params.project_id.replace(/^.*\/projects\//, "");
-  const response = await apiClient.get(`/projects/${projectId}`) as any;
-  const project = response.project;
+  const response = await apiClient.get<any>(`/projects/${projectId}`);
+  const project = response.data.project;
 
   if (params.response_format === ResponseFormat.JSON) {
     return JSON.stringify(project, null, 2);
@@ -117,8 +117,8 @@ export async function createProject(
     projectData.include_unbilled_time_in_profitability = params.include_unbilled_time_in_profitability;
   }
 
-  const response = await apiClient.post("/projects", { project: projectData }) as any;
-  const project = response.project;
+  const response = await apiClient.post<any>("/projects", { project: projectData });
+  const project = response.data.project;
 
   return [
     `Project created successfully!`,
