@@ -5,6 +5,7 @@
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
+import type { FreeAgentTimeslip } from "../types.js";
 import type {
   ListTimeslipsInput,
   GetTimeslipInput,
@@ -37,7 +38,7 @@ export async function listTimeslips(
   if (user) queryParams.user = user;
   if (project) queryParams.project = project;
 
-  const response = await client.get<{ timeslips: any[] }>(
+  const response = await client.get<{ timeslips: FreeAgentTimeslip[] }>(
     "/timeslips",
     queryParams
   );
@@ -47,7 +48,7 @@ export async function listTimeslips(
   // Format response
   return formatResponse(
     {
-      timeslips: timeslips.map((timeslip: any) => ({
+      timeslips: timeslips.map((timeslip: FreeAgentTimeslip) => ({
         url: timeslip.url,
         user: timeslip.user,
         project: timeslip.project,
@@ -93,8 +94,9 @@ export async function listTimeslips(
         const hours = `${timeslip.hours} hours`;
         const comment = timeslip.comment || 'No comment';
         const billed = timeslip.billed_on_invoice ? ' [BILLED]' : '';
-        const attachments = timeslip.attachment_count > 0
-          ? ` (${timeslip.attachment_count} attachment${timeslip.attachment_count > 1 ? 's' : ''})`
+        const timeslipAttachmentCount = timeslip.attachment_count ?? 0;
+        const attachments = timeslipAttachmentCount > 0
+          ? ` (${timeslipAttachmentCount} attachment${timeslipAttachmentCount > 1 ? 's' : ''})`
           : '';
 
         lines.push(`## ${timeslip.dated_on} - ${hours}${billed} (ID: ${id})`);
@@ -119,7 +121,7 @@ export async function getTimeslip(
     ? timeslip_id
     : `/timeslips/${timeslip_id}`;
 
-  const response = await client.get<{ timeslip: any }>(timeslipUrl);
+  const response = await client.get<{ timeslip: FreeAgentTimeslip }>(timeslipUrl);
   const timeslip = response.data.timeslip;
 
   // Format response
@@ -142,7 +144,7 @@ export async function getTimeslip(
         lines.push(`- **Status**: Unbilled`);
       }
 
-      if (timeslip.attachment_count > 0) {
+      if (timeslip.attachment_count && timeslip.attachment_count > 0) {
         lines.push(`- **Attachments**: ${timeslip.attachment_count} file(s)`);
       }
 
@@ -163,7 +165,7 @@ export async function createTimeslip(
   params: CreateTimeslipInput
 ): Promise<string> {
   // Build timeslip payload
-  const timeslipPayload: any = {
+  const timeslipPayload: Record<string, unknown> = {
     task: params.task,
     user: params.user,
     project: params.project,
@@ -174,7 +176,7 @@ export async function createTimeslip(
   // Add optional fields
   if (params.comment) timeslipPayload.comment = params.comment;
 
-  const response = await client.post<{ timeslip: any }>("/timeslips", { timeslip: timeslipPayload });
+  const response = await client.post<{ timeslip: FreeAgentTimeslip }>("/timeslips", { timeslip: timeslipPayload });
   const timeslip = response.data.timeslip;
   const timeslipId = extractIdFromUrl(timeslip.url);
 

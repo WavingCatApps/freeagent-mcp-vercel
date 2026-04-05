@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { FreeAgentApiClient, formatErrorForLLM } from "./api-client.js";
+
+interface MockAxiosInstance {
+  get: Mock;
+  post: Mock;
+  put: Mock;
+  delete: Mock;
+}
 
 // Mock axios at the module level
 vi.mock("axios", () => {
@@ -13,16 +20,16 @@ vi.mock("axios", () => {
   return {
     default: {
       create: vi.fn(() => mockAxiosInstance),
-      isAxiosError: vi.fn((error: any) => error.isAxiosError === true),
+      isAxiosError: vi.fn((error: unknown) => (error as Record<string, unknown>).isAxiosError === true),
     },
     __mockInstance: mockAxiosInstance,
   };
 });
 
 // Get the mock instance
-async function getMockAxios() {
+async function getMockAxios(): Promise<MockAxiosInstance> {
   const mod = await import("axios");
-  return (mod as any).__mockInstance;
+  return (mod as unknown as { __mockInstance: MockAxiosInstance }).__mockInstance;
 }
 
 describe("FreeAgentApiClient", () => {
@@ -40,7 +47,7 @@ describe("FreeAgentApiClient", () => {
         headers: { "x-total-count": "42" },
       });
 
-      const result = await client.get<{ contacts: any[] }>("/contacts");
+      const result = await client.get<{ contacts: Array<{ url: string }> }>("/contacts");
       expect(result.data.contacts).toHaveLength(1);
       expect(result.headers["x-total-count"]).toBe("42");
     });
@@ -54,7 +61,7 @@ describe("FreeAgentApiClient", () => {
         headers: {},
       });
 
-      const result = await client.post<{ contact: any }>("/contacts", { contact: {} });
+      const result = await client.post<{ contact: { url: string } }>("/contacts", { contact: {} });
       expect(result.data.contact.url).toContain("/contacts/2");
     });
   });

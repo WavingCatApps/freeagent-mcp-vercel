@@ -25,7 +25,7 @@ export async function listInvoices(
   client: FreeAgentApiClient,
   params: ListInvoicesInput
 ): Promise<string> {
-  const queryParams: Record<string, any> = {
+  const queryParams: Record<string, string | number> = {
     page: params.page,
     per_page: params.per_page
   };
@@ -259,7 +259,7 @@ export async function createInvoice(
     ? params.contact
     : `https://api.freeagent.com/v2/contacts/${params.contact}`;
 
-  const invoiceData: any = {
+  const invoiceData: Record<string, unknown> = {
     contact,
     dated_on: params.dated_on,
     currency: params.currency,

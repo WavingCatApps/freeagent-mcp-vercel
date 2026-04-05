@@ -1,5 +1,6 @@
 import { FreeAgentApiClient } from "../services/api-client.js";
 import { ResponseFormat } from "../constants.js";
+import type { FreeAgentProject } from "../types.js";
 import type { ListProjectsInput, GetProjectInput, CreateProjectInput } from "../schemas/index.js";
 
 /**
@@ -17,7 +18,7 @@ export async function listProjects(
   if (params.per_page) queryParams.set("per_page", params.per_page.toString());
 
   const url = `/projects${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-  const response = await apiClient.get<any>(url);
+  const response = await apiClient.get<{ projects: FreeAgentProject[] }>(url);
 
   if (!response.data.projects || response.data.projects.length === 0) {
     return "No projects found.";
@@ -28,7 +29,7 @@ export async function listProjects(
   }
 
   const projectList = response.data.projects
-    .map((project: any) => {
+    .map((project: FreeAgentProject) => {
       return [
         `Project: ${project.name}`,
         `  URL: ${project.url}`,
@@ -56,7 +57,7 @@ export async function getProject(
   params: GetProjectInput
 ): Promise<string> {
   const projectId = params.project_id.replace(/^.*\/projects\//, "");
-  const response = await apiClient.get<any>(`/projects/${projectId}`);
+  const response = await apiClient.get<{ project: FreeAgentProject }>(`/projects/${projectId}`);
   const project = response.data.project;
 
   if (params.response_format === ResponseFormat.JSON) {
@@ -96,7 +97,7 @@ export async function createProject(
   apiClient: FreeAgentApiClient,
   params: CreateProjectInput
 ): Promise<string> {
-  const projectData: any = {
+  const projectData: Record<string, unknown> = {
     contact: params.contact,
     name: params.name,
     budget: params.budget,
@@ -117,7 +118,7 @@ export async function createProject(
     projectData.include_unbilled_time_in_profitability = params.include_unbilled_time_in_profitability;
   }
 
-  const response = await apiClient.post<any>("/projects", { project: projectData });
+  const response = await apiClient.post<{ project: FreeAgentProject }>("/projects", { project: projectData });
   const project = response.data.project;
 
   return [

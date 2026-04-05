@@ -1105,7 +1105,7 @@ Note: Accepts nominal_code or full URL. Returns 404 if category doesn't exist.`,
 );
 
 // Logging helper with timestamps
-function log(level: string, message: string, data?: any) {
+function log(level: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,

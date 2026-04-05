@@ -70,7 +70,7 @@ export function extractIdFromUrl(url: string): string {
 /**
  * Format contact name
  */
-export function formatContactName(contact: any): string {
+export function formatContactName(contact: { organisation_name?: string; first_name?: string; last_name?: string }): string {
   if (contact.organisation_name) {
     return contact.organisation_name;
   }

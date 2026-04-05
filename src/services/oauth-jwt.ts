@@ -18,6 +18,7 @@ import { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/au
 import { OAuthClientInformationFull, OAuthTokens, OAuthTokenRevocationRequest } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import crypto from "crypto";
+import type { Response } from "express";
 import { getBaseUrl } from "../constants.js";
 
 // Configuration
@@ -128,7 +129,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
   async authorize(
     client: OAuthClientInformationFull,
     params: AuthorizationParams,
-    res: any
+    res: Response
   ): Promise<void> {
     try {
       const ourAuthCode = crypto.randomBytes(32).toString('base64url');
@@ -315,7 +316,10 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
     try {
 
       // Verify and decode the refresh token JWT
-      const decoded = jwt.verify(refreshToken, JWT_SECRET) as any;
+      const decoded = jwt.verify(refreshToken, JWT_SECRET) as JWTPayload & {
+        type: string;
+        clientMetadata?: OAuthClientInformationFull;
+      };
 
       if (decoded.type !== 'refresh') {
         console.error(JSON.stringify({

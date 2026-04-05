@@ -25,7 +25,7 @@ export async function listContacts(
   client: FreeAgentApiClient,
   params: ListContactsInput
 ): Promise<string> {
-  const queryParams: Record<string, any> = {
+  const queryParams: Record<string, string | number> = {
     page: params.page,
     per_page: params.per_page
   };
