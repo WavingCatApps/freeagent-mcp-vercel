@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm install && pnpm run build",
-  "installCommand": "pnpm install",
+  "buildCommand": "bun install && bun run build",
+  "installCommand": "bun install",
   "functions": {
     "api/index.ts": {
       "maxDuration": 60

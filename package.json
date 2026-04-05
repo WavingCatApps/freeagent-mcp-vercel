@@ -5,9 +5,9 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "build": "bun run tsc",
+    "start": "bun dist/index.js",
+    "dev": "bun run tsc --watch"
   },
   "keywords": [
     "mcp",
@@ -18,18 +18,18 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.14.0",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.2",
-    "zod": "^4.1.13"
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^24.10.1",
-    "@vercel/node": "^5.6.22",
-    "typescript": "^5.7.2"
+    "@types/node": "^25.5.2",
+    "@vercel/node": "^5.7.0",
+    "typescript": "^6.0.2"
   },
   "engines": {
     "node": "22.x"

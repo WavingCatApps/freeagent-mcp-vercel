@@ -35,7 +35,7 @@ const MCP_TOKEN_EXPIRY_SECONDS = process.env.MCP_TOKEN_EXPIRY_SECONDS
 // Refresh token lifetime - how long of inactivity before a user must re-authenticate
 // Uses rolling refresh: each successful refresh issues a new token with a fresh window
 // Set MCP_REFRESH_TOKEN_EXPIRY to a value like '30d', '90d', '365d'
-const MCP_REFRESH_TOKEN_EXPIRY = process.env.MCP_REFRESH_TOKEN_EXPIRY || '90d';
+const MCP_REFRESH_TOKEN_EXPIRY = (process.env.MCP_REFRESH_TOKEN_EXPIRY || '90d') as import('ms').StringValue;
 
 // Determine base URL
 // IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
