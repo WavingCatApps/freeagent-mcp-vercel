@@ -32,6 +32,10 @@ const MCP_TOKEN_EXPIRY_SECONDS = process.env.MCP_TOKEN_EXPIRY_SECONDS
   ? parseInt(process.env.MCP_TOKEN_EXPIRY_SECONDS, 10)
   : undefined; // undefined = use FreeAgent's expires_in
 
+// Refresh token lifetime - how long before a user must re-authenticate
+// Set MCP_REFRESH_TOKEN_EXPIRY to a value like '30d', '90d', '365d'
+const MCP_REFRESH_TOKEN_EXPIRY = process.env.MCP_REFRESH_TOKEN_EXPIRY || '365d';
+
 // Determine base URL
 // IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
 // Example: PRODUCTION_URL=freeagent-mcp-vercel-simonrices-projects.vercel.app
@@ -277,7 +281,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       };
       const mcpRefreshToken = jwt.sign(refreshPayload, JWT_SECRET, {
         algorithm: 'HS256',
-        expiresIn: '30d', // Refresh tokens last longer
+        expiresIn: MCP_REFRESH_TOKEN_EXPIRY,
       });
 
       // Log token creation (simplified)
