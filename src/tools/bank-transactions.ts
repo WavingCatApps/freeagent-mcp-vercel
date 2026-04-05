@@ -7,13 +7,13 @@
 
 import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
+import type { FreeAgentBankTransactionExplanation } from "../types.js";
 import type {
   ListBankTransactionExplanationsInput,
   GetBankTransactionExplanationInput,
   CreateBankTransactionExplanationInput,
   UpdateBankTransactionExplanationInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -39,19 +39,17 @@ export async function listBankTransactionExplanations(
   if (from_date) queryParams.from_date = from_date;
   if (to_date) queryParams.to_date = to_date;
 
-  const response = await client.get<{ bank_transaction_explanations: any[] }>(
+  const response = await client.get<{ bank_transaction_explanations: FreeAgentBankTransactionExplanation[] }>(
     "/bank_transaction_explanations",
     queryParams
   );
-  const explanations = response.bank_transaction_explanations || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const explanations = response.data.bank_transaction_explanations || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   return formatResponse(
     {
-      explanations: explanations.map((exp: any) => ({
+      explanations: explanations.map((exp: FreeAgentBankTransactionExplanation) => ({
         url: exp.url,
         dated_on: exp.dated_on,
         description: exp.description,
@@ -129,8 +127,8 @@ export async function getBankTransactionExplanation(
     ? bank_transaction_explanation_id
     : `/bank_transaction_explanations/${bank_transaction_explanation_id}`;
 
-  const response = await client.get<{ bank_transaction_explanation: any }>(explanationUrl);
-  const exp = response.bank_transaction_explanation;
+  const response = await client.get<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(explanationUrl);
+  const exp = response.data.bank_transaction_explanation;
 
   // Format response
   return formatResponse(
@@ -214,7 +212,7 @@ export async function createBankTransactionExplanation(
   params: CreateBankTransactionExplanationInput
 ): Promise<string> {
   // Build explanation payload
-  const explanationPayload: any = {
+  const explanationPayload: Record<string, unknown> = {
     bank_transaction: params.bank_transaction,
     dated_on: params.dated_on,
     gross_value: params.gross_value
@@ -260,22 +258,23 @@ export async function createBankTransactionExplanation(
       }
     }
 
-    explanationPayload.attachment = {
+    const attachmentPayload: Record<string, string> = {
       data: attachmentData,
       file_name: params.attachment.file_name,
       content_type: params.attachment.content_type
     };
     if (params.attachment.description) {
-      explanationPayload.attachment.description = params.attachment.description;
+      attachmentPayload.description = params.attachment.description;
     }
+    explanationPayload.attachment = attachmentPayload;
   }
 
-  const response = await client.post<{ bank_transaction_explanation: any }>(
+  const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
     "/bank_transaction_explanations",
     { bank_transaction_explanation: explanationPayload }
   );
 
-  const explanation = response.bank_transaction_explanation;
+  const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
   // Determine explanation type
@@ -312,9 +311,9 @@ export async function updateBankTransactionExplanation(
     : `/bank_transaction_explanations/${bank_transaction_explanation_id}`;
 
   // Build explanation payload with only provided fields
-  const explanationPayload: any = {};
+  const explanationPayload: Record<string, unknown> = {};
 
-  // Add optional fields only if provided
+  // Add fields only if provided
   if (updateFields.dated_on !== undefined) explanationPayload.dated_on = updateFields.dated_on;
   if (updateFields.description !== undefined) explanationPayload.description = updateFields.description;
   if (updateFields.gross_value !== undefined) explanationPayload.gross_value = updateFields.gross_value;
@@ -338,12 +337,12 @@ export async function updateBankTransactionExplanation(
     explanationPayload.transfer_bank_account = updateFields.transfer_bank_account;
   }
 
-  const response = await client.put<{ bank_transaction_explanation: any }>(
+  const response = await client.put<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
     explanationUrl,
     { bank_transaction_explanation: explanationPayload }
   );
 
-  const explanation = response.bank_transaction_explanation;
+  const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
   // Determine explanation type
