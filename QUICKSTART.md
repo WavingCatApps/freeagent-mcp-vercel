@@ -11,14 +11,14 @@
 ### 1. Install Dependencies
 
 ```bash
-cd freeagent-mcp-server
-npm install
+cd freeagent-mcp-vercel
+bun install
 ```
 
 ### 2. Build the Project
 
 ```bash
-npm run build
+bun run build
 ```
 
 ### 3. Get Your OAuth Access Token
@@ -112,8 +112,8 @@ FreeAgent allows 15 requests per 60 seconds:
 
 ### "Cannot find module" Error
 
-- Make sure you ran `npm install`
-- Make sure you ran `npm run build`
+- Make sure you ran `bun install`
+- Make sure you ran `bun run build`
 - Check that the path in your config points to `dist/index.js`
 
 ## Next Steps

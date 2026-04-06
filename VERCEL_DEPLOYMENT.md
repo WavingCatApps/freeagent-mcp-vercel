@@ -19,7 +19,7 @@ npm install -g vercel
 ### 2. Install Dependencies
 
 ```bash
-npm install
+bun install
 ```
 
 ### 3. Configure Environment Variables
@@ -103,23 +103,28 @@ npx @modelcontextprotocol/inspector https://your-project.vercel.app
 
 ### How It Works
 
-1. **HTTP/SSE Transport**: The server uses Server-Sent Events (SSE) for real-time communication
+1. **Streamable HTTP Transport**: The server uses Streamable HTTP transport for MCP communication
 2. **Serverless Function**: Runs as a Vercel serverless function at `api/index.ts`
 3. **Endpoint Routes**:
-   - `/` - Main SSE endpoint for MCP connections
-   - `/message` - POST endpoint for sending messages
+   - `/` and `/mcp` - Main MCP endpoints (POST for tool calls, GET for SSE streaming)
+   - `/health` - Health check endpoint
+   - `/authorize`, `/token`, `/register` - OAuth 2.0 endpoints
+   - `/oauth/callback` - FreeAgent OAuth callback
+   - `/.well-known/oauth-protected-resource` - OAuth metadata endpoint
 
 ### Project Structure
 
 ```
 freeagent-mcp-vercel/
 ├── api/
-│   └── index.ts           # Vercel serverless function (HTTP/SSE handler)
+│   └── index.ts           # Vercel serverless function (Streamable HTTP handler)
 ├── src/
 │   ├── index.ts           # Original stdio-based server (for local use)
-│   ├── services/
-│   ├── tools/
-│   └── schemas/
+│   ├── services/          # API client, OAuth, formatters
+│   ├── tools/             # Tool implementations
+│   └── schemas/           # Zod validation schemas
+├── skills/
+│   └── file-to-base64/    # Claude Code skill for attachment preparation
 ├── vercel.json            # Vercel configuration
 └── package.json
 ```
@@ -130,7 +135,8 @@ You can test the Vercel function locally using Vercel CLI:
 
 ```bash
 # Set environment variables
-export FREEAGENT_ACCESS_TOKEN="your_token_here"
+export FREEAGENT_CLIENT_ID="your_client_id"
+export FREEAGENT_CLIENT_SECRET="your_client_secret"
 export FREEAGENT_USE_SANDBOX="true"
 
 # Run local dev server
@@ -170,7 +176,7 @@ import { something } from "./file";     // May cause issues
 
 ## Security Considerations
 
-1. **Access Token Security**: Never commit access tokens to git. Always use environment variables.
+1. **Secret Security**: Never commit OAuth Client Secrets to git. Always use environment variables.
 2. **HTTPS**: Vercel automatically provides HTTPS for all deployments.
 3. **Rate Limiting**: Consider implementing rate limiting to prevent abuse of your endpoint.
 4. **Token Refresh**: Implement token refresh logic for long-lived deployments (see FreeAgent OAuth docs).

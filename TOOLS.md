@@ -668,14 +668,192 @@ stat -c%s /path/to/file.pdf  # Linux
 
 ---
 
+## Project Management
+
+### freeagent_list_projects
+
+Lists all projects in your FreeAgent account with filtering and pagination.
+
+**Parameters:**
+- `page` (number, default: 1): Page number for pagination
+- `per_page` (number, default: 25, max: 100): Items per page
+- `view` (string, optional): Filter by status - `active`, `completed`, `cancelled`, `all`
+- `contact` (string, optional): Filter by contact URL or ID
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show me all active projects
+List projects for contact 123
+```
+
+**Returns:** List of projects with name, contact, status, budget, currency, dates, and billing rate.
+
+---
+
+### freeagent_get_project
+
+Retrieves detailed information about a specific project.
+
+**Parameters:**
+- `project_id` (string, required): The FreeAgent project ID or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Get project 12345 details
+Show me the billing rate for project X
+```
+
+**Returns:** Complete project details including name, contact, status, budget, currency, dates, billing rate, IR35 status, and timestamps.
+
+---
+
+### freeagent_create_project
+
+Creates a new project in FreeAgent.
+
+**Parameters (Required):**
+- `contact` (string): Contact URL or ID this project is for
+- `name` (string): Name of the project
+- `budget` (string): Budget amount (decimal string)
+- `budget_units` (string): Budget units - `Hours`, `Days`, or `Monetary`
+- `status` (string, default: "Active"): Project status - `Active`, `Completed`, `Cancelled`, `Hidden`
+
+**Optional:**
+- `currency` (string, default: "GBP"): Currency code (GBP, USD, EUR, etc.)
+- `starts_on` (string): Start date in YYYY-MM-DD format
+- `ends_on` (string): End date in YYYY-MM-DD format
+- `normal_billing_rate` (string): Billing rate (decimal string)
+- `billing_period` (string): `hour` or `day`
+- `hours_per_day` (string, default: "8"): Hours per working day
+- `is_ir35` (boolean, default: false): Whether subject to IR35
+- `uses_project_invoice_sequence` (boolean, default: false): Use project-specific invoice numbering
+- `contract_po_reference` (string): Purchase order reference
+- `include_unbilled_time_in_profitability` (boolean): Include unbilled time in profit calculations
+
+**Example usage:**
+```
+Create a project for contact 123 called "Website Redesign" with 100 hours budget
+Add a new project for ABC Ltd with daily billing at £500
+```
+
+**Returns:** Success message with project name, URL, contact, status, budget, and currency.
+
+---
+
+## Task Management
+
+### freeagent_list_tasks
+
+Lists tasks in your FreeAgent account with filtering and pagination.
+
+**Parameters:**
+- `page` (number, default: 1): Page number for pagination
+- `per_page` (number, default: 25, max: 100): Items per page
+- `view` (string, optional): Filter by status - `active`, `completed`, `hidden`, `all`
+- `project` (string, optional): Filter by project URL or ID
+- `updated_since` (string, optional): Filter by last update timestamp (ISO 8601)
+- `sort` (string, optional): Sort by field - `name`, `project`, `billing_rate`, `created_at`, `updated_at`
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show me all active tasks
+List tasks for project 123
+```
+
+**Returns:** List of tasks with name, project, status, billable flag, billing rate, and currency.
+
+---
+
+### freeagent_get_task
+
+Retrieves detailed information about a specific task.
+
+**Parameters:**
+- `task_id` (string, required): The FreeAgent task ID or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Get task 12345 details
+Check the billing rate for task X
+```
+
+**Returns:** Complete task details including name, project, status, billable flag, billing rate, billing period, currency, and timestamps.
+
+---
+
+### freeagent_create_task
+
+Creates a new task within a project in FreeAgent.
+
+**Parameters (Required):**
+- `project` (string): Project URL or ID this task belongs to
+- `name` (string): Name of the task
+
+**Optional:**
+- `is_billable` (boolean, default: true): Whether this task is billable
+- `status` (string, default: "Active"): Task status - `Active`, `Completed`, `Hidden`
+- `billing_rate` (string): Billing rate (decimal string)
+- `billing_period` (string): `hour` or `day`
+
+**Example usage:**
+```
+Create a task called "Development" for project 123
+Add a non-billable task for project X
+```
+
+**Returns:** Success message with task name, URL, project, status, and billing details.
+
+---
+
+## Category Management
+
+### freeagent_list_categories
+
+Lists all categories in your FreeAgent account for expenses, invoices, and transactions.
+
+**Parameters:**
+- `view` (string, optional): Filter by type - `all`, `standard` (system categories), `custom` (user-created)
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show me all expense categories
+List standard categories
+What custom categories do I have?
+```
+
+**Returns:** List of categories grouped by type (Admin Expenses, Cost of Sales, Income, General) with description, nominal code, tax settings, and group information.
+
+---
+
+### freeagent_get_category
+
+Retrieves detailed information about a specific category by nominal code.
+
+**Parameters:**
+- `nominal_code` (string, required): The FreeAgent category nominal code or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Get category 285 details
+What tax rate applies to category X?
+```
+
+**Returns:** Complete category details including description, nominal code, group, tax allowability, tax reporting name, auto sales tax rate, and timestamps.
+
+---
+
 ## Future Tools
 
 Additional tools that could be added:
 
-- Project management (create, update, track)
 - Bill management
 - Reports (profit & loss, balance sheet)
-- Categories and tax management
 - Recurring invoice management
 
 Request additional tools by opening an issue or contributing to the project!
