@@ -4,7 +4,12 @@
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 import { API_BASE_URL, SANDBOX_API_BASE_URL, API_VERSION } from "../constants.js";
-import type { FreeAgentApiError } from "../types.js";
+import type { FreeAgentApiError, FreeAgentApiErrorItem } from "../types.js";
+
+export interface ApiResponse<T> {
+  data: T;
+  headers: Record<string, string>;
+}
 
 export class FreeAgentApiClient {
   private axiosInstance: AxiosInstance;
@@ -32,11 +37,11 @@ export class FreeAgentApiClient {
   /**
    * Make a GET request to the FreeAgent API
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<ApiResponse<T>> {
     try {
       const config: AxiosRequestConfig = { params };
       const response = await this.axiosInstance.get<T>(endpoint, config);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -45,10 +50,10 @@ export class FreeAgentApiClient {
   /**
    * Make a POST request to the FreeAgent API
    */
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.post<T>(endpoint, data);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -57,10 +62,10 @@ export class FreeAgentApiClient {
   /**
    * Make a PUT request to the FreeAgent API
    */
-  async put<T>(endpoint: string, data?: any): Promise<T> {
+  async put<T>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.put<T>(endpoint, data);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -69,10 +74,10 @@ export class FreeAgentApiClient {
   /**
    * Make a DELETE request to the FreeAgent API
    */
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
       const response = await this.axiosInstance.delete<T>(endpoint);
-      return response.data;
+      return { data: response.data, headers: response.headers as Record<string, string> };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -129,16 +134,16 @@ export class FreeAgentApiClient {
           if (Array.isArray(data.errors)) {
             // Handle array of error objects
             errorMessages = data.errors
-              .map((error: any) => {
-                if (typeof error === 'string') return error;
-                if (error && error.message) return error.message;
-                return JSON.stringify(error);
+              .map((errorItem: string | FreeAgentApiErrorItem) => {
+                if (typeof errorItem === 'string') return errorItem;
+                if (errorItem && errorItem.message) return errorItem.message;
+                return JSON.stringify(errorItem);
               })
               .join("; ");
           } else {
             // Handle object with field names as keys
             errorMessages = Object.entries(data.errors)
-              .map(([field, messages]: [string, any]) => {
+              .map(([field, messages]) => {
                 // Handle different error message formats
                 let messageStr: string;
                 if (Array.isArray(messages)) {
@@ -192,7 +197,7 @@ export class FreeAgentApiClient {
   /**
    * Parse pagination info from response headers
    */
-  parsePaginationHeaders(headers: Record<string, any>): {
+  parsePaginationHeaders(headers: Record<string, string | undefined>): {
     totalCount?: number;
     hasMore: boolean;
     nextPage?: number;
@@ -201,7 +206,7 @@ export class FreeAgentApiClient {
       ? parseInt(headers["x-total-count"], 10) 
       : undefined;
 
-    const linkHeader = headers["link"] as string | undefined;
+    const linkHeader = headers["link"];
     let hasMore = false;
     let nextPage: number | undefined;
 

@@ -16,6 +16,7 @@ import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../src/services/api-client.js";
+import { getBaseUrl } from "../src/constants.js";
 import { listContacts, getContact, createContact } from "../src/tools/contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "../src/tools/invoices.js";
 import { listExpenses, getExpense, createExpense } from "../src/tools/expenses.js";
@@ -50,19 +51,7 @@ import {
 // Configuration
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
 
-// Determine base URL
-// IMPORTANT: Set PRODUCTION_URL in Vercel environment variables to use a stable URL
-// Example: PRODUCTION_URL=freeagent-mcp-vercel-simonrices-projects.vercel.app
-// This ensures OAuth callbacks use a consistent URL instead of per-deployment URLs
-const PRODUCTION_URL = process.env.PRODUCTION_URL;
-const VERCEL_BRANCH_URL = process.env.VERCEL_BRANCH_URL;
-const VERCEL_URL = process.env.VERCEL_URL;
-
-const BASE_URL = PRODUCTION_URL
-  ? `https://${PRODUCTION_URL}`
-  : (VERCEL_BRANCH_URL
-    ? `https://${VERCEL_BRANCH_URL}`
-    : (VERCEL_URL ? `https://${VERCEL_URL}` : (process.env.BASE_URL || "http://localhost:3000")));
+const BASE_URL = getBaseUrl();
 
 // Create Express app
 const app = express();
@@ -352,79 +341,47 @@ function createMcpServer(freeagentToken: string): McpServer {
   return server;
 }
 
-// MCP endpoint - PROTECTED with bearer token (handles both GET and POST)
-app.all(
-  "/mcp",
-  requireBearerAuth({
-    verifier: oauthProvider,
-    resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
-  }),
-  async (req: any, res: any) => {
-    try {
-      const mcpToken = req.headers.authorization?.replace("Bearer ", "");
-      if (!mcpToken) {
-        console.error("/mcp: No authorization token provided");
-        return res.status(401).json({ error: "No authorization token" });
-      }
+// Shared MCP request handler - creates a stateless server per request
+const bearerAuth = requireBearerAuth({
+  verifier: oauthProvider,
+  resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
+});
 
-      const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
-      if (!freeagentToken) {
-        console.error("/mcp: Invalid or expired JWT token");
-        return res.status(401).json({ error: "Invalid token" });
-      }
+async function handleMcpRequest(req: any, res: any) {
+  try {
+    const mcpToken = req.headers.authorization?.replace("Bearer ", "");
+    if (!mcpToken) {
+      return res.status(401).json({ error: "No authorization token" });
+    }
 
-      const server = createMcpServer(freeagentToken);
-      // Use StreamableHTTPServerTransport in stateless mode (perfect for serverless!)
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined, // Stateless mode
-      });
+    const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
+    if (!freeagentToken) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
 
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-    } catch (error) {
-      console.error("MCP endpoint error:", error);
-      if (!res.headersSent) {
-        res.status(500).json({ error: "Internal server error" });
-      }
+    const server = createMcpServer(freeagentToken);
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // Stateless mode - no sessions needed for serverless
+    });
+
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (error) {
+    console.error("MCP endpoint error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
     }
   }
-);
+}
 
-// Root endpoint - MCP with bearer auth (handles both GET and POST)
-app.all(
-  "/",
-  requireBearerAuth({
-    verifier: oauthProvider,
-    resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
-  }),
-  async (req: any, res: any) => {
-    try {
-      const mcpToken = req.headers.authorization?.replace("Bearer ", "");
-      if (!mcpToken) {
-        return res.status(401).json({ error: "No authorization token" });
-      }
-
-      const freeagentToken = getFreeAgentTokenFromJWT(mcpToken);
-      if (!freeagentToken) {
-        return res.status(401).json({ error: "Invalid token" });
-      }
-
-      const server = createMcpServer(freeagentToken);
-      // Use StreamableHTTPServerTransport in stateless mode (perfect for serverless!)
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined, // Stateless mode
-      });
-
-      await server.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-    } catch (error) {
-      console.error("Root MCP endpoint error:", error);
-      if (!res.headersSent) {
-        res.status(500).json({ error: "Internal server error" });
-      }
-    }
-  }
-);
+// MCP endpoints - POST for tool calls, GET for SSE stream, DELETE returns 405 (stateless)
+for (const path of ["/mcp", "/"]) {
+  app.post(path, bearerAuth, handleMcpRequest);
+  app.get(path, bearerAuth, handleMcpRequest);
+  app.delete(path, (_req: any, res: any) => {
+    res.status(405).json({ error: "Method not allowed - server is stateless, no sessions to terminate" });
+  });
+}
 
 // Health check
 app.get("/health", (req: any, res: any) => {

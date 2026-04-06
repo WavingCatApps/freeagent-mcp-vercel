@@ -83,58 +83,18 @@ const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
 // Initialize API client (will be set after validation)
 let apiClient: FreeAgentApiClient;
 
-/**
- * Tool: freeagent_list_contacts
- * List all contacts with pagination and optional sorting
- */
 server.registerTool(
   "freeagent_list_contacts",
   {
     title: "List FreeAgent Contacts",
-    description: `List all contacts in your FreeAgent account with pagination support.
-
-This tool retrieves contacts (customers, suppliers, and other business contacts) from FreeAgent. Contacts can be sorted by various fields and results are paginated.
-
-Args:
-  - page (number): Page number for pagination, starts at 1 (default: 1)
-  - per_page (number): Number of items per page, max 100 (default: 25)
-  - sort (string): Optional field to sort by - one of: created_at, updated_at, first_name, last_name, organisation_name
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured data with schema:
-  {
-    "contacts": [
-      {
-        "url": string,              // Contact URL
-        "first_name": string,       // First name (optional)
-        "last_name": string,        // Last name (optional)
-        "organisation_name": string, // Organisation name (optional)
-        "email": string,            // Email address (optional)
-        "phone_number": string,     // Phone number (optional)
-        "active_projects_count": number // Active project count
-      }
-    ],
-    "pagination": {
-      "page": number,
-      "per_page": number,
-      "total_count": number,
-      "has_more": boolean,
-      "next_page": number
-    }
-  }
-
-  For Markdown format: Human-readable formatted list of contacts with key details.
+    description: `List all contacts (customers, suppliers, and other business contacts) in your FreeAgent account with pagination and sorting support.
 
 Examples:
-  - Use when: "Show me all my contacts" → list with default pagination
-  - Use when: "Find contacts sorted by name" → use sort="first_name"
-  - Use when: "Show me page 2 of contacts" → use page=2
+  - "Show me all my contacts" → use with default pagination
+  - "Find contacts sorted by name" → use sort="first_name"
+  - "Show me page 2 of contacts" → use page=2
 
-Error Handling:
-  - Returns rate limit error (429) if exceeding 15 requests per 60 seconds
-  - Returns authentication error (401) if access token is expired
-  - Suggests using pagination if results are truncated`,
+Note: Rate limited to 15 requests per 60 seconds. Results paginated.`,
     inputSchema: ListContactsInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -164,32 +124,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_contact
- * Get detailed information about a specific contact
- */
 server.registerTool(
   "freeagent_get_contact",
   {
     title: "Get FreeAgent Contact Details",
-    description: `Retrieve detailed information about a specific contact by ID.
-
-This tool fetches complete details for a single contact, including contact information, address, and account settings.
-
-Args:
-  - contact_id (string): The FreeAgent contact ID (numeric) or full URL
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Complete contact information including name, email, phone, address, payment terms, and metadata.
+    description: `Retrieve detailed information about a specific contact including name, email, phone, address, payment terms, and metadata.
 
 Examples:
-  - Use when: "Get details for contact 12345" → contact_id="12345"
-  - Use when: "Show me contact information for John Doe" → first list contacts, then get specific one
+  - "Get details for contact 12345" → contact_id="12345"
+  - "Show me contact information for John Doe" → first list contacts, then get specific one
 
-Error Handling:
-  - Returns 404 error if contact ID doesn't exist
-  - Returns authentication error if token is expired`,
+Note: Returns 404 if contact ID doesn't exist.`,
     inputSchema: GetContactInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -219,40 +164,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_create_contact
- * Create a new contact
- */
 server.registerTool(
   "freeagent_create_contact",
   {
     title: "Create FreeAgent Contact",
-    description: `Create a new contact in FreeAgent.
-
-This tool creates a new customer, supplier, or business contact in your FreeAgent account. At minimum, you should provide either organisation_name or both first_name and last_name.
-
-Args:
-  - first_name (string): Contact's first name (optional)
-  - last_name (string): Contact's last name (optional)
-  - organisation_name (string): Organisation name (optional)
-  - email (string): Email address (optional)
-  - phone_number (string): Phone number (optional)
-  - mobile (string): Mobile number (optional)
-  - address1 (string): Address line 1 (optional)
-  - town (string): Town/City (optional)
-  - postcode (string): Postal code (optional)
-  - country (string): Country code, e.g., GB, US (optional)
-
-Returns:
-  Success message with the created contact's ID and URL.
+    description: `Create a new customer, supplier, or business contact in FreeAgent. Provide either organisation_name or both first_name and last_name.
 
 Examples:
-  - Use when: "Create a contact for ABC Ltd" → organisation_name="ABC Ltd", email="..."
-  - Use when: "Add John Smith as a customer" → first_name="John", last_name="Smith"
+  - "Create a contact for ABC Ltd" → organisation_name="ABC Ltd", email="..."
+  - "Add John Smith as a customer" → first_name="John", last_name="Smith"
 
-Error Handling:
-  - Returns validation errors (422) if required fields are missing
-  - Suggests providing at least organisation_name or first_name/last_name`,
+Note: Returns validation errors (422) if neither organisation_name nor first_name/last_name provided.`,
     inputSchema: CreateContactInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -282,39 +204,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_invoices
- * List invoices with filtering and pagination
- */
 server.registerTool(
   "freeagent_list_invoices",
   {
     title: "List FreeAgent Invoices",
-    description: `List invoices in your FreeAgent account with filtering and pagination.
-
-This tool retrieves invoices with various filter options including status, contact, project, and date ranges.
-
-Args:
-  - page (number): Page number for pagination (default: 1)
-  - per_page (number): Items per page, max 100 (default: 25)
-  - view (string): Filter by status - one of: all, recent_open_or_overdue, draft, scheduled, sent, overdue (optional)
-  - contact (string): Filter by contact URL or ID (optional)
-  - project (string): Filter by project URL or ID (optional)
-  - sort (string): Sort by field: created_at, updated_at, dated_on, due_on (prefix with '-' for descending) (optional)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured list of invoices with pagination metadata.
-  For Markdown format: Human-readable invoice list with status, dates, amounts, and contacts.
+    description: `List invoices in your FreeAgent account with filtering by status, contact, project, and date ranges.
 
 Examples:
-  - Use when: "Show me all overdue invoices" → view="overdue"
-  - Use when: "List invoices for contact 123" → contact="123"
-  - Use when: "Show draft invoices sorted by date" → view="draft", sort="dated_on"
+  - "Show me all overdue invoices" → view="overdue"
+  - "List invoices for contact 123" → contact="123"
+  - "Show draft invoices sorted by date" → view="draft", sort="dated_on"
 
-Error Handling:
-  - Returns rate limit error if too many requests
-  - Suggests using view parameter to filter large result sets`,
+Note: Rate limited. Use view parameter to filter large result sets. Results paginated.`,
     inputSchema: ListInvoicesInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -344,31 +245,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_invoice
- * Get detailed invoice information
- */
 server.registerTool(
   "freeagent_get_invoice",
   {
     title: "Get FreeAgent Invoice Details",
-    description: `Retrieve detailed information about a specific invoice.
-
-This tool fetches complete details for a single invoice including line items, amounts, status, and related information.
-
-Args:
-  - invoice_id (string): The FreeAgent invoice ID (numeric) or full URL
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Complete invoice information including reference, dates, amounts, line items, contact, and status.
+    description: `Retrieve detailed information about a specific invoice including line items, amounts, status, dates, and contact.
 
 Examples:
-  - Use when: "Get invoice 12345 details" → invoice_id="12345"
-  - Use when: "Show me the line items for invoice INV-001" → first find invoice, then get details
+  - "Get invoice 12345 details" → invoice_id="12345"
+  - "Show me the line items for invoice INV-001" → first find invoice, then get details
 
-Error Handling:
-  - Returns 404 if invoice doesn't exist`,
+Note: Returns 404 if invoice doesn't exist.`,
     inputSchema: GetInvoiceInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -398,39 +285,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_create_invoice
- * Create a new invoice
- */
 server.registerTool(
   "freeagent_create_invoice",
   {
     title: "Create FreeAgent Invoice",
-    description: `Create a new invoice in FreeAgent.
-
-This tool creates a new invoice in Draft status. The invoice must have at least one line item and be associated with a contact.
-
-Args:
-  - contact (string): Contact URL or ID to invoice (required)
-  - dated_on (string): Invoice date in YYYY-MM-DD format (required)
-  - invoice_items (array): Array of line items, each with item_type, description, price, quantity (required)
-  - due_on (string): Due date in YYYY-MM-DD format (optional)
-  - reference (string): Invoice reference number (optional)
-  - currency (string): Currency code - GBP, USD, EUR, etc. (default: GBP)
-  - comments (string): Invoice comments (optional)
-  - payment_terms_in_days (number): Payment terms in days (optional)
-
-Returns:
-  Success message with invoice ID, reference, total, and URL. Note that invoice is created in Draft status.
+    description: `Create a new invoice in Draft status. Requires a contact and at least one line item.
 
 Examples:
-  - Use when: "Create invoice for contact 123" → contact="123", dated_on="2024-01-15", invoice_items=[...]
-  - Use when: "Invoice ABC Ltd for consulting" → contact with organisation_name, line items
+  - "Create invoice for contact 123" → contact="123", dated_on="2024-01-15", invoice_items=[...]
+  - "Invoice ABC Ltd for consulting" → use contact with organisation_name, add line items
 
-Error Handling:
-  - Returns validation errors if required fields missing or invalid
-  - Returns 404 if contact doesn't exist
-  - Suggests ensuring contact exists first`,
+Note: Invoice is created in Draft status. Returns 404 if contact doesn't exist.`,
     inputSchema: CreateInvoiceInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -460,38 +325,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_expenses
- * List expenses with filtering and pagination
- */
 server.registerTool(
   "freeagent_list_expenses",
   {
     title: "List FreeAgent Expenses",
-    description: `List expenses in your FreeAgent account with filtering and pagination.
-
-This tool retrieves business expenses including regular expenses and mileage claims. Expenses can be filtered by date range and view status, with support for pagination.
-
-Args:
-  - page (number): Page number for pagination (default: 1)
-  - per_page (number): Items per page, max 100 (default: 25)
-  - view (string): Filter by view - one of: recent, awaiting_receipt, all (optional)
-  - from_date (string): Filter expenses from this date in YYYY-MM-DD format (optional)
-  - to_date (string): Filter expenses to this date in YYYY-MM-DD format (optional)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured list of expenses with details including amounts, categories, mileage info, and attachments.
-  For Markdown format: Human-readable expense list with dates, amounts, descriptions, and attachment counts.
+    description: `List business expenses and mileage claims with filtering by date range and status.
 
 Examples:
-  - Use when: "Show me all expenses for January 2024" → from_date="2024-01-01", to_date="2024-01-31"
-  - Use when: "List expenses awaiting receipts" → view="awaiting_receipt"
-  - Use when: "Show my mileage expenses" → list all and filter by miles field
+  - "Show me all expenses for January 2024" → from_date="2024-01-01", to_date="2024-01-31"
+  - "List expenses awaiting receipts" → view="awaiting_receipt"
+  - "Show my mileage expenses" → list all and filter by miles field
 
-Error Handling:
-  - Returns rate limit error if too many requests
-  - Suggests using date filters to narrow results`,
+Note: Rate limited. Use date filters to narrow large result sets. Results paginated.`,
     inputSchema: ListExpensesInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -521,31 +366,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_expense
- * Get detailed information about a specific expense
- */
 server.registerTool(
   "freeagent_get_expense",
   {
     title: "Get FreeAgent Expense Details",
-    description: `Retrieve detailed information about a specific expense by ID.
-
-This tool fetches complete details for a single expense, including amount, category, description, attachments, and mileage information if applicable.
-
-Args:
-  - expense_id (string): The FreeAgent expense ID (numeric) or full URL
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Complete expense information including date, amount, category, user, project, EC status, attachments, and mileage details (miles, vehicle type) if it's a mileage expense.
+    description: `Retrieve detailed information about a specific expense including amount, category, attachments, and mileage details if applicable.
 
 Examples:
-  - Use when: "Get expense 12345 details" → expense_id="12345"
-  - Use when: "Show me the receipt for expense XYZ" → first get expense, check attachment_count
+  - "Get expense 12345 details" → expense_id="12345"
+  - "Show me the receipt for expense XYZ" → first get expense, check attachment_count
 
-Error Handling:
-  - Returns 404 if expense doesn't exist`,
+Note: Returns 404 if expense doesn't exist.`,
     inputSchema: GetExpenseInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -575,81 +406,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_create_expense
- * Create a new expense (regular or mileage)
- */
 server.registerTool(
   "freeagent_create_expense",
   {
     title: "Create FreeAgent Expense",
-    description: `Create a new expense in FreeAgent, including regular expenses or mileage claims.
-
-This tool creates business expenses with optional receipt attachments. You can create either regular expenses (with gross_value) or mileage expenses (with miles and vehicle_type fields).
-
-Args:
-  - user (string): User URL or ID who incurred the expense (required)
-  - category (string): Expense category URL or ID (required)
-  - dated_on (string): Date of expense in YYYY-MM-DD format (required)
-  - description (string): Description of the expense (optional)
-  - gross_value (string): Total amount including tax (decimal string, required for non-mileage)
-    ⚠️ CRITICAL: Use NEGATIVE values for normal expenses (e.g., "-10.00" for a £10 expense)
-    Positive values create refunds due FROM the claimant, not payments TO them
-  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
-  - manual_sales_tax_amount (string): Manual sales tax amount (optional)
-  - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
-  - ec_status (string): One of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge' (optional)
-    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
-  - receipt_reference (string): Receipt reference identifier (optional)
-  - project (string): Project URL or ID to associate with expense (optional)
-  - attachment (object): File attachment for receipt (optional):
-    - data (string): Base64 encoded file content (or gzip-compressed then Base64 encoded if is_gzipped=true)
-      ⚠️ PERFORMANCE TIP: For large files (>50KB), gzip compress BEFORE Base64 encoding, then set is_gzipped=true.
-      This dramatically reduces size and speeds up LLM processing (which processes character-by-character).
-      Example workflow: file → gzip → base64 encode → set is_gzipped=true
-    - file_name (string): Original filename
-    - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
-    - is_gzipped (boolean): Set to true if data is gzip-compressed before Base64 encoding (default: false)
-      Server will automatically decompress before uploading to FreeAgent
-    - description (string): Optional attachment description
-
-  Recurring expense fields:
-  - recurring (string): One of: 'Weekly', 'Two Weekly', 'Four Weekly', 'Two Monthly', 'Quarterly', 'Biannually', 'Annually', '2-Yearly' (optional)
-  - next_recurs_on (string): Next recurrence date in YYYY-MM-DD format (optional)
-  - recurring_end_date (string): End date for recurring expenses in YYYY-MM-DD format (optional)
-
-  Mileage-specific fields (use instead of gross_value):
-  - miles (string): Distance traveled in miles (decimal string, required for mileage)
-  - mileage_vehicle_type (string): One of: 'Car', 'Motorcycle', 'Bicycle' (optional)
-  - initial_mileage (string): Starting odometer reading (optional)
-  - mileage_type (string): One of: 'Business', 'Personal' (optional)
-  - engine_type (string): One of: 'Petrol', 'Diesel', 'LPG', 'Electric', 'Electric (Home charger)', 'Electric (Public charger)' (optional)
-  - engine_size (string): Engine size, depends on engine_type selection (optional)
-  - reclaim_mileage (number): 0 = rebill only (default), 1 = AMAP rate (optional)
-
-Returns:
-  Success message with expense ID, date, amount, and URL. For mileage expenses, includes miles traveled.
+    description: `Create a new expense in FreeAgent, including regular expenses or mileage claims. Use NEGATIVE gross_value for normal expenses (e.g., "-10.00" for £10 spent); positive values represent refunds. For mileage, provide miles instead of gross_value.
 
 Examples:
-  - Use when: "Create expense for hotel £150" → gross_value="-150.00", category="Accommodation" (NEGATIVE for expenses!)
-  - Use when: "Log 50 miles by car" → miles="50", mileage_vehicle_type="Car"
-  - Use when: "Record a £50 refund received" → gross_value="50.00" (POSITIVE for refunds from claimant)
+  - "Create expense for hotel £150" → gross_value="-150.00", category="Accommodation"
+  - "Log 50 miles by car" → miles="50", mileage_vehicle_type="Car"
+  - "Record a £50 refund received" → gross_value="50.00"
 
-Tips:
-  - EXPENSE VALUES: Always use NEGATIVE values for normal expenses (e.g., "-10.00" for £10 spent)
-    Only use POSITIVE values for refunds received from the claimant
-  - For mileage expenses, provide miles instead of gross_value (FreeAgent auto-calculates based on HMRC rates)
-  - ATTACHMENTS - Best practices for speed:
-    1. RECOMMENDED: Use gzip compression (file → gzip → base64 → set is_gzipped=true) for files >50KB
-       Gzip typically reduces size by 70-90%, dramatically speeding up LLM processing
-    2. Resize images before encoding: 800x600px at 70-80% JPEG quality is sufficient for receipts
-    3. For PDFs: Use low-resolution export settings
-  - Without gzip, large attachments (>100KB) can take significantly longer due to character-by-character LLM processing
-
-Error Handling:
-  - Returns validation errors (422) if required fields missing
-  - Returns 404 if user or category doesn't exist
-  - Suggests ensuring user and category exist first`,
+Note: Rate limited. Returns 422 if required fields missing, 404 if user/category doesn't exist. For attachments >50KB, use gzip compression before Base64 encoding (set is_gzipped=true).`,
     inputSchema: CreateExpenseInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -679,66 +447,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_update_expense
- * Update an existing expense
- */
 server.registerTool(
   "freeagent_update_expense",
   {
     title: "Update FreeAgent Expense",
-    description: `Update an existing expense in FreeAgent.
-
-This tool allows you to modify fields on an existing expense, including description and category. All fields are optional - only provide the fields you want to update.
-
-Args:
-  - expense_id (string): Expense ID (numeric) or full URL (required)
-  - user (string): User URL or ID who incurred the expense (optional)
-  - category (string): Expense category URL or ID (optional)
-  - dated_on (string): Date of expense in YYYY-MM-DD format (optional)
-  - description (string): Description of the expense (optional)
-  - gross_value (string): Total amount including tax (decimal string) (optional)
-    ⚠️ CRITICAL: Use NEGATIVE values for normal expenses (e.g., "-10.00"). Positive = refund from claimant
-  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
-  - manual_sales_tax_amount (string): Manual sales tax amount (optional)
-  - currency (string): Currency code - GBP, USD, EUR, etc. (optional)
-  - ec_status (string): One of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge' (optional)
-    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
-  - receipt_reference (string): Receipt reference identifier (optional)
-  - project (string): Project URL or ID to associate with expense (optional)
-
-  Recurring expense fields:
-  - recurring (string): One of: 'Weekly', 'Two Weekly', 'Four Weekly', 'Two Monthly', 'Quarterly', 'Biannually', 'Annually', '2-Yearly' (optional)
-  - next_recurs_on (string): Next recurrence date in YYYY-MM-DD format (optional)
-  - recurring_end_date (string): End date for recurring expenses in YYYY-MM-DD format (optional)
-
-  Mileage-specific fields:
-  - miles (string): Distance traveled in miles (decimal string) (optional)
-  - mileage_vehicle_type (string): One of: 'Car', 'Motorcycle', 'Bicycle' (optional)
-  - initial_mileage (string): Starting odometer reading (optional)
-  - mileage_type (string): One of: 'Business', 'Personal' (optional)
-  - engine_type (string): One of: 'Petrol', 'Diesel', 'LPG', 'Electric', 'Electric (Home charger)', 'Electric (Public charger)' (optional)
-  - engine_size (string): Engine size, depends on engine_type selection (optional)
-  - reclaim_mileage (number): 0 = rebill only (default), 1 = AMAP rate (optional)
-
-Returns:
-  Success message with updated expense details including ID, date, amount, description, and URL.
+    description: `Update an existing expense in FreeAgent. Only provide the fields you want to change. Use NEGATIVE gross_value for normal expenses (e.g., "-200.00" for £200 spent).
 
 Examples:
-  - Use when: "Update expense description to 'Client dinner'" → expense_id="123", description="Client dinner"
-  - Use when: "Change expense category" → expense_id="123", category="[category_url]"
-  - Use when: "Update expense amount to £200" → expense_id="123", gross_value="-200.00" (NEGATIVE for expense!)
+  - "Update expense description to 'Client dinner'" → expense_id="123", description="Client dinner"
+  - "Change expense category" → expense_id="123", category="[category_url]"
+  - "Update expense amount to £200" → expense_id="123", gross_value="-200.00"
 
-Tips:
-  - Only provide the fields you want to change
-  - REMEMBER: Use NEGATIVE values when updating expense amounts (e.g., "-200.00" for £200 spent)
-  - Use freeagent_list_categories to find the correct category URL
-  - You can update both description and category in a single call
-
-Error Handling:
-  - Returns 404 if expense doesn't exist
-  - Returns validation errors (422) if invalid data provided
-  - Suggests checking expense ID and field formats`,
+Note: Returns 404 if expense doesn't exist, 422 if invalid data. Use freeagent_list_categories to find category URLs.`,
     inputSchema: UpdateExpenseInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -768,40 +488,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_timeslips
- * List timeslips with filtering and pagination
- */
 server.registerTool(
   "freeagent_list_timeslips",
   {
     title: "List FreeAgent Timeslips",
-    description: `List timeslips in your FreeAgent account with filtering and pagination.
-
-This tool retrieves time tracking entries (timeslips) for projects. Timeslips can be filtered by date range, user, project, and billing status.
-
-Args:
-  - page (number): Page number for pagination (default: 1)
-  - per_page (number): Items per page, max 100 (default: 25)
-  - from_date (string): Filter timeslips from this date in YYYY-MM-DD format (optional)
-  - to_date (string): Filter timeslips to this date in YYYY-MM-DD format (optional)
-  - view (string): Filter by view - one of: all, unbilled, running (optional)
-  - user (string): Filter by user URL or ID (optional)
-  - project (string): Filter by project URL or ID (optional)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured list of timeslips with hours, dates, projects, tasks, and billing status.
-  For Markdown format: Human-readable timeslip list with dates, hours, comments, and billing indicators.
+    description: `List time tracking entries (timeslips) with filtering by date range, user, project, and billing status.
 
 Examples:
-  - Use when: "Show me all unbilled timeslips" → view="unbilled"
-  - Use when: "List my hours for project 123 in January" → project="123", from_date="2024-01-01", to_date="2024-01-31"
-  - Use when: "Show timeslips for user 456" → user="456"
+  - "Show me all unbilled timeslips" → view="unbilled"
+  - "List my hours for project 123 in January" → project="123", from_date="2024-01-01", to_date="2024-01-31"
+  - "Show timeslips for user 456" → user="456"
 
-Error Handling:
-  - Returns rate limit error if too many requests
-  - Suggests using filters to narrow results`,
+Note: Rate limited. Results paginated. Use filters to narrow large result sets.`,
     inputSchema: ListTimeslipsInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -831,31 +529,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_timeslip
- * Get detailed information about a specific timeslip
- */
 server.registerTool(
   "freeagent_get_timeslip",
   {
     title: "Get FreeAgent Timeslip Details",
-    description: `Retrieve detailed information about a specific timeslip by ID.
-
-This tool fetches complete details for a single timeslip, including hours, task, project, user, and billing information.
-
-Args:
-  - timeslip_id (string): The FreeAgent timeslip ID (numeric) or full URL
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Complete timeslip information including date, hours, user, project, task, comment, billing status, and attachments.
+    description: `Retrieve detailed information about a specific timeslip including hours, task, project, user, and billing status.
 
 Examples:
-  - Use when: "Get timeslip 12345 details" → timeslip_id="12345"
-  - Use when: "Check if timeslip has been billed" → get timeslip, check billed_on_invoice field
+  - "Get timeslip 12345 details" → timeslip_id="12345"
+  - "Check if timeslip has been billed" → get timeslip, check billed_on_invoice field
 
-Error Handling:
-  - Returns 404 if timeslip doesn't exist`,
+Note: Returns 404 if timeslip doesn't exist.`,
     inputSchema: GetTimeslipInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -885,43 +569,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_create_timeslip
- * Create a new timeslip
- */
 server.registerTool(
   "freeagent_create_timeslip",
   {
     title: "Create FreeAgent Timeslip",
-    description: `Create a new timeslip (time tracking entry) in FreeAgent.
-
-This tool records time worked on a project task. You can optionally attach supporting files to the timeslip.
-
-Args:
-  - task (string): Task URL or ID (required)
-  - user (string): User URL or ID who performed the work (required)
-  - project (string): Project URL or ID (required)
-  - dated_on (string): Date of work in YYYY-MM-DD format (required)
-  - hours (string): Hours worked as decimal string, e.g., '7.5' (required)
-  - comment (string): Description or comment about the work performed (optional)
-
-Returns:
-  Success message with timeslip ID, date, hours, project, and URL.
+    description: `Create a new timeslip (time tracking entry) in FreeAgent for a project task. Hours can be decimal (e.g., 7.5 for 7h30m).
 
 Examples:
-  - Use when: "Log 8 hours on project 123 task 456" → hours="8", project="123", task="456"
-  - Use when: "Track 3.5 hours of work" → hours="3.5"
-  - Use when: "Record time worked today" → dated_on=today's date, hours="..."
+  - "Log 8 hours on project 123 task 456" → hours="8", project="123", task="456"
+  - "Track 3.5 hours of work" → hours="3.5"
+  - "Record time worked today" → dated_on=today's date, hours="..."
 
-Tips:
-  - Hours can be decimal values (e.g., 7.5 for 7 hours 30 minutes)
-  - Timeslips can later be included on invoices
-  - Use the comment field to describe the work performed
-
-Error Handling:
-  - Returns validation errors (422) if required fields missing
-  - Returns 404 if project, task, or user doesn't exist
-  - Suggests ensuring project and task exist first`,
+Note: Returns 422 if required fields missing, 404 if project/task/user doesn't exist.`,
     inputSchema: CreateTimeslipInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -951,54 +610,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_bank_accounts
- * List all bank accounts
- */
 server.registerTool(
   "freeagent_list_bank_accounts",
   {
     title: "List FreeAgent Bank Accounts",
-    description: `List all bank accounts in your FreeAgent account.
-
-This tool retrieves all bank accounts including current accounts, savings accounts, and credit cards. Each account shows its current balance, currency, and status (active/inactive).
-
-Args:
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured data with array of bank accounts including:
-  {
-    "bank_accounts": [
-      {
-        "url": string,              // Bank account URL
-        "name": string,             // Account name
-        "type": string,             // Account type (e.g., StandardBankAccount, CreditCardAccount)
-        "currency": string,         // Currency code (GBP, USD, EUR, etc.)
-        "current_balance": string,  // Current balance as decimal string
-        "is_active": boolean,       // Whether account is active
-        "bank_name": string,        // Bank name (optional)
-        "account_number": string    // Account number (optional)
-      }
-    ]
-  }
-
-  For Markdown format: Human-readable list of bank accounts with balances, types, and status.
+    description: `List all bank accounts including current accounts, savings, and credit cards with balances and status.
 
 Examples:
-  - Use when: "Show me all bank accounts" → list all accounts with balances
-  - Use when: "What's my bank balance?" → shows current balances for all accounts
-  - Use when: "Which accounts are active?" → displays active/inactive status
+  - "Show me all bank accounts" → list all accounts with balances
+  - "What's my bank balance?" → shows current balances for all accounts
+  - "Which accounts are active?" → displays active/inactive status
 
-Bank Account Information:
-  - Each account includes the current balance in its native currency
-  - Active accounts are marked with a checkmark, inactive with an X
-  - Common account types include StandardBankAccount, SavingsAccount, CreditCardAccount
-  - Bank name and account numbers are shown when available
-
-Error Handling:
-  - Returns authentication error if token lacks account access
-  - Returns rate limit error (429) if exceeding API limits`,
+Note: Rate limited. Each account shows current balance, currency, type, and active/inactive status.`,
     inputSchema: ListBankAccountsInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1028,46 +651,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_bank_account
- * Get detailed information about a specific bank account
- */
 server.registerTool(
   "freeagent_get_bank_account",
   {
     title: "Get FreeAgent Bank Account Details",
-    description: `Retrieve detailed information about a specific bank account by ID.
-
-This tool fetches complete details for a single bank account, including banking details, current balance, and account configuration.
-
-Args:
-  - bank_account_id (string): The FreeAgent bank account ID (numeric) or full URL
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Complete bank account information including:
-  - Account name and type
-  - Current balance and currency
-  - Active/inactive status
-  - Banking details (bank name, account number, sort code)
-  - International banking details (IBAN, BIC/SWIFT if available)
-  - Opening balance
-  - Created and updated timestamps
+    description: `Retrieve detailed information about a specific bank account including balance, banking details (sort code, account number, IBAN), and status.
 
 Examples:
-  - Use when: "Get details for bank account 12345" → bank_account_id="12345"
-  - Use when: "Show me the IBAN for my savings account" → first list accounts, then get specific one
-  - Use when: "What's the sort code for account X?" → get detailed banking information
+  - "Get details for bank account 12345" → bank_account_id="12345"
+  - "Show me the IBAN for my savings account" → first list accounts, then get specific one
+  - "What's the sort code for account X?" → get detailed banking information
 
-Bank Account Details:
-  - Shows current balance reflecting all transactions
-  - Includes UK banking details (sort code, account number) when available
-  - Shows international details (IBAN, BIC/SWIFT) for international accounts
-  - Active status indicates if account is currently in use
-
-Error Handling:
-  - Returns 404 error if bank account ID doesn't exist
-  - Returns authentication error if token is expired or lacks access`,
+Note: Returns 404 if bank account doesn't exist.`,
     inputSchema: GetBankAccountInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1097,75 +692,19 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_bank_transactions
- * List bank transactions for a specific bank account
- */
 server.registerTool(
   "freeagent_list_bank_transactions",
   {
     title: "List FreeAgent Bank Transactions",
-    description: `List bank transactions for a specific bank account with pagination and filtering.
-
-This tool retrieves bank transactions (both imported and manual) for a bank account. Transactions can be filtered by date range and explanation status. This is essential for bank reconciliation and tracking unexplained transactions.
-
-Args:
-  - bank_account (string): Bank account URL or ID to list transactions for (required)
-  - page (number): Page number for pagination (default: 1)
-  - per_page (number): Items per page, max 100 (default: 25)
-  - from_date (string): Filter transactions from this date in YYYY-MM-DD format (optional)
-  - to_date (string): Filter transactions to this date in YYYY-MM-DD format (optional)
-  - view (string): Filter by explanation status - one of: all, unexplained (optional)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured list of transactions with pagination metadata:
-  {
-    "transactions": [
-      {
-        "url": string,                  // Transaction URL
-        "dated_on": string,             // Transaction date (YYYY-MM-DD)
-        "description": string,          // Transaction description
-        "amount": string,               // Transaction amount (positive = credit, negative = debit)
-        "unexplained_amount": string,   // Amount still needing explanation
-        "is_manual": boolean,           // Whether manually entered or imported
-        "bank_account": string          // Bank account URL
-      }
-    ],
-    "pagination": {
-      "page": number,
-      "per_page": number,
-      "total_count": number,
-      "has_more": boolean,
-      "next_page": number
-    }
-  }
-
-  For Markdown format: Human-readable transaction list with dates, amounts, descriptions, and explanation status.
+    description: `List bank transactions for a specific account with filtering by date range and explanation status. Essential for bank reconciliation.
 
 Examples:
-  - Use when: "Show transactions for bank account 123" → bank_account="123"
-  - Use when: "List unexplained transactions" → bank_account="123", view="unexplained"
-  - Use when: "Show January transactions" → bank_account="123", from_date="2024-01-01", to_date="2024-01-31"
-  - Use when: "Which transactions need explaining?" → use view="unexplained" to see only unreconciled items
+  - "Show transactions for bank account 123" → bank_account="123"
+  - "List unexplained transactions" → bank_account="123", view="unexplained"
+  - "Show January transactions" → bank_account="123", from_date="2024-01-01", to_date="2024-01-31"
+  - "Which transactions need explaining?" → view="unexplained"
 
-Transaction Explanation Status:
-  - Unexplained transactions are marked with ⚠️ and show unexplained amount
-  - Explained transactions are marked with ✓ indicating full reconciliation
-  - Unexplained transactions need explanations (categorization) for proper bookkeeping
-  - Use view="unexplained" to quickly find transactions needing attention
-  - Manual transactions are marked with [MANUAL] indicator
-
-Bank Reconciliation Workflow:
-  1. List transactions with view="unexplained" to find items needing attention
-  2. Review each unexplained transaction's description and amount
-  3. Use freeagent_create_bank_transaction_explanation to categorize them
-  4. Link transactions to invoices, bills, or expense categories as appropriate
-
-Error Handling:
-  - Returns 404 if bank account doesn't exist
-  - Returns rate limit error if too many requests
-  - Suggests using date filters and view parameter to narrow results`,
+Note: Rate limited. Results paginated. Use view="unexplained" to find transactions needing categorization via freeagent_create_bank_transaction_explanation.`,
     inputSchema: ListBankTransactionsInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1195,52 +734,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_bank_transaction
- * Get detailed information about a specific bank transaction
- */
 server.registerTool(
   "freeagent_get_bank_transaction",
   {
     title: "Get FreeAgent Bank Transaction",
-    description: `Get detailed information about a specific bank transaction.
-
-This tool retrieves complete details for a single bank transaction including its description, amount, explanation status, and timestamps.
-
-Args:
-  - bank_transaction_id (string): Bank transaction ID (numeric) or full URL (required)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Complete transaction object with all fields:
-  {
-    "url": string,
-    "dated_on": string,
-    "amount": string,
-    "description": string,
-    "unexplained_amount": string,
-    "is_manual": boolean,
-    "bank_account": string,
-    "uploaded_at": string,
-    "created_at": string,
-    "updated_at": string
-  }
-
-  For Markdown format: Human-readable transaction details with formatted amounts and status.
+    description: `Get detailed information about a specific bank transaction including amount, description, and explanation status.
 
 Examples:
-  - Use when: "Show details for transaction 12345" → bank_transaction_id="12345"
-  - Use when: "What's the description of this transaction?" → Fetch transaction to see its description
-  - Use when: "Get transaction information" → Use this to retrieve full transaction details
+  - "Show details for transaction 12345" → bank_transaction_id="12345"
+  - "What's the description of this transaction?" → fetch transaction details
+  - "Does this transaction need explaining?" → check unexplained_amount field
 
-Tips:
-  - Use this to check a transaction's current description and explanation status
-  - Check unexplained_amount to see if the transaction needs explanation
-  - The description field shows the transaction's current description
-
-Error Handling:
-  - Returns 404 if transaction doesn't exist
-  - Suggests checking the transaction ID`,
+Note: Returns 404 if transaction doesn't exist.`,
     inputSchema: GetBankTransactionInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1270,66 +775,19 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_bank_transaction_explanations
- * List bank transaction explanations with filtering
- */
 server.registerTool(
   "freeagent_list_bank_transaction_explanations",
   {
     title: "List FreeAgent Bank Transaction Explanations",
-    description: `List all bank transaction explanations with optional filtering and pagination.
-
-This tool retrieves the explanations that have been created for bank transactions, showing how each transaction was categorized or linked to invoices, bills, or transfers.
-
-Args:
-  - bank_account (string): Filter by bank account URL or ID (optional)
-  - from_date (string): Filter explanations from this date in YYYY-MM-DD format (optional)
-  - to_date (string): Filter explanations to this date in YYYY-MM-DD format (optional)
-  - page (number): Page number for pagination (default: 1)
-  - per_page (number): Items per page, max 100 (default: 25)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Structured list with:
-  {
-    "explanations": [
-      {
-        "url": string,
-        "dated_on": string,
-        "description": string,
-        "gross_value": string,
-        "bank_transaction": string,
-        "category": string,
-        "ec_status": string,
-        "receipt_reference": string,
-        "marked_for_review": boolean,
-        "paid_invoice": string,
-        "paid_bill": string,
-        "paid_user": string,
-        "transfer_bank_account": string
-      }
-    ],
-    "pagination": {...}
-  }
-
-  For Markdown format: Human-readable list with dates, amounts, descriptions, and explanation types.
+    description: `List bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers.
 
 Examples:
-  - Use when: "Show all bank transaction explanations" → List all
-  - Use when: "List explanations for account 123" → bank_account="123"
-  - Use when: "Show explanations from January" → from_date="2024-01-01", to_date="2024-01-31"
-  - Use when: "Which transactions need review?" → Check marked_for_review field
+  - "Show all bank transaction explanations" → list all
+  - "List explanations for account 123" → bank_account="123"
+  - "Show explanations from January" → from_date="2024-01-01", to_date="2024-01-31"
+  - "Which transactions need review?" → check marked_for_review field
 
-Tips:
-  - Use date filters to narrow results to specific periods
-  - Filter by bank_account to see explanations for a specific account
-  - Check marked_for_review to find explanations that need approval
-  - Use this to verify transactions have been properly categorized
-
-Error Handling:
-  - Returns authentication error if token invalid
-  - Returns empty list if no explanations match criteria`,
+Note: Rate limited. Results paginated. Use date filters and bank_account to narrow results.`,
     inputSchema: ListBankTransactionExplanationsInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1359,39 +817,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_bank_transaction_explanation
- * Get detailed information about a specific explanation
- */
 server.registerTool(
   "freeagent_get_bank_transaction_explanation",
   {
     title: "Get FreeAgent Bank Transaction Explanation",
-    description: `Get detailed information about a specific bank transaction explanation.
-
-This tool retrieves complete details for a single explanation including all categorization, tax information, and entity links.
-
-Args:
-  - bank_transaction_explanation_id (string): Explanation ID (numeric) or full URL (required)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Complete explanation object with all fields
-  For Markdown format: Human-readable explanation details
+    description: `Get detailed information about a specific bank transaction explanation including categorization, tax info, and linked entities (invoices, bills, transfers).
 
 Examples:
-  - Use when: "Show details for explanation 456" → bank_transaction_explanation_id="456"
-  - Use when: "What's the category for this explanation?" → Get full details to see category
-  - Use when: "Check if explanation needs review" → Get details and check marked_for_review
+  - "Show details for explanation 456" → bank_transaction_explanation_id="456"
+  - "What's the category for this explanation?" → get full details
+  - "Check if explanation needs review" → check marked_for_review field
 
-Tips:
-  - Use this to see complete details before updating an explanation
-  - Check all entity links (invoices, bills, transfers) in one view
-  - Verify tax information is correct
-
-Error Handling:
-  - Returns 404 if explanation doesn't exist
-  - Suggests checking the explanation ID`,
+Note: Returns 404 if explanation doesn't exist.`,
     inputSchema: GetBankTransactionExplanationInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1421,69 +858,19 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_create_bank_transaction_explanation
- * Create a bank transaction explanation
- */
 server.registerTool(
   "freeagent_create_bank_transaction_explanation",
   {
     title: "Explain FreeAgent Bank Transaction",
-    description: `Create an explanation for a bank transaction by linking it to invoices, bills, or categories.
-
-This tool "explains" (categorizes) bank transactions in FreeAgent by associating them with accounting entries. This is essential for reconciliation and accurate bookkeeping.
-
-Args:
-  - bank_transaction (string): Bank transaction URL or ID to explain (required)
-  - dated_on (string): Transaction date in YYYY-MM-DD format (required)
-  - gross_value (string): Transaction amount as decimal string (negative for debits) (required)
-  - description (string): Description of the transaction (optional)
-  - category (string): Category URL or ID for the transaction (optional)
-  - ec_status (string): EC status - one of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS' (optional)
-    Note: 'EC Goods' and 'EC Services' are invalid for transactions dated 2021-01-01+ in Great Britain
-  - marked_for_review (boolean): Mark as requiring review/approval (optional)
-  - receipt_reference (string): Reference identifier for the receipt (optional)
-
-  Link to entities (choose one or more):
-  - paid_invoice (string): Invoice URL or ID that this transaction pays (optional)
-  - paid_bill (string): Bill URL or ID that this transaction pays (optional)
-  - paid_user (string): User URL or ID for money paid to/from user (optional)
-  - transfer_bank_account (string): Destination bank account URL or ID for transfers (optional)
-  - project (string): Project URL or ID to associate with transaction (optional)
-
-  Tax information:
-  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
-  - sales_tax_value (string): Sales tax amount (optional)
-
-  Attachment:
-  - attachment (object): Optional supporting document:
-    - data (string): Base64 encoded file content (or gzip-compressed then Base64 encoded if is_gzipped=true)
-      ⚠️ PERFORMANCE TIP: For large files (>50KB), gzip compress BEFORE Base64 encoding, then set is_gzipped=true.
-      This dramatically reduces size and speeds up LLM processing. Workflow: file → gzip → base64 → set is_gzipped=true
-    - file_name (string): Original filename
-    - content_type (string): MIME type - application/pdf, image/png, image/jpeg, image/gif
-    - is_gzipped (boolean): Set to true if data is gzip-compressed before Base64 encoding (default: false)
-    - description (string): Optional attachment description
-
-Returns:
-  Success message with explanation ID, date, amount, and type of explanation (invoice payment, bill payment, transfer, etc.).
+    description: `Explain (categorize) a bank transaction by linking it to invoices, bills, categories, or transfers. Essential for bank reconciliation.
 
 Examples:
-  - Use when: "Mark transaction as invoice payment" → paid_invoice="invoice_id"
-  - Use when: "Explain transaction as bill payment" → paid_bill="bill_id"
-  - Use when: "Categorize as transfer between accounts" → transfer_bank_account="target_account_id"
-  - Use when: "Explain transaction with receipt" → include category and attachment
+  - "Mark transaction as invoice payment" → paid_invoice="invoice_id"
+  - "Explain transaction as bill payment" → paid_bill="bill_id"
+  - "Categorize as transfer between accounts" → transfer_bank_account="target_account_id"
+  - "Explain transaction with receipt" → include category and attachment
 
-Tips:
-  - Explaining transactions is crucial for bank reconciliation
-  - Link to invoices/bills for automatic matching
-  - Use categories for general income/expenses
-  - ATTACHMENTS: For files >50KB, use gzip compression (file → gzip → base64 → is_gzipped=true) to speed up processing by 70-90%
-
-Error Handling:
-  - Returns validation errors if required fields missing
-  - Returns 404 if referenced entities don't exist
-  - Suggests checking that bank transaction exists and is unexplained`,
+Note: Returns 422 if required fields missing, 404 if referenced entities don't exist. For attachments >50KB, use gzip compression before Base64 encoding (set is_gzipped=true).`,
     inputSchema: CreateBankTransactionExplanationInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -1513,57 +900,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_update_bank_transaction_explanation
- * Update an existing bank transaction explanation
- */
 server.registerTool(
   "freeagent_update_bank_transaction_explanation",
   {
     title: "Update FreeAgent Bank Transaction Explanation",
-    description: `Update an existing bank transaction explanation to modify its description, category, or other fields.
-
-This tool allows you to edit an existing explanation that was previously created for a bank transaction. All fields are optional - only provide the fields you want to update.
-
-Args:
-  - bank_transaction_explanation_id (string): Explanation ID (numeric) or full URL (required)
-  - dated_on (string): Transaction date in YYYY-MM-DD format (optional)
-  - description (string): Description of the transaction (optional)
-  - gross_value (string): Transaction amount as decimal string (optional)
-  - category (string): Category URL or ID for the transaction (optional)
-  - ec_status (string): EC status - one of: 'UK/Non-EC', 'EC Goods', 'EC Services', 'Reverse Charge', 'EC VAT MOSS' (optional)
-  - marked_for_review (boolean): Mark as requiring review/approval (optional)
-  - receipt_reference (string): Reference identifier for the receipt (optional)
-
-  Link to entities:
-  - paid_invoice (string): Invoice URL or ID that this transaction pays (optional)
-  - paid_bill (string): Bill URL or ID that this transaction pays (optional)
-  - paid_user (string): User URL or ID for money paid to/from user (optional)
-  - transfer_bank_account (string): Destination bank account URL or ID for transfers (optional)
-  - project (string): Project URL or ID to associate with transaction (optional)
-
-  Tax information:
-  - sales_tax_rate (string): Sales tax rate as decimal, e.g., '0.20' for 20% (optional)
-  - sales_tax_value (string): Sales tax amount (optional)
-
-Returns:
-  Success message with updated explanation details including ID, date, amount, description, category, and URL.
+    description: `Update an existing bank transaction explanation. Only provide the fields you want to change.
 
 Examples:
-  - Use when: "Update transaction explanation description" → bank_transaction_explanation_id="123", description="New description"
-  - Use when: "Change transaction category" → bank_transaction_explanation_id="123", category="[category_url]"
-  - Use when: "Update explanation category and description" → Provide both fields in one call
+  - "Update transaction explanation description" → bank_transaction_explanation_id="123", description="New description"
+  - "Change transaction category" → bank_transaction_explanation_id="123", category="[category_url]"
+  - "Update explanation category and description" → provide both fields in one call
 
-Tips:
-  - Only provide the fields you want to change
-  - Use freeagent_list_categories to find the correct category URL
-  - You can update both description and category in a single call
-  - First use freeagent_list_bank_transactions with view="all" to find transactions with their explanation IDs
-
-Error Handling:
-  - Returns 404 if explanation doesn't exist
-  - Returns validation errors (422) if invalid data provided
-  - Suggests checking explanation ID and field formats`,
+Note: Returns 404 if explanation doesn't exist, 422 if invalid data. Use freeagent_list_categories to find category URLs.`,
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: {
       readOnlyHint: false,
@@ -1593,30 +941,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_company
- * Get company information
- */
 server.registerTool(
   "freeagent_get_company",
   {
     title: "Get FreeAgent Company Information",
-    description: `Retrieve information about your FreeAgent company account.
-
-This tool fetches company details including name, registration, currency, tax status, and key accounting dates.
-
-Args:
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  Company information including name, type, currency, registration number, tax status, and accounting dates.
+    description: `Retrieve company details including name, registration, currency, tax status, and key accounting dates.
 
 Examples:
-  - Use when: "What's my company currency?" → get company info
-  - Use when: "When does my accounting year end?" → get company info
+  - "What's my company currency?" → get company info
+  - "When does my accounting year end?" → get company info
 
-Error Handling:
-  - Returns authentication error if token lacks company access`,
+Note: Returns authentication error if token lacks company access.`,
     inputSchema: GetCompanyInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1646,30 +981,17 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_users
- * List all users in the account
- */
 server.registerTool(
   "freeagent_list_users",
   {
     title: "List FreeAgent Users",
-    description: `List all users in your FreeAgent account.
-
-This tool retrieves all user accounts with their roles and permission levels.
-
-Args:
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  List of users with email, name, role, and permission level.
+    description: `List all users in your FreeAgent account with their roles and permission levels.
 
 Examples:
-  - Use when: "Who has access to FreeAgent?" → list users
-  - Use when: "Show me all admin users" → list users then filter
+  - "Who has access to FreeAgent?" → list users
+  - "Show me all admin users" → list users then filter
 
-Error Handling:
-  - Requires appropriate permission level to view users`,
+Note: Requires appropriate permission level to view users.`,
     inputSchema: ListUsersInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1699,73 +1021,19 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_list_categories
- * List all categories (expense/income categories)
- */
 server.registerTool(
   "freeagent_list_categories",
   {
     title: "List FreeAgent Categories",
-    description: `List all expense and income categories in your FreeAgent account.
-
-This tool retrieves accounting categories used for categorizing expenses, income, bills, and invoices. Categories are organized into four types:
-  - Admin Expenses: Administrative and general business expenses
-  - Cost of Sales: Direct costs related to producing goods/services
-  - Income: Revenue and income categories
-  - General: Other accounting categories
-
-Args:
-  - view (string): Filter categories by type - one of: all, standard, custom (optional)
-    - "all": All categories from all four types (default)
-    - "standard": Admin expenses, cost of sales, and income categories
-    - "custom": General/custom categories
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Object with four category arrays:
-  {
-    "admin_expenses_categories": [...],
-    "cost_of_sales_categories": [...],
-    "income_categories": [...],
-    "general_categories": [...],
-    "total_count": number
-  }
-
-  Each category object contains:
-  {
-    "description": string,         // Category name/description
-    "nominal_code": string,         // Unique nominal/account code
-    "url": string,                  // Category URL
-    "group_description": string,    // Category group (optional)
-    "allowable_for_tax": boolean,   // Tax deductible status (spending only)
-    "tax_reporting_name": string,   // Tax reporting classification
-    "auto_sales_tax_rate": number   // Default tax rate (optional)
-  }
-
-  For Markdown format: Human-readable list with category type, names, codes, groups, and tax information.
+    description: `List all expense and income categories organized by type: Admin Expenses, Cost of Sales, Income, and General. Use nominal_code or URL from results when creating expenses or explaining transactions.
 
 Examples:
-  - Use when: "What expense categories are available?" → list all categories
-  - Use when: "Show me custom categories" → view="custom"
-  - Use when: "Find category for office expenses" → list categories and search
-  - Use when: "Which categories are tax deductible?" → list and check allowable_for_tax
+  - "What expense categories are available?" → list all categories
+  - "Show me custom categories" → view="custom"
+  - "Find category for office expenses" → list categories and search
+  - "Which categories are tax deductible?" → check allowable_for_tax field
 
-Common Category Uses:
-  - Expenses: Categorize business expenses for tax reporting
-  - Bank Transactions: Assign categories when explaining transactions
-  - Invoices/Bills: Link income and expenditure to correct accounts
-  - Tax Planning: Identify tax-deductible expense categories
-
-Tips:
-  - Use the nominal_code or url when creating/updating expenses and transactions
-  - Standard categories are UK tax system compliant
-  - Custom categories allow business-specific classification
-  - Check allowable_for_tax to identify tax-deductible categories
-
-Error Handling:
-  - Returns authentication error if token invalid
-  - Always returns results (may be empty if no custom categories for view="custom")`,
+Note: Rate limited. Use view parameter to filter by "all", "standard", or "custom".`,
     inputSchema: ListCategoriesInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1795,55 +1063,18 @@ Error Handling:
   }
 );
 
-/**
- * Tool: freeagent_get_category
- * Get detailed information about a specific category
- */
 server.registerTool(
   "freeagent_get_category",
   {
     title: "Get FreeAgent Category",
-    description: `Get detailed information about a specific expense or income category.
-
-This tool retrieves complete details for a single category including its nominal code, tax treatment, and associated metadata.
-
-Args:
-  - nominal_code (string): Category nominal code or full URL (required)
-  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
-
-Returns:
-  For JSON format: Complete category object with all fields including:
-  {
-    "description": string,
-    "nominal_code": string,
-    "url": string,
-    "group_description": string,
-    "allowable_for_tax": boolean,
-    "tax_reporting_name": string,
-    "auto_sales_tax_rate": number,
-    "bank_account": string (optional),
-    "capital_asset_type": string (optional),
-    "user": string (optional),
-    "created_at": string,
-    "updated_at": string
-  }
-
-  For Markdown format: Human-readable category details with all available information.
+    description: `Get detailed information about a specific expense or income category including tax treatment, nominal code, and default VAT rate.
 
 Examples:
-  - Use when: "Show me details for category 001" → nominal_code="001"
-  - Use when: "What's the tax rate for Travel category?" → Get category and check auto_sales_tax_rate
-  - Use when: "Is this category tax deductible?" → Get category and check allowable_for_tax
+  - "Show me details for category 001" → nominal_code="001"
+  - "What's the tax rate for Travel category?" → check auto_sales_tax_rate
+  - "Is this category tax deductible?" → check allowable_for_tax
 
-Tips:
-  - Use nominal_code from freeagent_list_categories results
-  - Can accept either the code (e.g., "001") or full URL
-  - Check allowable_for_tax to determine if expenses in this category are tax deductible
-  - auto_sales_tax_rate shows the default VAT/sales tax rate for this category
-
-Error Handling:
-  - Returns 404 if category doesn't exist
-  - Suggests checking the nominal_code is correct`,
+Note: Accepts nominal_code or full URL. Returns 404 if category doesn't exist.`,
     inputSchema: GetCategoryInputSchema.shape,
     annotations: {
       readOnlyHint: true,
@@ -1873,11 +1104,8 @@ Error Handling:
   }
 );
 
-/**
- * Main function to start the server
- */
 // Logging helper with timestamps
-function log(level: string, message: string, data?: any) {
+function log(level: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,
@@ -1947,7 +1175,7 @@ async function main() {
     process.exit(1);
   });
 
-  process.on("unhandledRejection", (reason, promise) => {
+  process.on("unhandledRejection", (reason, _promise) => {
     log("error", "Unhandled promise rejection", {
       reason: reason instanceof Error ? reason.message : String(reason),
       stack: reason instanceof Error ? reason.stack : undefined,

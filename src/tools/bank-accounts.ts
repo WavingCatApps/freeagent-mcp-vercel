@@ -5,13 +5,13 @@
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
+import type { FreeAgentBankAccount, FreeAgentBankTransaction } from "../types.js";
 import type {
   ListBankAccountsInput,
   GetBankAccountInput,
   ListBankTransactionsInput,
   GetBankTransactionInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -27,8 +27,8 @@ export async function listBankAccounts(
 ): Promise<string> {
   const { response_format } = params;
 
-  const response = await client.get<{ bank_accounts: any[] }>("/bank_accounts");
-  const bankAccounts = response.bank_accounts || [];
+  const response = await client.get<{ bank_accounts: FreeAgentBankAccount[] }>("/bank_accounts");
+  const bankAccounts = response.data.bank_accounts || [];
 
   // Format response
   return formatResponse(
@@ -83,8 +83,8 @@ export async function getBankAccount(
     ? bank_account_id
     : `/bank_accounts/${bank_account_id}`;
 
-  const response = await client.get<{ bank_account: any }>(accountUrl);
-  const account = response.bank_account;
+  const response = await client.get<{ bank_account: FreeAgentBankAccount }>(accountUrl);
+  const account = response.data.bank_account;
 
   // Format response
   return formatResponse(
@@ -152,19 +152,17 @@ export async function listBankTransactions(
   if (to_date) queryParams.to_date = to_date;
   if (view) queryParams.view = view;
 
-  const response = await client.get<{ bank_transactions: any[] }>(
+  const response = await client.get<{ bank_transactions: FreeAgentBankTransaction[] }>(
     "/bank_transactions",
     queryParams
   );
-  const transactions = response.bank_transactions || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const transactions = response.data.bank_transactions || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response
   return formatResponse(
     {
-      transactions: transactions.map((txn: any) => ({
+      transactions: transactions.map((txn: FreeAgentBankTransaction) => ({
         url: txn.url,
         dated_on: txn.dated_on,
         description: txn.description,
@@ -206,7 +204,7 @@ export async function listBankTransactions(
 
       for (const txn of transactions) {
         const id = extractIdFromUrl(txn.url);
-        const amount = parseFloat(txn.amount);
+        const amount = parseFloat(txn.amount || txn.gross_value || '0');
         const amountStr = amount >= 0 ? `+${amount}` : `${amount}`;
         const desc = txn.description || 'No description';
         const unexplained = parseFloat(txn.unexplained_amount || '0');
@@ -243,8 +241,8 @@ export async function getBankTransaction(
     ? bank_transaction_id
     : `/bank_transactions/${bank_transaction_id}`;
 
-  const response = await client.get<{ bank_transaction: any }>(transactionUrl);
-  const txn = response.bank_transaction;
+  const response = await client.get<{ bank_transaction: FreeAgentBankTransaction }>(transactionUrl);
+  const txn = response.data.bank_transaction;
 
   // Format response
   return formatResponse(

@@ -1,5 +1,6 @@
 import { FreeAgentApiClient } from "../services/api-client.js";
 import { ResponseFormat } from "../constants.js";
+import type { FreeAgentCategory } from "../types.js";
 import type { ListCategoriesInput, GetCategoryInput } from "../schemas/index.js";
 
 /**
@@ -9,34 +10,34 @@ export async function listCategories(
   apiClient: FreeAgentApiClient,
   params: ListCategoriesInput
 ): Promise<string> {
-  const response = await apiClient.get("/categories") as any;
+  const response = await apiClient.get<Record<string, FreeAgentCategory[]>>("/categories");
 
   // Categories are returned in four separate arrays
-  const adminExpenses = response.admin_expenses_categories || [];
-  const costOfSales = response.cost_of_sales_categories || [];
-  const income = response.income_categories || [];
-  const general = response.general_categories || [];
+  const adminExpenses = response.data.admin_expenses_categories || [];
+  const costOfSales = response.data.cost_of_sales_categories || [];
+  const income = response.data.income_categories || [];
+  const general = response.data.general_categories || [];
 
   // Combine all categories based on view filter
-  let allCategories: any[] = [];
+  let allCategories: (FreeAgentCategory & { type: string })[] = [];
 
   if (!params.view || params.view === "all") {
     allCategories = [
-      ...adminExpenses.map((c: any) => ({ ...c, type: "Admin Expenses" })),
-      ...costOfSales.map((c: any) => ({ ...c, type: "Cost of Sales" })),
-      ...income.map((c: any) => ({ ...c, type: "Income" })),
-      ...general.map((c: any) => ({ ...c, type: "General" }))
+      ...adminExpenses.map((c: FreeAgentCategory) => ({ ...c, type: "Admin Expenses" })),
+      ...costOfSales.map((c: FreeAgentCategory) => ({ ...c, type: "Cost of Sales" })),
+      ...income.map((c: FreeAgentCategory) => ({ ...c, type: "Income" })),
+      ...general.map((c: FreeAgentCategory) => ({ ...c, type: "General" }))
     ];
   } else if (params.view === "standard") {
     // Standard categories are the first three types
     allCategories = [
-      ...adminExpenses.map((c: any) => ({ ...c, type: "Admin Expenses" })),
-      ...costOfSales.map((c: any) => ({ ...c, type: "Cost of Sales" })),
-      ...income.map((c: any) => ({ ...c, type: "Income" }))
+      ...adminExpenses.map((c: FreeAgentCategory) => ({ ...c, type: "Admin Expenses" })),
+      ...costOfSales.map((c: FreeAgentCategory) => ({ ...c, type: "Cost of Sales" })),
+      ...income.map((c: FreeAgentCategory) => ({ ...c, type: "Income" }))
     ];
   } else if (params.view === "custom") {
     // Custom categories would typically be in general
-    allCategories = general.map((c: any) => ({ ...c, type: "General" }));
+    allCategories = general.map((c: FreeAgentCategory) => ({ ...c, type: "General" }));
   }
 
   if (allCategories.length === 0) {
@@ -54,7 +55,7 @@ export async function listCategories(
   }
 
   const categoryList = allCategories
-    .map((category: any) => {
+    .map((category: FreeAgentCategory & { type: string }) => {
       const parts = [
         `Category: ${category.description}`,
         `  Type: ${category.type}`,
@@ -93,8 +94,8 @@ export async function getCategory(
   params: GetCategoryInput
 ): Promise<string> {
   const nominalCode = params.nominal_code.replace(/^.*\/categories\//, "");
-  const response = await apiClient.get(`/categories/${nominalCode}`) as any;
-  const category = response.category;
+  const response = await apiClient.get<{ category: FreeAgentCategory }>(`/categories/${nominalCode}`);
+  const category = response.data.category;
 
   if (params.response_format === ResponseFormat.JSON) {
     return JSON.stringify(category, null, 2);

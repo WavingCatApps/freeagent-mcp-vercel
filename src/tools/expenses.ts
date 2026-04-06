@@ -7,13 +7,13 @@
 
 import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
+import type { FreeAgentExpense } from "../types.js";
 import type {
   ListExpensesInput,
   GetExpenseInput,
   CreateExpenseInput,
   UpdateExpenseInput
 } from "../schemas/index.js";
-import { ResponseFormat } from "../constants.js";
 import {
   formatResponse,
   createPaginationMetadata,
@@ -39,14 +39,12 @@ export async function listExpenses(
   if (from_date) queryParams.from_date = from_date;
   if (to_date) queryParams.to_date = to_date;
 
-  const response = await client.get<{ expenses: any[] }>(
+  const response = await client.get<{ expenses: FreeAgentExpense[] }>(
     "/expenses",
     queryParams
   );
-  const expenses = response.expenses || [];
-  const pagination = client.parsePaginationHeaders(
-    (response as any).headers || {}
-  );
+  const expenses = response.data.expenses || [];
+  const pagination = client.parsePaginationHeaders(response.headers);
 
   // Format response - return full expense objects like get_expense does
   // This ensures consistency and includes all fields from the API
@@ -87,8 +85,9 @@ export async function listExpenses(
         const id = extractIdFromUrl(expense.url);
         const amount = `${expense.currency || 'GBP'} ${expense.gross_value}`;
         const desc = expense.description || 'No description';
-        const attachments = expense.attachment_count > 0
-          ? ` (${expense.attachment_count} attachment${expense.attachment_count > 1 ? 's' : ''})`
+        const attachmentCount = expense.attachment_count ?? 0;
+        const attachments = attachmentCount > 0
+          ? ` (${attachmentCount} attachment${attachmentCount > 1 ? 's' : ''})`
           : '';
         const mileage = expense.miles || expense.mileage
           ? ` | ${expense.miles || expense.mileage} miles (${expense.vehicle_type}${expense.engine_type ? `, ${expense.engine_type}` : ''})`
@@ -145,8 +144,8 @@ export async function getExpense(
     ? expense_id
     : `/expenses/${expense_id}`;
 
-  const response = await client.get<{ expense: any }>(expenseUrl);
-  const expense = response.expense;
+  const response = await client.get<{ expense: FreeAgentExpense }>(expenseUrl);
+  const expense = response.data.expense;
 
   // Format response
   return formatResponse(
@@ -180,7 +179,7 @@ export async function getExpense(
         lines.push(`- **Sales Tax Rate**: ${parseFloat(expense.sales_tax_rate) * 100}%`);
       }
 
-      if (expense.attachment_count > 0) {
+      if (expense.attachment_count && expense.attachment_count > 0) {
         lines.push(`- **Attachments**: ${expense.attachment_count} file(s)`);
       }
 
@@ -203,7 +202,7 @@ export async function createExpense(
   const isMileage = params.miles !== undefined;
 
   // Build expense payload
-  const expensePayload: any = {
+  const expensePayload: Record<string, unknown> = {
     user: params.user,
     category: params.category,
     dated_on: params.dated_on,
@@ -267,18 +266,19 @@ export async function createExpense(
       }
     }
 
-    expensePayload.attachment = {
+    const attachmentPayload: Record<string, string> = {
       data: attachmentData,
       file_name: params.attachment.file_name,
       content_type: params.attachment.content_type
     };
     if (params.attachment.description) {
-      expensePayload.attachment.description = params.attachment.description;
+      attachmentPayload.description = params.attachment.description;
     }
+    expensePayload.attachment = attachmentPayload;
   }
 
-  const response = await client.post<{ expense: any }>("/expenses", { expense: expensePayload });
-  const expense = response.expense;
+  const response = await client.post<{ expense: FreeAgentExpense }>("/expenses", { expense: expensePayload });
+  const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const type = isMileage ? "mileage expense" : "expense";
@@ -305,7 +305,7 @@ export async function updateExpense(
     : `/expenses/${expense_id}`;
 
   // Build expense payload with only provided fields
-  const expensePayload: any = {};
+  const expensePayload: Record<string, unknown> = {};
 
   // Add optional fields only if provided
   if (updateFields.user !== undefined) expensePayload.user = updateFields.user;
@@ -348,8 +348,8 @@ export async function updateExpense(
     expensePayload.reclaim_mileage = updateFields.reclaim_mileage;
   }
 
-  const response = await client.put<{ expense: any }>(expenseUrl, { expense: expensePayload });
-  const expense = response.expense;
+  const response = await client.put<{ expense: FreeAgentExpense }>(expenseUrl, { expense: expensePayload });
+  const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const isMileage = expense.miles !== null && expense.miles !== undefined;
