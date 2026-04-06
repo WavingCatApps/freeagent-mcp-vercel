@@ -425,6 +425,26 @@ Add receipt for taxi expense with attachment
 
 ---
 
+### freeagent_update_expense
+
+Updates an existing expense in FreeAgent. Only provide the fields you want to change.
+
+**Parameters:**
+- `expense_id` (string, required): The FreeAgent expense ID or full URL
+
+All other parameters from `freeagent_create_expense` are accepted as optional overrides (e.g., `description`, `gross_value`, `category`, `dated_on`, `currency`, `ec_status`, `project`, mileage fields, recurring fields).
+
+**Example usage:**
+```
+Update expense 12345 description to "Client dinner"
+Change expense 12345 amount to £200
+Update the category for expense 12345
+```
+
+**Returns:** Success message with updated expense details.
+
+---
+
 ## Timeslip Management
 
 ### freeagent_list_timeslips
@@ -575,7 +595,66 @@ Which transactions need explaining?
 
 ---
 
+### freeagent_get_bank_transaction
+
+Retrieves detailed information about a specific bank transaction.
+
+**Parameters:**
+- `bank_transaction_id` (string, required): The FreeAgent bank transaction ID or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show details for transaction 12345
+Does this transaction need explaining?
+```
+
+**Returns:** Complete bank transaction details including amount, description, and explanation status.
+
+---
+
 ## Bank Transaction Explanations
+
+### freeagent_list_bank_transaction_explanations
+
+Lists bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers.
+
+**Parameters:**
+- `bank_account` (string, optional): Filter by bank account URL or ID
+- `from_date` (string, optional): Filter from date in YYYY-MM-DD format
+- `to_date` (string, optional): Filter to date in YYYY-MM-DD format
+- `page` (number, default: 1): Page number for pagination
+- `per_page` (number, default: 25, max: 100): Items per page
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show all bank transaction explanations
+List explanations for account 123
+Show explanations from January
+```
+
+**Returns:** List of explanations with dates, amounts, descriptions, categorization details, and review status.
+
+---
+
+### freeagent_get_bank_transaction_explanation
+
+Retrieves detailed information about a specific bank transaction explanation.
+
+**Parameters:**
+- `bank_transaction_explanation_id` (string, required): The FreeAgent explanation ID or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Show details for explanation 456
+What category was assigned to this explanation?
+```
+
+**Returns:** Complete explanation details including categorization, tax info, and linked entities (invoices, bills, transfers).
+
+---
 
 ### freeagent_create_bank_transaction_explanation
 
@@ -618,6 +697,26 @@ Link bank transaction to expense category
 - Use categories for general income/expenses
 
 **Returns:** Success message with explanation ID, date, amount, and explanation type (invoice payment, bill payment, transfer, etc.).
+
+---
+
+### freeagent_update_bank_transaction_explanation
+
+Updates an existing bank transaction explanation. Only provide the fields you want to change.
+
+**Parameters:**
+- `bank_transaction_explanation_id` (string, required): The FreeAgent explanation ID or full URL
+
+All other parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides (e.g., `dated_on`, `description`, `gross_value`, `category`, `paid_invoice`, `paid_bill`, `sales_tax_rate`, `transfer_bank_account`).
+
+**Example usage:**
+```
+Update explanation 456 description to "Monthly rent"
+Change the category for explanation 456
+Link explanation to a different invoice
+```
+
+**Returns:** Success message with updated explanation details.
 
 ---
 
