@@ -2,137 +2,144 @@
 
 ## Prerequisites
 
-- Node.js 18+ installed
-- A FreeAgent account (or create a sandbox account)
-- FreeAgent Developer Dashboard account
+- A [Vercel account](https://vercel.com/signup)
+- A FreeAgent account (or [create a sandbox account](https://dev.freeagent.com/docs/quick_start))
+- A [FreeAgent Developer Dashboard](https://dev.freeagent.com) account
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Clone and Install
 
 ```bash
-cd freeagent-mcp-server
-npm install
+git clone <your-repo-url>
+cd freeagent-mcp-vercel
+bun install
 ```
 
 ### 2. Build the Project
 
 ```bash
-npm run build
+bun run build
 ```
 
-### 3. Get Your OAuth Access Token
+### 3. Register a FreeAgent OAuth App
 
-#### For Sandbox Testing (Recommended):
+1. Go to [FreeAgent Developer Dashboard](https://dev.freeagent.com)
+2. Create a new app and note your **OAuth Client ID** and **Client Secret**
+3. Add your Vercel URL as a redirect URI (e.g., `https://your-project.vercel.app`)
+   - For local testing, also add `http://localhost:3000`
 
-1. Create a sandbox account at [https://dev.freeagent.com/docs/quick_start](https://dev.freeagent.com/docs/quick_start)
-2. Complete the company setup in your sandbox account
-3. Go to [FreeAgent Developer Dashboard](https://dev.freeagent.com)
-4. Create a new app and note your OAuth Client ID and Secret
-5. Use [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground/):
-   - Click settings (⚙️), select "Use your own OAuth credentials"
-   - OAuth Client ID: `[your-client-id]`
-   - OAuth Client Secret: `[your-client-secret]`
-   - Authorization endpoint: `https://api.sandbox.freeagent.com/v2/approve_app`
-   - Token endpoint: `https://api.sandbox.freeagent.com/v2/token_endpoint`
-   - Scope: Enter any value (e.g., "freeagent")
-   - Click "Authorize APIs" and log in to your sandbox account
-   - Click "Exchange authorization code for tokens"
-   - Copy the `access_token`
+### 4. Configure Vercel Environment Variables
 
-### 4. Configure Environment
+Set these in **Vercel Dashboard > Settings > Environment Variables**:
 
-Create a `.env` file or set environment variables:
+| Variable | Value |
+|----------|-------|
+| `FREEAGENT_CLIENT_ID` | Your OAuth Client ID |
+| `FREEAGENT_CLIENT_SECRET` | Your OAuth Client Secret |
+| `FREEAGENT_USE_SANDBOX` | `true` for sandbox, `false` for production |
+
+Or via CLI:
 
 ```bash
-export FREEAGENT_ACCESS_TOKEN="your_access_token_here"
-export FREEAGENT_USE_SANDBOX="true"
+vercel env add FREEAGENT_CLIENT_ID
+vercel env add FREEAGENT_CLIENT_SECRET
+vercel env add FREEAGENT_USE_SANDBOX
 ```
 
-### 5. Test the Server
+### 5. Deploy to Vercel
 
 ```bash
-# Test that it starts (will hang waiting for input - that's expected)
-node dist/index.js
-
-# Press Ctrl+C to exit
+vercel --prod
 ```
 
-### 6. Configure with Claude Desktop
+### 6. Connect in Claude
 
-Edit your Claude Desktop config file:
+**Claude Desktop:**
 
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Add to your config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
     "freeagent": {
-      "command": "node",
-      "args": ["/absolute/path/to/freeagent-mcp-server/dist/index.js"],
-      "env": {
-        "FREEAGENT_ACCESS_TOKEN": "your_access_token_here",
-        "FREEAGENT_USE_SANDBOX": "true"
-      }
+      "url": "https://your-project.vercel.app",
+      "transport": "sse"
     }
   }
 }
 ```
 
-**Important**: Replace `/absolute/path/to/` with the actual full path to your installation.
+**Claude Web (claude.ai):**
 
-### 7. Restart Claude Desktop
+1. Go to **Settings > Integrations**
+2. Click **Add MCP Server**
+3. Enter your server URL: `https://your-project.vercel.app`
 
-Restart Claude Desktop to load the new MCP server.
+### 7. Authorize
+
+When you first connect, you'll be redirected to FreeAgent's login page. Log in and authorize the app - you're all set!
 
 ## Quick Test Commands
 
-Once configured, try these in Claude:
+Once connected, try these in Claude:
 
 - "List all my FreeAgent contacts"
 - "Show me recent invoices"
 - "What's my company currency?"
 - "Create a contact for ABC Limited with email info@abc.com"
 
+## Verify Your Deployment
+
+```bash
+# Check health
+curl https://your-project.vercel.app/health
+```
+
+Expected response:
+```json
+{
+  "status": "ok",
+  "service": "freeagent-mcp-server",
+  "version": "1.0.0",
+  "oauth_mode": "jwt-stateless",
+  "freeagent_environment": "sandbox"
+}
+```
+
 ## Troubleshooting
 
-### Authentication Error
+### OAuth flow not starting
+- Check environment variables are set in Vercel
+- Verify redirect URI matches exactly in FreeAgent app settings
+- Test the `/.well-known/oauth-protected-resource` endpoint
 
-If you get "Authentication failed":
-- Your access token may have expired (they typically last a few hours)
-- Refresh your token using the OAuth flow
-- Check you're using the correct API (sandbox vs production)
+### "Invalid token" errors
+- Ensure you're using the correct environment (sandbox vs production)
+- Tokens expire after 1 hour - reconnect if needed
+- Check that `FREEAGENT_USE_SANDBOX` matches your FreeAgent environment
 
 ### Rate Limit Error
 
-FreeAgent allows 15 requests per 60 seconds:
+FreeAgent allows 15 requests per 60 seconds (5 for sandbox):
 - Wait 60 seconds before retrying
 - The server will tell you exactly how long to wait
 
-### "Cannot find module" Error
+### Build errors
 
-- Make sure you ran `npm install`
-- Make sure you ran `npm run build`
-- Check that the path in your config points to `dist/index.js`
+- Make sure you ran `bun install`
+- Make sure you ran `bun run build`
 
 ## Next Steps
 
-- See full documentation in README.md
-- Explore all available tools
-- Set up automatic token refresh for production use
-- Create production OAuth app for real data access
+- See [OAUTH_SETUP.md](./OAUTH_SETUP.md) for detailed OAuth configuration
+- See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full deployment guide
+- See [TOOLS.md](./TOOLS.md) for all available tools
+- See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) for a pre-flight checklist
 
 ## Security Reminders
 
-- **Never commit your access token** to version control
+- **Never commit your Client Secret** to version control
 - Use environment variables for sensitive data
 - Test with sandbox before using production
-- Rotate tokens regularly
-- Monitor your API usage
-
-## Support
-
-- FreeAgent API Documentation: [https://dev.freeagent.com/docs](https://dev.freeagent.com/docs)
-- FreeAgent API Forum: [https://api-discuss.freeagent.com](https://api-discuss.freeagent.com)
-- OAuth Guide: [https://dev.freeagent.com/docs/oauth](https://dev.freeagent.com/docs/oauth)
+- Rotate secrets periodically in FreeAgent dashboard

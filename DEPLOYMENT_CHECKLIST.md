@@ -19,8 +19,8 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
 - [ ] `FREEAGENT_USE_SANDBOX` = `true` (for testing) or `false` (for production)
 
 ### 3. Code Ready
-- [ ] Dependencies installed: `npm install`
-- [ ] Build successful: `npm run build`
+- [ ] Dependencies installed: `bun install`
+- [ ] Build successful: `bun run build`
 
 ## 🚀 Deployment Steps
 
@@ -38,8 +38,10 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
    ```json
    {
      "status": "ok",
-     "oauth_enabled": true,
-     "client_id_configured": true
+     "service": "freeagent-mcp-server",
+     "version": "1.0.0",
+     "oauth_mode": "jwt-stateless",
+     "freeagent_environment": "sandbox"
    }
    ```
 
@@ -77,10 +79,10 @@ Check the error messages and ensure all dependencies are installed.
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Build project
-npm run build
+bun run build
 
 # Deploy to Vercel
 vercel --prod

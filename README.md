@@ -4,7 +4,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 ## Features
 
-- **25 tools** covering contacts, invoices, expenses, timeslips, projects, tasks, bank accounts, bank transaction explanations, categories, company info, and users
+- **Full FreeAgent coverage**: contacts, invoices, expenses, timeslips, projects, tasks, bank accounts, bank transaction explanations, categories, company info, and users
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
 - **Tool annotations**: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` on every tool
@@ -55,7 +55,7 @@ See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key po
 - Handles `POST` (tool calls), `GET` (SSE streaming), and `DELETE` (returns 405 - stateless)
 - Set `PRODUCTION_URL` env var for stable OAuth callback URLs
 
-Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET`
+Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`
 
 ## Available Tools
 
@@ -70,13 +70,18 @@ Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET
 | `freeagent_list_expenses` | List expenses with date/view filters | Yes |
 | `freeagent_get_expense` | Get expense details (inc. mileage info) | Yes |
 | `freeagent_create_expense` | Create expense or mileage claim (with attachments) | No |
+| `freeagent_update_expense` | Update an existing expense | No |
 | `freeagent_list_timeslips` | List time entries with filters | Yes |
 | `freeagent_get_timeslip` | Get timeslip details | Yes |
 | `freeagent_create_timeslip` | Create a time entry | No |
 | `freeagent_list_bank_accounts` | List all bank accounts | Yes |
 | `freeagent_get_bank_account` | Get bank account details | Yes |
 | `freeagent_list_bank_transactions` | List transactions for an account | Yes |
+| `freeagent_get_bank_transaction` | Get bank transaction details | Yes |
+| `freeagent_list_bank_transaction_explanations` | List transaction explanations | Yes |
+| `freeagent_get_bank_transaction_explanation` | Get explanation details | Yes |
 | `freeagent_create_bank_transaction_explanation` | Explain/categorize a bank transaction | No |
+| `freeagent_update_bank_transaction_explanation` | Update a transaction explanation | No |
 | `freeagent_list_projects` | List projects with status/contact filters | Yes |
 | `freeagent_get_project` | Get project details | Yes |
 | `freeagent_create_project` | Create a new project | No |
@@ -133,6 +138,7 @@ freeagent-mcp-server/
 │   │   ├── oauth-jwt.ts      # JWT-based OAuth provider (Vercel)
 │   │   └── freeagent-auth.ts # Token validation
 │   └── tools/
+│       ├── register.ts       # Shared tool definitions & registration
 │       ├── contacts.ts       # Contact CRUD
 │       ├── invoices.ts       # Invoice management
 │       ├── expenses.ts       # Expense & mileage tracking

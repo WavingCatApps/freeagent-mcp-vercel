@@ -171,10 +171,8 @@ Expected response:
   "status": "ok",
   "service": "freeagent-mcp-server",
   "version": "1.0.0",
-  "oauth_enabled": true,
-  "freeagent_environment": "sandbox",
-  "client_id_configured": true,
-  "timestamp": "2025-10-23T..."
+  "oauth_mode": "jwt-stateless",
+  "freeagent_environment": "sandbox"
 }
 ```
 
