@@ -1,8 +1,46 @@
 version: 2
 updates:
-  # Enable version updates for bun
-  - package-ecosystem: "bun"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
+      time: "07:00"
+      timezone: "Europe/London"
     open-pull-requests-limit: 10
+    groups:
+      production:
+        dependency-type: "production"
+        patterns:
+          - "express"
+          - "axios"
+          - "zod"
+          - "jsonwebtoken"
+          - "@modelcontextprotocol/*"
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      linting:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "typescript-eslint"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      deployment:
+        patterns:
+          - "@vercel/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "07:00"
+      timezone: "Europe/London"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
