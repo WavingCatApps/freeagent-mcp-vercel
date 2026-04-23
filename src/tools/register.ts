@@ -12,6 +12,9 @@ import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
 import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
 import { transitionInvoice } from "./transition-invoice.js";
+import { listEstimates, getEstimate, createEstimate, transitionEstimate } from "./estimates.js";
+import { listRecurringInvoices, getRecurringInvoice } from "./recurring-invoices.js";
+import { listPriceListItems, getPriceListItem, createPriceListItem } from "./price-list-items.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
 import { listBills, getBill, createBill } from "./bills.js";
@@ -26,6 +29,9 @@ import { getCompany, listUsers } from "./company.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema, TransitionInvoiceInputSchema,
+  ListEstimatesInputSchema, GetEstimateInputSchema, CreateEstimateInputSchema, TransitionEstimateInputSchema,
+  ListRecurringInvoicesInputSchema, GetRecurringInvoiceInputSchema,
+  ListPriceListItemsInputSchema, GetPriceListItemInputSchema, CreatePriceListItemInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
   ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema, UpdateTimeslipInputSchema,
@@ -123,6 +129,84 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: transitionInvoice,
   },
+  // Estimate Management
+  {
+    name: "freeagent_list_estimates",
+    title: "List FreeAgent Estimates",
+    description: "List estimates (quotes) with filtering and pagination.",
+    inputSchema: ListEstimatesInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listEstimates,
+  },
+  {
+    name: "freeagent_get_estimate",
+    title: "Get FreeAgent Estimate",
+    description: "Retrieve detailed information about a specific estimate by ID.",
+    inputSchema: GetEstimateInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getEstimate,
+  },
+  {
+    name: "freeagent_create_estimate",
+    title: "Create FreeAgent Estimate",
+    description: "Draft a new estimate (quote) for a contact.",
+    inputSchema: CreateEstimateInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createEstimate,
+  },
+  {
+    name: "freeagent_transition_estimate",
+    title: "Transition FreeAgent Estimate",
+    description: "Move an estimate through its lifecycle: mark as sent, approved, rejected, cancelled, back to draft, or convert to an invoice.",
+    inputSchema: TransitionEstimateInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: transitionEstimate,
+  },
+
+  // Recurring Invoices (read-only)
+  {
+    name: "freeagent_list_recurring_invoices",
+    title: "List FreeAgent Recurring Invoices",
+    description: "List recurring invoice templates with filtering and pagination.",
+    inputSchema: ListRecurringInvoicesInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listRecurringInvoices,
+  },
+  {
+    name: "freeagent_get_recurring_invoice",
+    title: "Get FreeAgent Recurring Invoice",
+    description: "Retrieve a specific recurring invoice template by ID.",
+    inputSchema: GetRecurringInvoiceInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getRecurringInvoice,
+  },
+
+  // Price List Items
+  {
+    name: "freeagent_list_price_list_items",
+    title: "List FreeAgent Price List Items",
+    description: "List price list (catalog) items available to use as invoice/estimate line items.",
+    inputSchema: ListPriceListItemsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listPriceListItems,
+  },
+  {
+    name: "freeagent_get_price_list_item",
+    title: "Get FreeAgent Price List Item",
+    description: "Retrieve a specific price list item by ID.",
+    inputSchema: GetPriceListItemInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getPriceListItem,
+  },
+  {
+    name: "freeagent_create_price_list_item",
+    title: "Create FreeAgent Price List Item",
+    description: "Create a new catalog item that can be reused on invoices and estimates.",
+    inputSchema: CreatePriceListItemInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createPriceListItem,
+  },
+
   {
     name: "freeagent_invoice_from_timeslips",
     title: "Draft FreeAgent Invoice From Timeslips",

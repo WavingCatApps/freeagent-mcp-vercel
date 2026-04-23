@@ -735,6 +735,114 @@ export const CreateBillInputSchema = z.object({
   })).min(1).describe("Array of bill line items.")
 }).strict();
 
+// Estimate schemas
+export const ListEstimatesInputSchema = z.object({
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  view: z.enum(["all", "draft", "sent", "approved", "rejected", "cancelled", "invoiced"])
+    .optional()
+    .describe("Filter estimates by status."),
+  contact: z.string().optional().describe("Filter by contact URL or ID."),
+  project: z.string().optional().describe("Filter by project URL or ID."),
+  sort: z.enum(["created_at", "updated_at", "dated_on"])
+    .optional()
+    .describe("Field to sort by (prefix with '-' for descending)."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetEstimateInputSchema = z.object({
+  estimate_id: z.string()
+    .min(1)
+    .describe("The FreeAgent estimate ID (numeric) or full URL."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const CreateEstimateInputSchema = z.object({
+  contact: z.string()
+    .min(1)
+    .describe("Contact URL or ID to estimate for."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Estimate date in YYYY-MM-DD format."),
+  expires_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Expiry date in YYYY-MM-DD format."),
+  reference: z.string().optional().describe("Estimate reference (e.g. 'EST-001')."),
+  currency: z.string()
+    .length(3)
+    .default("GBP")
+    .describe("Currency code (e.g. 'GBP', 'USD')."),
+  comments: z.string().optional().describe("Comments shown on the estimate."),
+  terms_and_conditions: z.string().optional().describe("Terms & conditions text."),
+  payment_terms_in_days: z.number().int().optional().describe("Payment terms in days."),
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
+    .optional()
+    .describe("EC status. Defaults to 'UK/Non-EC'."),
+  estimate_items: z.array(z.object({
+    item_type: z.string().describe("Item type (e.g. 'Hours', 'Days', 'Products')."),
+    description: z.string().describe("Item description."),
+    price: z.string().describe("Price per unit."),
+    quantity: z.string().describe("Quantity."),
+    sales_tax_rate: z.string().optional().describe("Sales tax rate (e.g. '0.20' for 20%).")
+  })).min(1).describe("Array of estimate line items.")
+}).strict();
+
+export const TransitionEstimateInputSchema = z.object({
+  estimate_id: z.string()
+    .min(1)
+    .describe("The FreeAgent estimate ID (numeric) or full URL."),
+  action: z.enum([
+    "mark_as_sent",
+    "mark_as_approved",
+    "mark_as_rejected",
+    "mark_as_cancelled",
+    "mark_as_draft",
+    "convert_to_invoice"
+  ])
+    .describe("Transition to apply. 'mark_as_sent' Draft→Sent, 'mark_as_approved' after client accepts, 'mark_as_rejected'/'mark_as_cancelled' close the estimate, 'mark_as_draft' rolls back, 'convert_to_invoice' creates an invoice from the approved estimate.")
+}).strict();
+
+// Recurring invoice schemas (read-only)
+export const ListRecurringInvoicesInputSchema = z.object({
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  view: z.enum(["all", "active", "cancelled"])
+    .optional()
+    .describe("Filter recurring invoices by status."),
+  contact: z.string().optional().describe("Filter by contact URL or ID."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetRecurringInvoiceInputSchema = z.object({
+  recurring_invoice_id: z.string()
+    .min(1)
+    .describe("The FreeAgent recurring invoice ID (numeric) or full URL."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+// Price list item schemas
+export const ListPriceListItemsInputSchema = z.object({
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetPriceListItemInputSchema = z.object({
+  price_list_item_id: z.string()
+    .min(1)
+    .describe("The FreeAgent price list item ID (numeric) or full URL."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const CreatePriceListItemInputSchema = z.object({
+  description: z.string().min(1).describe("Item description (shown on invoices)."),
+  price: z.string().describe("Unit price as decimal string."),
+  item_type: z.string().default("Products").describe("Item type (e.g. 'Products', 'Hours', 'Days')."),
+  sales_tax_rate: z.string().optional().describe("Sales tax rate as decimal (e.g. '0.20' for 20%)."),
+  category: z.string().optional().describe("Category URL or nominal code.")
+}).strict();
+
 // Transition a FreeAgent invoice between lifecycle states.
 export const TransitionInvoiceInputSchema = z.object({
   invoice_id: z.string()
@@ -904,3 +1012,12 @@ export type TransitionInvoiceInput = z.infer<typeof TransitionInvoiceInputSchema
 export type ListBillsInput = z.infer<typeof ListBillsInputSchema>;
 export type GetBillInput = z.infer<typeof GetBillInputSchema>;
 export type CreateBillInput = z.infer<typeof CreateBillInputSchema>;
+export type ListEstimatesInput = z.infer<typeof ListEstimatesInputSchema>;
+export type GetEstimateInput = z.infer<typeof GetEstimateInputSchema>;
+export type CreateEstimateInput = z.infer<typeof CreateEstimateInputSchema>;
+export type TransitionEstimateInput = z.infer<typeof TransitionEstimateInputSchema>;
+export type ListRecurringInvoicesInput = z.infer<typeof ListRecurringInvoicesInputSchema>;
+export type GetRecurringInvoiceInput = z.infer<typeof GetRecurringInvoiceInputSchema>;
+export type ListPriceListItemsInput = z.infer<typeof ListPriceListItemsInputSchema>;
+export type GetPriceListItemInput = z.infer<typeof GetPriceListItemInputSchema>;
+export type CreatePriceListItemInput = z.infer<typeof CreatePriceListItemInputSchema>;

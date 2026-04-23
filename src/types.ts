@@ -275,6 +275,74 @@ export interface FreeAgentBill {
   updated_at?: string;
 }
 
+export interface FreeAgentEstimateItem {
+  item_type: string;
+  description: string;
+  price: string;
+  quantity: string;
+  sales_tax_rate?: string;
+}
+
+export interface FreeAgentEstimate {
+  url: string;
+  contact: string;
+  project?: string;
+  reference?: string;
+  dated_on: string;
+  expires_on?: string;
+  currency?: string;
+  net_value?: string;
+  sales_tax_value?: string;
+  total_value?: string;
+  status?: string;
+  discount_percent?: string;
+  comments?: string;
+  terms_and_conditions?: string;
+  payment_terms_in_days?: number;
+  estimate_items?: FreeAgentEstimateItem[];
+  ec_status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FreeAgentRecurringInvoiceItem {
+  item_type: string;
+  description: string;
+  price: string;
+  quantity: string;
+  sales_tax_rate?: string;
+}
+
+export interface FreeAgentRecurringInvoice {
+  url: string;
+  contact: string;
+  project?: string;
+  frequency?: string;
+  next_recurs_on?: string;
+  ends_on?: string;
+  status?: string;
+  currency?: string;
+  reference?: string;
+  payment_terms_in_days?: number;
+  comments?: string;
+  total_value?: string;
+  recurring_invoice_items?: FreeAgentRecurringInvoiceItem[];
+  invoice_items?: FreeAgentRecurringInvoiceItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FreeAgentPriceListItem {
+  url: string;
+  item_type: string;
+  description: string;
+  price: string;
+  sales_tax_rate?: string;
+  category?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface FreeAgentApiErrorItem {
   message?: string;
   [key: string]: unknown;
