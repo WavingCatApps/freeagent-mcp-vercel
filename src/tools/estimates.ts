@@ -16,6 +16,8 @@ import type {
 import {
   formatResponse,
   createPaginationMetadata,
+  computeDiscountAmount,
+  formatCurrency,
   extractIdFromUrl,
 } from "../services/formatter.js";
 
@@ -108,6 +110,13 @@ export async function getEstimate(
       lines.push(`- **Contact**: ${est.contact}`);
       if (est.total_value) {
         lines.push(`- **Total**: ${est.currency ?? "GBP"} ${est.total_value}`);
+      }
+      if (est.discount_percent && parseFloat(est.discount_percent) > 0) {
+        const discountAmount = computeDiscountAmount(est.net_value, est.discount_percent);
+        const amountStr = discountAmount !== null
+          ? ` (${formatCurrency(discountAmount.toFixed(2), est.currency)} off)`
+          : "";
+        lines.push(`- **Discount**: ${est.discount_percent}%${amountStr}`);
       }
       if (est.estimate_items && est.estimate_items.length > 0) {
         lines.push("", "## Line items");

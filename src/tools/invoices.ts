@@ -11,6 +11,7 @@ import {
   formatResponse,
   truncateIfNeeded,
   createPaginationMetadata,
+  computeDiscountAmount,
   extractIdFromUrl
 } from "../services/formatter.js";
 import type {
@@ -190,7 +191,11 @@ export async function getInvoice(
       lines.push(`- **Total Value**: ${formatCurrency(invoice.total_value, invoice.currency)}`);
       
       if (invoice.discount_percent && parseFloat(invoice.discount_percent) > 0) {
-        lines.push(`- **Discount**: ${invoice.discount_percent}%`);
+        const discountAmount = computeDiscountAmount(invoice.net_value, invoice.discount_percent);
+        const amountStr = discountAmount !== null
+          ? ` (${formatCurrency(discountAmount.toFixed(2), invoice.currency)} off)`
+          : "";
+        lines.push(`- **Discount**: ${invoice.discount_percent}%${amountStr}`);
       }
       
       if (invoice.paid_value && parseFloat(invoice.paid_value) > 0) {

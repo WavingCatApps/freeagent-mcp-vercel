@@ -60,6 +60,25 @@ export function formatCurrency(amount: string, currency: string = "GBP"): string
 }
 
 /**
+ * Compute the discount amount taken off an invoice/estimate given the
+ * post-discount net value and the discount percentage. FreeAgent only
+ * returns `discount_percent`, so this is derived client-side.
+ *
+ * Returns null when the inputs are not parseable or the percent is 0 or ≥ 100.
+ */
+export function computeDiscountAmount(
+  netValue?: string,
+  discountPercent?: string
+): number | null {
+  if (!netValue || !discountPercent) return null;
+  const net = parseFloat(netValue);
+  const pct = parseFloat(discountPercent);
+  if (!Number.isFinite(net) || !Number.isFinite(pct)) return null;
+  if (pct <= 0 || pct >= 100) return null;
+  return (net * pct) / (100 - pct);
+}
+
+/**
  * Extract ID from FreeAgent URL
  */
 export function extractIdFromUrl(url: string): string {
