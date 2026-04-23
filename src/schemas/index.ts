@@ -649,6 +649,31 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+export const UpdateTimeslipInputSchema = z.object({
+  timeslip_id: z.string()
+    .min(1)
+    .describe("The FreeAgent timeslip ID (numeric) or full URL."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Updated date of work in YYYY-MM-DD format."),
+  hours: z.string()
+    .optional()
+    .describe("Updated hours worked (decimal string, e.g., '7.5')."),
+  comment: z.string()
+    .optional()
+    .describe("Updated description or comment about the work performed."),
+  task: z.string()
+    .optional()
+    .describe("Updated task URL or ID."),
+  project: z.string()
+    .optional()
+    .describe("Updated project URL or ID."),
+  billed_on_invoice: z.string()
+    .optional()
+    .describe("Link this timeslip to an invoice URL. Note: FreeAgent may reject writes to this field outside of its native 'invoice from timeslips' flow; the tool surfaces any rejection clearly.")
+}).strict();
+
 // Bill schemas
 export const ListBillsInputSchema = z.object({
   page: PaginationSchema.shape.page,
@@ -759,7 +784,10 @@ export const InvoiceFromTimeslipsInputSchema = z.object({
   payment_terms_in_days: z.number()
     .int()
     .optional()
-    .describe("Payment terms in days.")
+    .describe("Payment terms in days."),
+  link_timeslips: z.boolean()
+    .default(false)
+    .describe("If true, attempt to link the source timeslips to the new invoice by setting `billed_on_invoice` on each. FreeAgent sometimes rejects these writes — any failures are surfaced in the response.")
 }).strict();
 
 // Intent-bundle: log a regular expense with human-friendly inputs.
@@ -862,6 +890,7 @@ export type GetBankTransactionInput = z.infer<typeof GetBankTransactionInputSche
 export type ListTimeslipsInput = z.infer<typeof ListTimeslipsInputSchema>;
 export type GetTimeslipInput = z.infer<typeof GetTimeslipInputSchema>;
 export type CreateTimeslipInput = z.infer<typeof CreateTimeslipInputSchema>;
+export type UpdateTimeslipInput = z.infer<typeof UpdateTimeslipInputSchema>;
 export type ListBankTransactionExplanationsInput = z.infer<typeof ListBankTransactionExplanationsInputSchema>;
 export type GetBankTransactionExplanationInput = z.infer<typeof GetBankTransactionExplanationInputSchema>;
 export type CreateBankTransactionExplanationInput = z.infer<typeof CreateBankTransactionExplanationInputSchema>;

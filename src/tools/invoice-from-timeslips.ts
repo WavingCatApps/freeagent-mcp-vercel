@@ -139,6 +139,33 @@ async function buildInvoiceItems(
   return items;
 }
 
+async function linkTimeslipsToInvoice(
+  client: FreeAgentApiClient,
+  timeslips: FreeAgentTimeslip[],
+  invoiceUrl: string
+): Promise<{ linked: number; failures: string[] }> {
+  const results = await Promise.allSettled(
+    timeslips.map((ts) =>
+      client.put(ts.url, {
+        timeslip: { billed_on_invoice: invoiceUrl },
+      })
+    )
+  );
+
+  let linked = 0;
+  const failures: string[] = [];
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") {
+      linked++;
+    } else {
+      const id = extractIdFromUrl(timeslips[i].url);
+      const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      failures.push(`${id}: ${msg}`);
+    }
+  });
+  return { linked, failures };
+}
+
 export async function invoiceFromTimeslips(
   client: FreeAgentApiClient,
   params: InvoiceFromTimeslipsInput
@@ -202,6 +229,19 @@ export async function invoiceFromTimeslips(
   const invoice = response.data.invoice;
   const invoiceId = extractIdFromUrl(invoice.url);
   const totalHours = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
+  const allTs = allTimeslips.flatMap((p) => p.timeslips);
+
+  let linkSummary = `ℹ️ The invoice is a DRAFT. Timeslips remain unbilled until linked to the invoice in FreeAgent.`;
+  if (params.link_timeslips) {
+    const { linked, failures } = await linkTimeslipsToInvoice(client, allTs, invoice.url);
+    if (failures.length === 0) {
+      linkSummary = `🔗 Linked ${linked} timeslip(s) to the invoice.`;
+    } else {
+      linkSummary =
+        `🔗 Linked ${linked} of ${allTs.length} timeslip(s). ${failures.length} failed (FreeAgent may not permit external writes to billed_on_invoice):\n` +
+        failures.slice(0, 5).map((f) => `  - ${f}`).join("\n");
+    }
+  }
 
   return (
     `✅ Drafted invoice ${invoiceId} for ${items.length} line item(s)\n\n` +
@@ -210,6 +250,6 @@ export async function invoiceFromTimeslips(
     `**Total hours**: ${totalHours.toFixed(2)}\n` +
     `**Total value**: ${invoice.currency} ${invoice.total_value}\n` +
     `**URL**: ${invoice.url}\n\n` +
-    `ℹ️ The invoice is a DRAFT. Timeslips remain unbilled until linked to the invoice in FreeAgent.`
+    linkSummary
   );
 }

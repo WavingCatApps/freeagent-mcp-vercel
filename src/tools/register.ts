@@ -14,7 +14,7 @@ import { transitionInvoice } from "./transition-invoice.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
 import { listBills, getBill, createBill } from "./bills.js";
-import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
+import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
 import { reconcileBankTransaction } from "./reconcile.js";
@@ -27,7 +27,7 @@ import {
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema, TransitionInvoiceInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
   ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
-  ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
+  ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema, UpdateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
   CreateBankTransactionExplanationInputSchema, UpdateBankTransactionExplanationInputSchema,
@@ -220,6 +220,14 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreateTimeslipInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createTimeslip,
+  },
+  {
+    name: "freeagent_update_timeslip",
+    title: "Update FreeAgent Timeslip",
+    description: "Update an existing timeslip. Supports setting `billed_on_invoice` to link the timeslip to an invoice, though FreeAgent may reject external writes to that field.",
+    inputSchema: UpdateTimeslipInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: updateTimeslip,
   },
 
   // Bank Account Management

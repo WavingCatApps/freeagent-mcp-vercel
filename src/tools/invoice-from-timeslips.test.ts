@@ -3,7 +3,7 @@ import type { FreeAgentApiClient } from "../services/api-client.js";
 import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
 
 interface Call {
-  method: "get" | "post";
+  method: "get" | "post" | "put";
   path: string;
   params?: unknown;
   body?: unknown;
@@ -12,6 +12,7 @@ interface Call {
 function makeClient(handlers: {
   get?: (path: string, params?: unknown) => unknown;
   post?: (path: string, body?: unknown) => unknown;
+  put?: (path: string, body?: unknown) => unknown | Error;
 }): { client: FreeAgentApiClient; calls: Call[] } {
   const calls: Call[] = [];
   const client = {
@@ -23,6 +24,12 @@ function makeClient(handlers: {
     post: vi.fn(async (path: string, body?: unknown) => {
       calls.push({ method: "post", path, body });
       const data = handlers.post?.(path, body);
+      return { data, headers: {} };
+    }),
+    put: vi.fn(async (path: string, body?: unknown) => {
+      calls.push({ method: "put", path, body });
+      const data = handlers.put?.(path, body);
+      if (data instanceof Error) throw data;
       return { data, headers: {} };
     }),
   } as unknown as FreeAgentApiClient;
@@ -101,7 +108,7 @@ describe("invoiceFromTimeslips", () => {
       }),
     });
 
-    const result = await invoiceFromTimeslips(client, { contact: "Acme Ltd" });
+    const result = await invoiceFromTimeslips(client, { contact: "Acme Ltd", link_timeslips: false });
 
     expect(result).toContain("Drafted invoice 999");
     expect(result).toContain("11.00");
@@ -134,7 +141,7 @@ describe("invoiceFromTimeslips", () => {
     });
 
     await expect(
-      invoiceFromTimeslips(client, { contact: "Acme Ltd" })
+      invoiceFromTimeslips(client, { contact: "Acme Ltd", link_timeslips: false })
     ).rejects.toThrow(/No unbilled timeslips/);
 
     const timeslipCall = calls.find((c) => c.path === "/timeslips");
@@ -164,7 +171,7 @@ describe("invoiceFromTimeslips", () => {
     });
 
     await expect(
-      invoiceFromTimeslips(client, { contact: "Acme Ltd" })
+      invoiceFromTimeslips(client, { contact: "Acme Ltd", link_timeslips: false })
     ).rejects.toThrow(/non-billable/);
   });
 
@@ -181,8 +188,101 @@ describe("invoiceFromTimeslips", () => {
     });
 
     await expect(
-      invoiceFromTimeslips(client, { contact: "Acme Ltd", project: "10" })
+      invoiceFromTimeslips(client, { contact: "Acme Ltd", project: "10", link_timeslips: false })
     ).rejects.toThrow(/different contact/);
+  });
+
+  it("links timeslips to the invoice when link_timeslips=true", async () => {
+    const { client, calls } = makeClient({
+      get: (path) => {
+        if (path === "/contacts") return { contacts: [contact] };
+        if (path === "/projects") return { projects: [project] };
+        if (path === "/timeslips") {
+          return {
+            timeslips: [
+              { url: "https://api.freeagent.com/v2/timeslips/1", user: "u/1", project: projectUrl, task: taskAUrl, dated_on: "2026-04-01", hours: "3.0" },
+              { url: "https://api.freeagent.com/v2/timeslips/2", user: "u/1", project: projectUrl, task: taskAUrl, dated_on: "2026-04-02", hours: "2.0" },
+            ],
+          };
+        }
+        if (path === taskAUrl) {
+          return { task: { url: taskAUrl, project: projectUrl, name: "Discovery", is_billable: true, billing_rate: "100.00", status: "Active" } };
+        }
+      },
+      post: () => ({
+        invoice: {
+          url: "https://api.freeagent.com/v2/invoices/777",
+          contact: contactUrl,
+          dated_on: "2026-04-23",
+          currency: "GBP",
+          total_value: "500.00",
+          net_value: "500.00",
+          sales_tax_value: "0.00",
+          status: "Draft",
+        },
+      }),
+      put: () => ({ timeslip: { billed_on_invoice: "https://api.freeagent.com/v2/invoices/777" } }),
+    });
+
+    const result = await invoiceFromTimeslips(client, {
+      contact: "Acme Ltd",
+      link_timeslips: true,
+    });
+
+    const puts = calls.filter((c) => c.method === "put");
+    expect(puts).toHaveLength(2);
+    expect(puts[0].path).toBe("https://api.freeagent.com/v2/timeslips/1");
+    expect(puts[0].body).toMatchObject({
+      timeslip: { billed_on_invoice: "https://api.freeagent.com/v2/invoices/777" },
+    });
+    expect(result).toContain("Linked 2 timeslip(s)");
+  });
+
+  it("surfaces timeslip link failures without failing the whole tool", async () => {
+    let putCount = 0;
+    const { client } = makeClient({
+      get: (path) => {
+        if (path === "/contacts") return { contacts: [contact] };
+        if (path === "/projects") return { projects: [project] };
+        if (path === "/timeslips") {
+          return {
+            timeslips: [
+              { url: "https://api.freeagent.com/v2/timeslips/1", user: "u/1", project: projectUrl, task: taskAUrl, dated_on: "2026-04-01", hours: "3.0" },
+              { url: "https://api.freeagent.com/v2/timeslips/2", user: "u/1", project: projectUrl, task: taskAUrl, dated_on: "2026-04-02", hours: "2.0" },
+            ],
+          };
+        }
+        if (path === taskAUrl) {
+          return { task: { url: taskAUrl, project: projectUrl, name: "Discovery", is_billable: true, billing_rate: "100.00", status: "Active" } };
+        }
+      },
+      post: () => ({
+        invoice: {
+          url: "https://api.freeagent.com/v2/invoices/777",
+          contact: contactUrl,
+          dated_on: "2026-04-23",
+          currency: "GBP",
+          total_value: "500.00",
+          net_value: "500.00",
+          sales_tax_value: "0.00",
+          status: "Draft",
+        },
+      }),
+      put: () => {
+        putCount++;
+        return putCount === 1
+          ? { timeslip: { billed_on_invoice: "https://api.freeagent.com/v2/invoices/777" } }
+          : new Error("Validation error: billed_on_invoice: field is read-only");
+      },
+    });
+
+    const result = await invoiceFromTimeslips(client, {
+      contact: "Acme Ltd",
+      link_timeslips: true,
+    });
+
+    expect(result).toContain("Linked 1 of 2 timeslip(s)");
+    expect(result).toContain("read-only");
   });
 
   it("errors if a task has no rate and project has no normal_billing_rate", async () => {
@@ -206,7 +306,7 @@ describe("invoiceFromTimeslips", () => {
     });
 
     await expect(
-      invoiceFromTimeslips(client, { contact: "Acme Ltd" })
+      invoiceFromTimeslips(client, { contact: "Acme Ltd", link_timeslips: false })
     ).rejects.toThrow(/no billing rate/);
   });
 });
