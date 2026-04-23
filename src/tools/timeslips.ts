@@ -9,7 +9,8 @@ import type { FreeAgentTimeslip } from "../types.js";
 import type {
   ListTimeslipsInput,
   GetTimeslipInput,
-  CreateTimeslipInput
+  CreateTimeslipInput,
+  UpdateTimeslipInput
 } from "../schemas/index.js";
 import {
   formatResponse,
@@ -185,5 +186,42 @@ export async function createTimeslip(
     `**Date**: ${timeslip.dated_on}\n` +
     `**Hours**: ${timeslip.hours}\n` +
     `**Project**: ${timeslip.project}\n` +
+    `**URL**: ${timeslip.url}`;
+}
+
+/**
+ * Update an existing timeslip.
+ *
+ * `billed_on_invoice` is exposed to support linking timeslips to an invoice
+ * after the fact, but FreeAgent sometimes rejects external writes to that
+ * field. Callers should treat rejection as a soft failure.
+ */
+export async function updateTimeslip(
+  client: FreeAgentApiClient,
+  params: UpdateTimeslipInput
+): Promise<string> {
+  const { timeslip_id, ...updateFields } = params;
+  const url = timeslip_id.startsWith("http")
+    ? timeslip_id
+    : `/timeslips/${timeslip_id}`;
+
+  const payload: Record<string, unknown> = {};
+  if (updateFields.dated_on !== undefined) payload.dated_on = updateFields.dated_on;
+  if (updateFields.hours !== undefined) payload.hours = updateFields.hours;
+  if (updateFields.comment !== undefined) payload.comment = updateFields.comment;
+  if (updateFields.task !== undefined) payload.task = updateFields.task;
+  if (updateFields.project !== undefined) payload.project = updateFields.project;
+  if (updateFields.billed_on_invoice !== undefined) {
+    payload.billed_on_invoice = updateFields.billed_on_invoice;
+  }
+
+  const response = await client.put<{ timeslip: FreeAgentTimeslip }>(url, { timeslip: payload });
+  const timeslip = response.data.timeslip;
+  const timeslipId = extractIdFromUrl(timeslip.url);
+
+  return `✅ Updated timeslip ${timeslipId}\n\n` +
+    `**Date**: ${timeslip.dated_on}\n` +
+    `**Hours**: ${timeslip.hours}\n` +
+    (timeslip.billed_on_invoice ? `**Billed on invoice**: ${timeslip.billed_on_invoice}\n` : "") +
     `**URL**: ${timeslip.url}`;
 }

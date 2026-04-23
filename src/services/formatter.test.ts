@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   formatCurrency,
+  computeDiscountAmount,
   extractIdFromUrl,
   formatContactName,
   formatResponse,
@@ -144,5 +145,33 @@ describe("createPaginationMetadata", () => {
       hasMore: false,
     });
     expect(result).not.toContain("page=");
+  });
+});
+
+describe("computeDiscountAmount", () => {
+  it("computes the discount off a post-discount net_value", () => {
+    // £100 pre-discount with 20% off → net_value £80, discount should be £20
+    expect(computeDiscountAmount("80", "20")).toBeCloseTo(20, 2);
+  });
+
+  it("handles non-round percentages", () => {
+    // £1000 pre-discount with 12.5% → net 875, discount 125
+    expect(computeDiscountAmount("875", "12.5")).toBeCloseTo(125, 2);
+  });
+
+  it("returns null for zero or missing inputs", () => {
+    expect(computeDiscountAmount(undefined, "20")).toBeNull();
+    expect(computeDiscountAmount("80", undefined)).toBeNull();
+    expect(computeDiscountAmount("80", "0")).toBeNull();
+  });
+
+  it("returns null when the percent is 100 or above (would divide by zero)", () => {
+    expect(computeDiscountAmount("80", "100")).toBeNull();
+    expect(computeDiscountAmount("80", "150")).toBeNull();
+  });
+
+  it("returns null for unparseable inputs", () => {
+    expect(computeDiscountAmount("abc", "20")).toBeNull();
+    expect(computeDiscountAmount("80", "xyz")).toBeNull();
   });
 });

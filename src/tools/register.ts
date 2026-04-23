@@ -6,30 +6,49 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ElicitRequestFormParams, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js";
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
+import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
+import { transitionInvoice } from "./transition-invoice.js";
+import { listEstimates, getEstimate, createEstimate, transitionEstimate } from "./estimates.js";
+import { listRecurringInvoices, getRecurringInvoice } from "./recurring-invoices.js";
+import { listPriceListItems, getPriceListItem, createPriceListItem } from "./price-list-items.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
-import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
+import { logExpense } from "./log-expense.js";
+import { listBills, getBill, createBill } from "./bills.js";
+import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
+import { reconcileBankTransaction } from "./reconcile.js";
 import { listProjects, getProject, createProject } from "./projects.js";
 import { listTasks, getTask, createTask } from "./tasks.js";
 import { listCategories, getCategory } from "./categories.js";
 import { getCompany, listUsers } from "./company.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
-  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
-  ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema,
-  ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
+  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema, TransitionInvoiceInputSchema,
+  ListEstimatesInputSchema, GetEstimateInputSchema, CreateEstimateInputSchema, TransitionEstimateInputSchema,
+  ListRecurringInvoicesInputSchema, GetRecurringInvoiceInputSchema,
+  ListPriceListItemsInputSchema, GetPriceListItemInputSchema, CreatePriceListItemInputSchema,
+  ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
+  ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
+  ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema, UpdateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
   CreateBankTransactionExplanationInputSchema, UpdateBankTransactionExplanationInputSchema,
+  ReconcileBankTransactionInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
   ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
   ListCategoriesInputSchema, GetCategoryInputSchema,
   GetCompanyInputSchema, ListUsersInputSchema,
 } from "../schemas/index.js";
+
+export interface ToolContext {
+  clientSupportsElicitation: boolean;
+  elicit: (params: ElicitRequestFormParams) => Promise<ElicitResult>;
+}
 
 interface ToolDefinition {
   name: string;
@@ -42,7 +61,7 @@ interface ToolDefinition {
     idempotentHint: boolean;
     openWorldHint: boolean;
   };
-  handler: (apiClient: FreeAgentApiClient, params: any) => Promise<string>;
+  handler: (apiClient: FreeAgentApiClient, params: any, ctx: ToolContext) => Promise<string>;
 }
 
 /**
@@ -101,6 +120,102 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createInvoice,
   },
+  {
+    name: "freeagent_transition_invoice",
+    title: "Transition FreeAgent Invoice",
+    description:
+      "Move a FreeAgent invoice between lifecycle states: mark as sent, cancelled, draft, scheduled, or convert to a credit note. Use after freeagent_invoice_from_timeslips or freeagent_create_invoice to take a draft through to sent.",
+    inputSchema: TransitionInvoiceInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: transitionInvoice,
+  },
+  // Estimate Management
+  {
+    name: "freeagent_list_estimates",
+    title: "List FreeAgent Estimates",
+    description: "List estimates (quotes) with filtering and pagination.",
+    inputSchema: ListEstimatesInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listEstimates,
+  },
+  {
+    name: "freeagent_get_estimate",
+    title: "Get FreeAgent Estimate",
+    description: "Retrieve detailed information about a specific estimate by ID.",
+    inputSchema: GetEstimateInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getEstimate,
+  },
+  {
+    name: "freeagent_create_estimate",
+    title: "Create FreeAgent Estimate",
+    description: "Draft a new estimate (quote) for a contact.",
+    inputSchema: CreateEstimateInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createEstimate,
+  },
+  {
+    name: "freeagent_transition_estimate",
+    title: "Transition FreeAgent Estimate",
+    description: "Move an estimate through its lifecycle: mark as sent, approved, rejected, cancelled, back to draft, or convert to an invoice.",
+    inputSchema: TransitionEstimateInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: transitionEstimate,
+  },
+
+  // Recurring Invoices (read-only)
+  {
+    name: "freeagent_list_recurring_invoices",
+    title: "List FreeAgent Recurring Invoices",
+    description: "List recurring invoice templates with filtering and pagination.",
+    inputSchema: ListRecurringInvoicesInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listRecurringInvoices,
+  },
+  {
+    name: "freeagent_get_recurring_invoice",
+    title: "Get FreeAgent Recurring Invoice",
+    description: "Retrieve a specific recurring invoice template by ID.",
+    inputSchema: GetRecurringInvoiceInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getRecurringInvoice,
+  },
+
+  // Price List Items
+  {
+    name: "freeagent_list_price_list_items",
+    title: "List FreeAgent Price List Items",
+    description: "List price list (catalog) items available to use as invoice/estimate line items.",
+    inputSchema: ListPriceListItemsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listPriceListItems,
+  },
+  {
+    name: "freeagent_get_price_list_item",
+    title: "Get FreeAgent Price List Item",
+    description: "Retrieve a specific price list item by ID.",
+    inputSchema: GetPriceListItemInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getPriceListItem,
+  },
+  {
+    name: "freeagent_create_price_list_item",
+    title: "Create FreeAgent Price List Item",
+    description: "Create a new catalog item that can be reused on invoices and estimates.",
+    inputSchema: CreatePriceListItemInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createPriceListItem,
+  },
+
+  {
+    name: "freeagent_invoice_from_timeslips",
+    title: "Draft FreeAgent Invoice From Timeslips",
+    description:
+      "Draft an invoice from a contact's unbilled timeslips in one call. Resolves the contact by name/ID/URL, finds active projects, collects unbilled timeslips in the given date range (defaults: first day of previous month → today), groups by task using the task or project billing rate, and posts a draft invoice. Note: the timeslips themselves are not auto-linked to the invoice.",
+    inputSchema: InvoiceFromTimeslipsInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: invoiceFromTimeslips,
+  },
 
   // Expense Management
   {
@@ -135,6 +250,41 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
   },
+  // Bill Management
+  {
+    name: "freeagent_list_bills",
+    title: "List FreeAgent Bills",
+    description: "List supplier bills with filtering and pagination.",
+    inputSchema: ListBillsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listBills,
+  },
+  {
+    name: "freeagent_get_bill",
+    title: "Get FreeAgent Bill Details",
+    description: "Retrieve detailed information about a specific supplier bill by ID.",
+    inputSchema: GetBillInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getBill,
+  },
+  {
+    name: "freeagent_create_bill",
+    title: "Create FreeAgent Bill",
+    description: "Create a new supplier bill in FreeAgent. Used to record money owed to suppliers.",
+    inputSchema: CreateBillInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createBill,
+  },
+
+  {
+    name: "freeagent_log_expense",
+    title: "Log FreeAgent Expense",
+    description:
+      "Log a regular expense in one call. Takes a POSITIVE amount plus `kind` ('expense' or 'refund') — the tool applies the correct sign, so you never send a negative value. Accepts a category name, nominal code, or URL; accepts a user email, ID, or URL (defaults to the sole user on the account). Use freeagent_create_expense for mileage, recurring expenses, or receipt attachments.",
+    inputSchema: LogExpenseInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: logExpense,
+  },
 
   // Timeslip Management
   {
@@ -160,6 +310,14 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreateTimeslipInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createTimeslip,
+  },
+  {
+    name: "freeagent_update_timeslip",
+    title: "Update FreeAgent Timeslip",
+    description: "Update an existing timeslip. Supports setting `billed_on_invoice` to link the timeslip to an invoice, though FreeAgent may reject external writes to that field.",
+    inputSchema: UpdateTimeslipInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: updateTimeslip,
   },
 
   // Bank Account Management
@@ -228,6 +386,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateBankTransactionExplanation,
+  },
+  {
+    name: "freeagent_reconcile_bank_transaction",
+    title: "Reconcile FreeAgent Bank Transaction",
+    description:
+      "Explain a bank transaction in one call. Accepts a human-friendly hint (category name like 'Travel', nominal code like '285', or invoice reference like 'INV-001') and resolves it to the correct FreeAgent URL server-side. Auto-fills date and amount from the transaction, so you do not need to call get_bank_transaction or list_categories first. Provide exactly one of `category` or `paid_invoice`.",
+    inputSchema: ReconcileBankTransactionInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: reconcileBankTransaction,
   },
 
   // Project Management
@@ -326,6 +493,13 @@ export const toolDefinitions: ToolDefinition[] = [
  * @param apiClient - The FreeAgent API client to use for API calls
  */
 export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClient): void {
+  const ctx: ToolContext = {
+    get clientSupportsElicitation(): boolean {
+      return Boolean(server.server.getClientCapabilities()?.elicitation);
+    },
+    elicit: (params) => server.server.elicitInput(params),
+  };
+
   for (const tool of toolDefinitions) {
     server.registerTool(
       tool.name,
@@ -337,7 +511,7 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
       },
       async (params: any) => {
         try {
-          const result = await tool.handler(apiClient, params);
+          const result = await tool.handler(apiClient, params, ctx);
           return { content: [{ type: "text" as const, text: result }] };
         } catch (error) {
           return { isError: true, content: [{ type: "text" as const, text: formatErrorForLLM(error as Error) }] };
