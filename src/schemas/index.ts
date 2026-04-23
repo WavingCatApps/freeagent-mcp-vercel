@@ -649,6 +649,45 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+// Intent-bundle: log a regular expense with human-friendly inputs.
+export const LogExpenseInputSchema = z.object({
+  amount: z.string()
+    .regex(/^\d+(\.\d{1,2})?$/, "Amount must be a positive decimal like '12.50'")
+    .describe("Expense amount as a POSITIVE decimal in the major currency unit (e.g. '12.50'). The tool applies the correct sign for you — never pass a negative value."),
+  kind: z.enum(["expense", "refund"])
+    .default("expense")
+    .describe("'expense' (default) = money out of pocket. 'refund' = money coming back to the claimant."),
+  category: z.string()
+    .min(1)
+    .describe("Category name (e.g. 'Travel'), nominal code (e.g. '285'), or full URL. Resolved server-side."),
+  description: z.string()
+    .optional()
+    .describe("Free-text description of the expense."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Date of expense in YYYY-MM-DD format. Defaults to today."),
+  user: z.string()
+    .optional()
+    .describe("User who incurred the expense. Accepts email, numeric ID, or URL. Defaults to the sole user on the account when there is exactly one."),
+  currency: z.string()
+    .length(3)
+    .optional()
+    .describe("Currency code (e.g. 'GBP', 'USD'). Defaults to the company's currency."),
+  sales_tax_rate: z.string()
+    .optional()
+    .describe("Sales tax rate as decimal (e.g. '0.20' for 20%)."),
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
+    .optional()
+    .describe("EC status. Defaults to 'UK/Non-EC'."),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Receipt reference identifier."),
+  project: z.string()
+    .optional()
+    .describe("Project URL or ID to associate with the expense.")
+}).strict();
+
 // Intent-bundle: reconcile a bank transaction in one call.
 export const ReconcileBankTransactionInputSchema = z.object({
   bank_transaction_id: z.string()
@@ -714,3 +753,4 @@ export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTra
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;
 export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;
 export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransactionInputSchema>;
+export type LogExpenseInput = z.infer<typeof LogExpenseInputSchema>;

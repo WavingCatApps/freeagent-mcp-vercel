@@ -11,73 +11,11 @@ import type { FreeAgentApiClient } from "../services/api-client.js";
 import type {
   FreeAgentBankTransaction,
   FreeAgentBankTransactionExplanation,
-  FreeAgentCategory,
   FreeAgentInvoice,
 } from "../types.js";
 import type { ReconcileBankTransactionInput } from "../schemas/index.js";
 import { extractIdFromUrl } from "../services/formatter.js";
-
-interface CategoryListResponse {
-  admin_expenses_categories?: FreeAgentCategory[];
-  cost_of_sales_categories?: FreeAgentCategory[];
-  income_categories?: FreeAgentCategory[];
-  general_categories?: FreeAgentCategory[];
-}
-
-function flattenCategories(data: CategoryListResponse): FreeAgentCategory[] {
-  return [
-    ...(data.admin_expenses_categories ?? []),
-    ...(data.cost_of_sales_categories ?? []),
-    ...(data.income_categories ?? []),
-    ...(data.general_categories ?? []),
-  ];
-}
-
-async function resolveCategory(
-  client: FreeAgentApiClient,
-  hint: string
-): Promise<string> {
-  if (hint.startsWith("http")) return hint;
-
-  // Pure nominal code → fetch directly and return canonical URL.
-  if (/^\d+$/.test(hint)) {
-    const response = await client.get<{ category: FreeAgentCategory }>(
-      `/categories/${hint}`
-    );
-    return response.data.category.url;
-  }
-
-  // Name lookup: case-insensitive exact match on description, then substring.
-  const response = await client.get<CategoryListResponse>("/categories");
-  const all = flattenCategories(response.data);
-  const lower = hint.toLowerCase();
-
-  const exact = all.filter((c) => c.description.toLowerCase() === lower);
-  if (exact.length === 1) return exact[0].url;
-  if (exact.length > 1) {
-    const codes = exact.map((c) => `${c.nominal_code} (${c.description})`).join(", ");
-    throw new Error(
-      `Category name "${hint}" is ambiguous. Matches: ${codes}. Pass the nominal code instead.`
-    );
-  }
-
-  const partial = all.filter((c) => c.description.toLowerCase().includes(lower));
-  if (partial.length === 1) return partial[0].url;
-  if (partial.length > 1) {
-    const suggestions = partial
-      .slice(0, 8)
-      .map((c) => `${c.nominal_code} (${c.description})`)
-      .join(", ");
-    throw new Error(
-      `Category name "${hint}" matches multiple categories: ${suggestions}. ` +
-        `Pass the nominal code or the exact description.`
-    );
-  }
-
-  throw new Error(
-    `No category matches "${hint}". Call freeagent_list_categories to see available categories.`
-  );
-}
+import { resolveCategory } from "../services/resolvers.js";
 
 async function resolveInvoice(
   client: FreeAgentApiClient,

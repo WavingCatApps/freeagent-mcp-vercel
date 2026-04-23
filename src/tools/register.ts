@@ -10,6 +10,7 @@ import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
+import { logExpense } from "./log-expense.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
@@ -21,7 +22,7 @@ import { getCompany, listUsers } from "./company.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
-  ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema,
+  ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
@@ -136,6 +137,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: UpdateExpenseInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
+  },
+  {
+    name: "freeagent_log_expense",
+    title: "Log FreeAgent Expense",
+    description:
+      "Log a regular expense in one call. Takes a POSITIVE amount plus `kind` ('expense' or 'refund') — the tool applies the correct sign, so you never send a negative value. Accepts a category name, nominal code, or URL; accepts a user email, ID, or URL (defaults to the sole user on the account). Use freeagent_create_expense for mileage, recurring expenses, or receipt attachments.",
+    inputSchema: LogExpenseInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: logExpense,
   },
 
   // Timeslip Management
