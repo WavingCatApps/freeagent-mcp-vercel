@@ -79,8 +79,8 @@ export const GetInvoiceInputSchema = z.object({
 
 export const CreateInvoiceInputSchema = z.object({
   contact: z.string()
-    .min(1)
-    .describe("Contact URL or ID to invoice"),
+    .optional()
+    .describe("Contact URL or ID to invoice. If omitted, the server will elicit a choice from the user when the client supports form elicitation; otherwise the call fails with a clear error."),
   dated_on: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .describe("Invoice date in YYYY-MM-DD format"),

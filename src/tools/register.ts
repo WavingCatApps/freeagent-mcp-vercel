@@ -6,6 +6,7 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ElicitRequestFormParams, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js";
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
@@ -38,6 +39,11 @@ import {
   GetCompanyInputSchema, ListUsersInputSchema,
 } from "../schemas/index.js";
 
+export interface ToolContext {
+  clientSupportsElicitation: boolean;
+  elicit: (params: ElicitRequestFormParams) => Promise<ElicitResult>;
+}
+
 interface ToolDefinition {
   name: string;
   title: string;
@@ -49,7 +55,7 @@ interface ToolDefinition {
     idempotentHint: boolean;
     openWorldHint: boolean;
   };
-  handler: (apiClient: FreeAgentApiClient, params: any) => Promise<string>;
+  handler: (apiClient: FreeAgentApiClient, params: any, ctx: ToolContext) => Promise<string>;
 }
 
 /**
@@ -403,6 +409,13 @@ export const toolDefinitions: ToolDefinition[] = [
  * @param apiClient - The FreeAgent API client to use for API calls
  */
 export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClient): void {
+  const ctx: ToolContext = {
+    get clientSupportsElicitation(): boolean {
+      return Boolean(server.server.getClientCapabilities()?.elicitation);
+    },
+    elicit: (params) => server.server.elicitInput(params),
+  };
+
   for (const tool of toolDefinitions) {
     server.registerTool(
       tool.name,
@@ -414,7 +427,7 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
       },
       async (params: any) => {
         try {
-          const result = await tool.handler(apiClient, params);
+          const result = await tool.handler(apiClient, params, ctx);
           return { content: [{ type: "text" as const, text: result }] };
         } catch (error) {
           return { isError: true, content: [{ type: "text" as const, text: formatErrorForLLM(error as Error) }] };

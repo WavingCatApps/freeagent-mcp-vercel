@@ -3,7 +3,8 @@
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
-import type { FreeAgentInvoice } from "../types.js";
+import type { FreeAgentContact, FreeAgentInvoice } from "../types.js";
+import type { ToolContext } from "./register.js";
 import {
   formatDate,
   formatCurrency,
@@ -247,17 +248,94 @@ export async function getInvoice(
   return formattedResponse;
 }
 
+function contactLabel(c: FreeAgentContact): string {
+  if (c.organisation_name) return c.organisation_name;
+  const parts = [c.first_name, c.last_name].filter(Boolean);
+  return parts.join(" ") || "Unnamed contact";
+}
+
+async function elicitContact(
+  client: FreeAgentApiClient,
+  ctx: ToolContext
+): Promise<string> {
+  if (!ctx.clientSupportsElicitation) {
+    throw new Error(
+      "Missing `contact`. This client does not support MCP elicitation, so please pass a contact URL or ID directly. Call freeagent_list_contacts to find one."
+    );
+  }
+
+  const response = await client.get<{ contacts: FreeAgentContact[] }>("/contacts", {
+    per_page: 20,
+    sort: "-updated_at",
+  });
+  const contacts = response.data.contacts ?? [];
+  if (contacts.length === 0) {
+    throw new Error(
+      "Missing `contact` and no contacts exist in this FreeAgent account. Create a contact first with freeagent_create_contact."
+    );
+  }
+
+  const result = await ctx.elicit({
+    message: "Which contact should this invoice be for?",
+    requestedSchema: {
+      type: "object",
+      properties: {
+        contact_url: {
+          type: "string",
+          title: "Contact",
+          description: "Pick a contact to invoice, or choose 'Other' to paste a URL.",
+          oneOf: [
+            ...contacts.map((c) => ({ const: c.url, title: contactLabel(c) })),
+            { const: "__other__", title: "Other (paste a URL below)" },
+          ],
+        },
+        other_url: {
+          type: "string",
+          title: "Other contact URL",
+          description: "Only used if you picked 'Other' above.",
+        },
+      },
+      required: ["contact_url"],
+    },
+  });
+
+  if (result.action !== "accept" || !result.content) {
+    throw new Error(
+      `Elicitation ${result.action === "cancel" ? "cancelled" : "declined"}; cannot create the invoice without a contact.`
+    );
+  }
+
+  const picked = result.content.contact_url;
+  if (picked === "__other__") {
+    const other = result.content.other_url;
+    if (typeof other !== "string" || other.length === 0) {
+      throw new Error(
+        "'Other' chosen but no URL was provided. Re-run with a concrete contact URL or ID."
+      );
+    }
+    return other;
+  }
+  if (typeof picked !== "string") {
+    throw new Error("Elicitation returned an unexpected contact value.");
+  }
+  return picked;
+}
+
 /**
  * Create a new invoice
  */
 export async function createInvoice(
   client: FreeAgentApiClient,
-  params: CreateInvoiceInput
+  params: CreateInvoiceInput,
+  ctx: ToolContext
 ): Promise<string> {
+  const rawContact =
+    params.contact ?? (await elicitContact(client, ctx));
+
   // Normalize contact URL
-  const contact = params.contact.startsWith("http")
-    ? params.contact
-    : `https://api.freeagent.com/v2/contacts/${params.contact}`;
+  const contact = rawContact.startsWith("http")
+    ? rawContact
+    : `https://api.freeagent.com/v2/contacts/${rawContact}`;
 
   const invoiceData: Record<string, unknown> = {
     contact,
