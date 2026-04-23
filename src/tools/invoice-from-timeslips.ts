@@ -222,6 +222,9 @@ export async function invoiceFromTimeslips(
   if (params.payment_terms_in_days !== undefined) {
     invoicePayload.payment_terms_in_days = params.payment_terms_in_days;
   }
+  if (params.discount_percent) {
+    invoicePayload.discount_percent = params.discount_percent;
+  }
 
   const response = await client.post<{ invoice: FreeAgentInvoice }>("/invoices", {
     invoice: invoicePayload,

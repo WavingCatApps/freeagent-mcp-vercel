@@ -360,6 +360,10 @@ export async function createInvoice(
     invoiceData.payment_terms_in_days = params.payment_terms_in_days;
   }
 
+  if (params.discount_percent) {
+    invoiceData.discount_percent = params.discount_percent;
+  }
+
   const response = await client.post<{ invoice: FreeAgentInvoice }>(
     "/invoices",
     { invoice: invoiceData }

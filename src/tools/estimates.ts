@@ -143,6 +143,7 @@ export async function createEstimate(
   if (params.payment_terms_in_days !== undefined) {
     payload.payment_terms_in_days = params.payment_terms_in_days;
   }
+  if (params.discount_percent) payload.discount_percent = params.discount_percent;
 
   const response = await client.post<{ estimate: FreeAgentEstimate }>("/estimates", {
     estimate: payload,

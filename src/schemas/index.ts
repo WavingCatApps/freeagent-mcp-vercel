@@ -95,6 +95,9 @@ export const CreateInvoiceInputSchema = z.object({
     .describe("Currency code (e.g., GBP, USD, EUR)"),
   comments: z.string().optional().describe("Comments for the invoice"),
   payment_terms_in_days: z.number().int().optional().describe("Payment terms in days"),
+  discount_percent: z.string()
+    .optional()
+    .describe("Discount to apply, as a decimal string (e.g., '20' for 20%)."),
   invoice_items: z.array(z.object({
     item_type: z.string().describe("Item type (e.g., 'Hours', 'Days', 'Products')"),
     description: z.string().describe("Item description"),
@@ -776,6 +779,9 @@ export const CreateEstimateInputSchema = z.object({
   comments: z.string().optional().describe("Comments shown on the estimate."),
   terms_and_conditions: z.string().optional().describe("Terms & conditions text."),
   payment_terms_in_days: z.number().int().optional().describe("Payment terms in days."),
+  discount_percent: z.string()
+    .optional()
+    .describe("Discount to apply, as a decimal string (e.g., '20' for 20%)."),
   ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
     .optional()
     .describe("EC status. Defaults to 'UK/Non-EC'."),
@@ -893,6 +899,9 @@ export const InvoiceFromTimeslipsInputSchema = z.object({
     .int()
     .optional()
     .describe("Payment terms in days."),
+  discount_percent: z.string()
+    .optional()
+    .describe("Discount to apply to the drafted invoice, as a decimal string (e.g., '20' for 20%)."),
   link_timeslips: z.boolean()
     .default(false)
     .describe("If true, attempt to link the source timeslips to the new invoice by setting `billed_on_invoice` on each. FreeAgent sometimes rejects these writes — any failures are surfaced in the response.")

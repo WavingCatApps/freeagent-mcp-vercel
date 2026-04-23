@@ -145,6 +145,25 @@ describe("createInvoice elicitation", () => {
     ).rejects.toThrow(/cancelled/);
   });
 
+  it("passes discount_percent through to the invoice payload", async () => {
+    const elicit = vi.fn();
+    const ctx: ToolContext = { clientSupportsElicitation: true, elicit };
+    const { client, calls } = makeClient({
+      post: () => baseInvoiceResponse,
+    });
+
+    await createInvoice(
+      client,
+      { ...baseParams, contact: "1", discount_percent: "20" },
+      ctx
+    );
+
+    const post = calls.find((c) => c.method === "post");
+    expect(post?.body).toMatchObject({
+      invoice: { discount_percent: "20" },
+    });
+  });
+
   it("accepts the 'Other' choice and uses the pasted URL", async () => {
     const elicit = vi.fn(async () => ({
       action: "accept" as const,

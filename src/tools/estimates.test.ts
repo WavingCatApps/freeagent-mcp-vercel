@@ -99,6 +99,37 @@ describe("estimates tools", () => {
     });
   });
 
+  it("createEstimate passes discount_percent through to the payload", async () => {
+    const { client, calls } = makeClient({
+      post: () => ({
+        estimate: {
+          url: "https://api.freeagent.com/v2/estimates/6",
+          contact: "https://api.freeagent.com/v2/contacts/1",
+          dated_on: "2026-04-23",
+          currency: "GBP",
+          total_value: "400.00",
+          status: "Draft",
+          discount_percent: "20",
+        },
+      }),
+    });
+
+    await createEstimate(client, {
+      contact: "1",
+      dated_on: "2026-04-23",
+      currency: "GBP",
+      discount_percent: "20",
+      estimate_items: [
+        { item_type: "Hours", description: "Consulting", price: "100.00", quantity: "5.0" },
+      ],
+    });
+
+    const post = calls.find((c) => c.method === "post");
+    expect(post?.body).toMatchObject({
+      estimate: { discount_percent: "20" },
+    });
+  });
+
   it("transitionEstimate PUTs to the right transition path", async () => {
     const { client, calls } = makeClient({
       put: () => ({

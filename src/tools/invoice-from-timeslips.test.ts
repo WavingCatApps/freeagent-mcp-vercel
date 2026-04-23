@@ -285,6 +285,49 @@ describe("invoiceFromTimeslips", () => {
     expect(result).toContain("read-only");
   });
 
+  it("passes discount_percent through to the invoice payload", async () => {
+    const { client, calls } = makeClient({
+      get: (path) => {
+        if (path === "/contacts") return { contacts: [contact] };
+        if (path === "/projects") return { projects: [project] };
+        if (path === "/timeslips") {
+          return {
+            timeslips: [
+              { url: "/timeslips/1", user: "u/1", project: projectUrl, task: taskAUrl, dated_on: "2026-04-01", hours: "3.0" },
+            ],
+          };
+        }
+        if (path === taskAUrl) {
+          return { task: { url: taskAUrl, project: projectUrl, name: "Discovery", is_billable: true, billing_rate: "100.00", status: "Active" } };
+        }
+      },
+      post: () => ({
+        invoice: {
+          url: "https://api.freeagent.com/v2/invoices/888",
+          contact: contactUrl,
+          dated_on: "2026-04-23",
+          currency: "GBP",
+          total_value: "240.00",
+          net_value: "240.00",
+          sales_tax_value: "0.00",
+          status: "Draft",
+          discount_percent: "20",
+        },
+      }),
+    });
+
+    await invoiceFromTimeslips(client, {
+      contact: "Acme Ltd",
+      link_timeslips: false,
+      discount_percent: "20",
+    });
+
+    const post = calls.find((c) => c.method === "post");
+    expect(post?.body).toMatchObject({
+      invoice: { discount_percent: "20" },
+    });
+  });
+
   it("errors if a task has no rate and project has no normal_billing_rate", async () => {
     const { client } = makeClient({
       get: (path) => {
