@@ -220,14 +220,14 @@ describe("reconcileBankTransaction", () => {
     });
   });
 
-  it("rejects when neither category nor paid_invoice is provided", async () => {
+  it("rejects when no link parameter is provided", async () => {
     const { client } = makeClient({});
     await expect(
       reconcileBankTransaction(client, { bank_transaction_id: "42" })
-    ).rejects.toThrow(/Provide either `category`.*or `paid_invoice`/);
+    ).rejects.toThrow(/Provide one of `category`.*`paid_invoice`.*`paid_bill`/);
   });
 
-  it("rejects when both category and paid_invoice are provided", async () => {
+  it("rejects when multiple link parameters are provided", async () => {
     const { client } = makeClient({});
     await expect(
       reconcileBankTransaction(client, {
@@ -236,5 +236,43 @@ describe("reconcileBankTransaction", () => {
         paid_invoice: "INV-001",
       })
     ).rejects.toThrow(/only one of/);
+  });
+
+  it("resolves a bill reference and links it as paid_bill", async () => {
+    const billUrl = "https://api.freeagent.com/v2/bills/5";
+    const { client, calls } = makeClient({
+      get: (path, params) => {
+        if (path === "/bank_transactions/42") return { bank_transaction: baseTx };
+        if (path === "/bills") {
+          expect(params).toMatchObject({ view: "open" });
+          return {
+            bills: [
+              { url: billUrl, reference: "SUP-99", total_value: "18.50" },
+              { url: "https://api.freeagent.com/v2/bills/6", reference: "SUP-100", total_value: "22.00" },
+            ],
+          };
+        }
+      },
+      post: () => ({
+        bank_transaction_explanation: {
+          url: "https://api.freeagent.com/v2/bank_transaction_explanations/200",
+          bank_transaction: baseTx.url,
+          dated_on: baseTx.dated_on,
+          gross_value: baseTx.gross_value,
+          paid_bill: billUrl,
+        },
+      }),
+    });
+
+    const result = await reconcileBankTransaction(client, {
+      bank_transaction_id: "42",
+      paid_bill: "SUP-99",
+    });
+
+    expect(result).toContain("Paid bill: " + billUrl);
+    const post = calls.find((c) => c.method === "post");
+    expect(post?.body).toMatchObject({
+      bank_transaction_explanation: { paid_bill: billUrl },
+    });
   });
 });

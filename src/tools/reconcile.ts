@@ -15,7 +15,7 @@ import type {
 } from "../types.js";
 import type { ReconcileBankTransactionInput } from "../schemas/index.js";
 import { extractIdFromUrl } from "../services/formatter.js";
-import { resolveCategory } from "../services/resolvers.js";
+import { resolveBill, resolveCategory } from "../services/resolvers.js";
 
 async function resolveInvoice(
   client: FreeAgentApiClient,
@@ -60,19 +60,21 @@ export async function reconcileBankTransaction(
     bank_transaction_id,
     category,
     paid_invoice,
+    paid_bill,
     description,
     marked_for_review,
     receipt_reference,
   } = params;
 
-  if (!category && !paid_invoice) {
+  const linkCount = [category, paid_invoice, paid_bill].filter(Boolean).length;
+  if (linkCount === 0) {
     throw new Error(
-      "Provide either `category` (name, nominal code, or URL) or `paid_invoice` (reference, ID, or URL)."
+      "Provide one of `category` (name, nominal code, or URL), `paid_invoice` (reference, ID, or URL), or `paid_bill` (reference, ID, or URL)."
     );
   }
-  if (category && paid_invoice) {
+  if (linkCount > 1) {
     throw new Error(
-      "Provide only one of `category` or `paid_invoice`, not both."
+      "Provide only one of `category`, `paid_invoice`, or `paid_bill`."
     );
   }
 
@@ -94,13 +96,16 @@ export async function reconcileBankTransaction(
   if (marked_for_review !== undefined) payload.marked_for_review = marked_for_review;
   if (receipt_reference) payload.receipt_reference = receipt_reference;
 
-  let resolvedKind: "category" | "invoice";
+  let resolvedKind: "category" | "invoice" | "bill";
   if (category) {
     payload.category = await resolveCategory(client, category);
     resolvedKind = "category";
-  } else {
-    payload.paid_invoice = await resolveInvoice(client, paid_invoice!);
+  } else if (paid_invoice) {
+    payload.paid_invoice = await resolveInvoice(client, paid_invoice);
     resolvedKind = "invoice";
+  } else {
+    payload.paid_bill = await resolveBill(client, paid_bill!);
+    resolvedKind = "bill";
   }
 
   const createResponse = await client.post<{
@@ -114,7 +119,9 @@ export async function reconcileBankTransaction(
   const linkedTo =
     resolvedKind === "category"
       ? `Category: ${exp.category}`
-      : `Paid invoice: ${exp.paid_invoice}`;
+      : resolvedKind === "invoice"
+        ? `Paid invoice: ${exp.paid_invoice}`
+        : `Paid bill: ${exp.paid_bill}`;
 
   return (
     `✅ Reconciled bank transaction ${extractIdFromUrl(tx.url)}\n\n` +

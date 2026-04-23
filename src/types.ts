@@ -241,6 +241,40 @@ export interface FreeAgentBankTransactionExplanation {
   updated_at?: string;
 }
 
+export interface FreeAgentBillItem {
+  category?: string;
+  description?: string;
+  price?: string;
+  quantity?: string;
+  sales_tax_rate?: string;
+  sales_tax_value?: string;
+  total_value?: string;
+}
+
+export interface FreeAgentBill {
+  url: string;
+  contact: string;
+  reference?: string;
+  dated_on: string;
+  due_on?: string;
+  currency?: string;
+  exchange_rate?: string;
+  net_value?: string;
+  sales_tax_value?: string;
+  total_value: string;
+  paid_value?: string;
+  due_value?: string;
+  status?: string;
+  comments?: string;
+  bill_items?: FreeAgentBillItem[];
+  category?: string;
+  ec_status?: string;
+  payment_terms_in_days?: number;
+  attachment?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface FreeAgentApiErrorItem {
   message?: string;
   [key: string]: unknown;

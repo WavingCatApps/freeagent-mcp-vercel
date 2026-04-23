@@ -13,6 +13,7 @@ import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
 import { transitionInvoice } from "./transition-invoice.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
+import { listBills, getBill, createBill } from "./bills.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
@@ -25,6 +26,7 @@ import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
   ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema, TransitionInvoiceInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
+  ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
@@ -158,6 +160,32 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
   },
+  // Bill Management
+  {
+    name: "freeagent_list_bills",
+    title: "List FreeAgent Bills",
+    description: "List supplier bills with filtering and pagination.",
+    inputSchema: ListBillsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listBills,
+  },
+  {
+    name: "freeagent_get_bill",
+    title: "Get FreeAgent Bill Details",
+    description: "Retrieve detailed information about a specific supplier bill by ID.",
+    inputSchema: GetBillInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getBill,
+  },
+  {
+    name: "freeagent_create_bill",
+    title: "Create FreeAgent Bill",
+    description: "Create a new supplier bill in FreeAgent. Used to record money owed to suppliers.",
+    inputSchema: CreateBillInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createBill,
+  },
+
   {
     name: "freeagent_log_expense",
     title: "Log FreeAgent Expense",

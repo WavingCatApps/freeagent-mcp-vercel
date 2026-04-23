@@ -649,6 +649,67 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+// Bill schemas
+export const ListBillsInputSchema = z.object({
+  page: PaginationSchema.shape.page,
+  per_page: PaginationSchema.shape.per_page,
+  view: z.enum(["recent", "open", "overdue", "paid", "all"])
+    .optional()
+    .describe("Filter bills by status view."),
+  contact: z.string().optional().describe("Filter by contact (supplier) URL or ID."),
+  from_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Filter bills dated on or after this date (YYYY-MM-DD)."),
+  to_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Filter bills dated on or before this date (YYYY-MM-DD)."),
+  sort: z.enum(["created_at", "updated_at", "dated_on", "due_on"])
+    .optional()
+    .describe("Field to sort by (prefix with '-' for descending)."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetBillInputSchema = z.object({
+  bill_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bill ID (numeric) or full URL."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const CreateBillInputSchema = z.object({
+  contact: z.string()
+    .min(1)
+    .describe("Supplier contact URL or ID."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Bill date in YYYY-MM-DD format."),
+  due_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Due date in YYYY-MM-DD format."),
+  reference: z.string()
+    .optional()
+    .describe("Bill reference number (e.g. supplier's invoice number)."),
+  currency: z.string()
+    .length(3)
+    .optional()
+    .describe("Currency code (e.g. 'GBP', 'USD'). Defaults to the company's currency."),
+  comments: z.string().optional().describe("Internal comments for the bill."),
+  payment_terms_in_days: z.number().int().optional().describe("Payment terms in days."),
+  ec_status: z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge"])
+    .optional()
+    .describe("EC status. Defaults to 'UK/Non-EC'."),
+  bill_items: z.array(z.object({
+    category: z.string().describe("Category URL or nominal code for this line."),
+    description: z.string().optional().describe("Line description."),
+    price: z.string().describe("Unit price as decimal string."),
+    quantity: z.string().describe("Quantity as decimal string."),
+    sales_tax_rate: z.string().optional().describe("Sales tax rate as decimal (e.g. '0.20' for 20%).")
+  })).min(1).describe("Array of bill line items.")
+}).strict();
+
 // Transition a FreeAgent invoice between lifecycle states.
 export const TransitionInvoiceInputSchema = z.object({
   invoice_id: z.string()
@@ -750,7 +811,10 @@ export const ReconcileBankTransactionInputSchema = z.object({
     .describe("Category to post this transaction against. Accepts a category name (e.g. 'Travel'), nominal code (e.g. '285'), or full URL. Mutually exclusive with paid_invoice."),
   paid_invoice: z.string()
     .optional()
-    .describe("Invoice this transaction pays. Accepts an invoice reference (e.g. 'INV-001'), numeric ID, or full URL. Mutually exclusive with category."),
+    .describe("Invoice this transaction pays. Accepts an invoice reference (e.g. 'INV-001'), numeric ID, or full URL. Mutually exclusive with category and paid_bill."),
+  paid_bill: z.string()
+    .optional()
+    .describe("Supplier bill this transaction pays. Accepts a bill reference, numeric ID, or full URL. Mutually exclusive with category and paid_invoice."),
   description: z.string()
     .optional()
     .describe("Free-text description for the explanation."),
@@ -808,3 +872,6 @@ export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransact
 export type LogExpenseInput = z.infer<typeof LogExpenseInputSchema>;
 export type InvoiceFromTimeslipsInput = z.infer<typeof InvoiceFromTimeslipsInputSchema>;
 export type TransitionInvoiceInput = z.infer<typeof TransitionInvoiceInputSchema>;
+export type ListBillsInput = z.infer<typeof ListBillsInputSchema>;
+export type GetBillInput = z.infer<typeof GetBillInputSchema>;
+export type CreateBillInput = z.infer<typeof CreateBillInputSchema>;

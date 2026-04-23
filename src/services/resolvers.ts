@@ -8,7 +8,7 @@
  */
 
 import type { FreeAgentApiClient } from "./api-client.js";
-import type { FreeAgentCategory, FreeAgentContact, FreeAgentUser } from "../types.js";
+import type { FreeAgentBill, FreeAgentCategory, FreeAgentContact, FreeAgentUser } from "../types.js";
 
 interface CategoryListResponse {
   admin_expenses_categories?: FreeAgentCategory[];
@@ -177,5 +177,37 @@ export async function resolveContact(
 
   throw new Error(
     `No contact matches "${hint}". Call freeagent_list_contacts to see available contacts.`
+  );
+}
+
+/**
+ * Resolve a bill hint (URL, numeric ID, reference) to its canonical URL.
+ * When `hint` looks like a reference, only open/overdue bills are searched.
+ */
+export async function resolveBill(
+  client: FreeAgentApiClient,
+  hint: string
+): Promise<string> {
+  if (hint.startsWith("http")) return hint;
+
+  if (/^\d+$/.test(hint)) {
+    const response = await client.get<{ bill: FreeAgentBill }>(`/bills/${hint}`);
+    return response.data.bill.url;
+  }
+
+  const response = await client.get<{ bills: FreeAgentBill[] }>("/bills", {
+    per_page: 100,
+    view: "open",
+  });
+  const matches = (response.data.bills ?? []).filter((b) => b.reference === hint);
+
+  if (matches.length === 1) return matches[0].url;
+  if (matches.length > 1) {
+    throw new Error(
+      `Bill reference "${hint}" matches ${matches.length} open bills. Pass the bill ID or URL instead.`
+    );
+  }
+  throw new Error(
+    `No open bill has reference "${hint}". Check the reference, or pass the bill ID/URL directly.`
   );
 }
