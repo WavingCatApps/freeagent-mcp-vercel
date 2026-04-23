@@ -10,6 +10,7 @@ import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
 import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
+import { transitionInvoice } from "./transition-invoice.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
@@ -22,7 +23,7 @@ import { listCategories, getCategory } from "./categories.js";
 import { getCompany, listUsers } from "./company.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
-  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema,
+  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema, TransitionInvoiceInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
@@ -104,6 +105,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreateInvoiceInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createInvoice,
+  },
+  {
+    name: "freeagent_transition_invoice",
+    title: "Transition FreeAgent Invoice",
+    description:
+      "Move a FreeAgent invoice between lifecycle states: mark as sent, cancelled, draft, scheduled, or convert to a credit note. Use after freeagent_invoice_from_timeslips or freeagent_create_invoice to take a draft through to sent.",
+    inputSchema: TransitionInvoiceInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: transitionInvoice,
   },
   {
     name: "freeagent_invoice_from_timeslips",

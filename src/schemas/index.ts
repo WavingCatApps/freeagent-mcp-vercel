@@ -649,6 +649,21 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+// Transition a FreeAgent invoice between lifecycle states.
+export const TransitionInvoiceInputSchema = z.object({
+  invoice_id: z.string()
+    .min(1)
+    .describe("The FreeAgent invoice ID (numeric) or full URL."),
+  action: z.enum([
+    "mark_as_sent",
+    "mark_as_cancelled",
+    "mark_as_draft",
+    "mark_as_scheduled",
+    "convert_to_credit_note"
+  ])
+    .describe("Transition to apply. 'mark_as_sent' moves Draft → Sent, 'mark_as_cancelled' voids a sent invoice, 'mark_as_draft' rolls back to Draft, 'mark_as_scheduled' queues a future send, 'convert_to_credit_note' creates a credit note against the invoice.")
+}).strict();
+
 // Intent-bundle: draft an invoice from a contact's unbilled timeslips.
 export const InvoiceFromTimeslipsInputSchema = z.object({
   contact: z.string()
@@ -792,3 +807,4 @@ export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;
 export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransactionInputSchema>;
 export type LogExpenseInput = z.infer<typeof LogExpenseInputSchema>;
 export type InvoiceFromTimeslipsInput = z.infer<typeof InvoiceFromTimeslipsInputSchema>;
+export type TransitionInvoiceInput = z.infer<typeof TransitionInvoiceInputSchema>;
