@@ -2,6 +2,49 @@
 
 This document provides a complete reference for all tools available in the FreeAgent MCP server.
 
+## Tool-Search Meta-Tools
+
+Registered only when `FREEAGENT_TOOL_SEARCH=true`. In this mode the rest of the catalog below is reached through `freeagent_call_tool` rather than being exposed directly in `tools/list`.
+
+### freeagent_search_tools
+
+Search the FreeAgent tool catalog and return JSONSchema definitions for matching tools.
+
+**Parameters:**
+- `query` (string, required): One of:
+  - `select:name1,name2` — fetch specific tools by exact name (returns every named tool)
+  - `+required optional1 optional2` — require certain keywords and rank by the rest
+  - plain keywords (e.g. `list invoices`, `reconcile bank transaction`) — ranked keyword search
+- `max_results` (number, default: 5, max: 50): Maximum number of tool schemas to return. Ignored for `select:` queries.
+
+**Example usage:**
+```
+Search the FreeAgent catalog for invoice-related tools
+Load schemas for freeagent_list_invoices and freeagent_create_invoice (select:…)
+```
+
+**Returns:** A `<functions>…</functions>` block containing `<function>{description, name, parameters}</function>` entries — one per matching tool. Parameters are draft-2020-12 JSONSchema derived from the underlying Zod schema.
+
+---
+
+### freeagent_call_tool
+
+Invoke a FreeAgent catalog tool by name with validated arguments. Pair with `freeagent_search_tools` to discover names and schemas.
+
+**Parameters:**
+- `name` (string, required): Exact tool name (e.g. `freeagent_list_invoices`).
+- `arguments` (object, default: `{}`): Arguments matching the target tool's input schema. Validated with Zod before dispatch.
+
+**Example usage:**
+```
+Call freeagent_get_company with no arguments
+Call freeagent_list_invoices with { "view": "overdue", "per_page": 10 }
+```
+
+**Returns:** Whatever the underlying tool returns (Markdown or JSON depending on the `response_format` argument where supported).
+
+---
+
 ## Contact Management
 
 ### freeagent_list_contacts

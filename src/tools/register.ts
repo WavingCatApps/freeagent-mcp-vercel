@@ -43,14 +43,16 @@ import {
   ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
   ListCategoriesInputSchema, GetCategoryInputSchema,
   GetCompanyInputSchema, ListUsersInputSchema,
+  SearchToolsInputSchema, CallToolInputSchema,
 } from "../schemas/index.js";
+import { searchTools, callTool } from "./tool-search.js";
 
 export interface ToolContext {
   clientSupportsElicitation: boolean;
   elicit: (params: ElicitRequestFormParams) => Promise<ElicitResult>;
 }
 
-interface ToolDefinition {
+export interface ToolDefinition {
   name: string;
   title: string;
   description: string;
@@ -487,7 +489,48 @@ export const toolDefinitions: ToolDefinition[] = [
 ];
 
 /**
- * Register all FreeAgent tools on an McpServer instance.
+ * Meta-tool definitions used when FREEAGENT_TOOL_SEARCH=true.
+ * These are the only tools exposed over tools/list in tool-search mode; the
+ * full catalog above is reachable through freeagent_call_tool.
+ */
+export const toolSearchMetaDefinitions: ToolDefinition[] = [
+  {
+    name: "freeagent_search_tools",
+    title: "Search FreeAgent Tool Catalog",
+    description:
+      "Search the FreeAgent tool catalog and return JSONSchema definitions for matching tools. Use this to discover which tool to call before invoking freeagent_call_tool. Supports 'select:name1,name2' for direct name lookup, '+required optional' to require specific keywords, or plain keywords for a ranked search.",
+    inputSchema: SearchToolsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    handler: (_apiClient, params) => searchTools(toolDefinitions, params),
+  },
+  {
+    name: "freeagent_call_tool",
+    title: "Call FreeAgent Tool By Name",
+    description:
+      "Invoke a FreeAgent catalog tool by name with the given arguments. Pair with freeagent_search_tools to discover tool names and input schemas — this meta-tool validates arguments against the target tool's Zod schema before dispatching.",
+    inputSchema: CallToolInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: (apiClient, params, ctx) => callTool(toolDefinitions, apiClient, params, ctx),
+  },
+];
+
+/**
+ * Whether tool-search mode is enabled. When true, only the two meta-tools are
+ * registered over MCP; the full catalog is reached through freeagent_call_tool.
+ * Controlled by the FREEAGENT_TOOL_SEARCH env var (accepts "true" or "1").
+ */
+export function isToolSearchMode(): boolean {
+  const raw = process.env.FREEAGENT_TOOL_SEARCH;
+  return raw === "true" || raw === "1";
+}
+
+/**
+ * Register FreeAgent tools on an McpServer instance.
+ *
+ * In default mode, registers every catalog tool directly. In tool-search mode
+ * (FREEAGENT_TOOL_SEARCH=true) registers only the two meta-tools
+ * freeagent_search_tools and freeagent_call_tool, which dramatically reduces
+ * the token footprint of tools/list for clients with many MCP servers.
  *
  * @param server - The McpServer to register tools on
  * @param apiClient - The FreeAgent API client to use for API calls
@@ -500,7 +543,9 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
     elicit: (params) => server.server.elicitInput(params),
   };
 
-  for (const tool of toolDefinitions) {
+  const tools = isToolSearchMode() ? toolSearchMetaDefinitions : toolDefinitions;
+
+  for (const tool of tools) {
     server.registerTool(
       tool.name,
       {
