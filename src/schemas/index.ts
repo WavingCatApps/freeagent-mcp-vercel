@@ -25,6 +25,30 @@ export const ResponseFormatSchema = z.nativeEnum(ResponseFormat)
   .default(ResponseFormat.MARKDOWN)
   .describe("Output format: 'markdown' for human-readable or 'json' for machine-readable");
 
+// Tool-search schemas (meta-tools used when FREEAGENT_TOOL_SEARCH=true)
+export const SearchToolsInputSchema = z.object({
+  query: z.string()
+    .min(1)
+    .describe(
+      "Query for the FreeAgent tool catalog. Forms: 'select:name1,name2' to fetch specific tools by exact name; '+must_have optional' to require certain keywords and rank by the rest; or plain keywords for a ranked search (e.g. 'list invoices', 'reconcile bank transaction')."
+    ),
+  max_results: z.number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(5)
+    .describe("Maximum number of tool schemas to return (default 5). Ignored for 'select:' queries, which return every named tool."),
+}).strict();
+
+export const CallToolInputSchema = z.object({
+  name: z.string()
+    .min(1)
+    .describe("Exact name of a FreeAgent tool from the catalog (e.g. 'freeagent_list_invoices'). Discover names with freeagent_search_tools first."),
+  arguments: z.record(z.string(), z.unknown())
+    .default({})
+    .describe("Arguments object matching the target tool's input schema. Use freeagent_search_tools to fetch the schema if unknown."),
+}).strict();
+
 // Contact schemas
 export const ListContactsInputSchema = z.object({
   page: PaginationSchema.shape.page,
@@ -1030,3 +1054,5 @@ export type GetRecurringInvoiceInput = z.infer<typeof GetRecurringInvoiceInputSc
 export type ListPriceListItemsInput = z.infer<typeof ListPriceListItemsInputSchema>;
 export type GetPriceListItemInput = z.infer<typeof GetPriceListItemInputSchema>;
 export type CreatePriceListItemInput = z.infer<typeof CreatePriceListItemInputSchema>;
+export type SearchToolsInput = z.infer<typeof SearchToolsInputSchema>;
+export type CallToolInput = z.infer<typeof CallToolInputSchema>;

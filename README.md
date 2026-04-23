@@ -8,6 +8,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 - **Broad FreeAgent coverage**: contacts, invoices (incl. transitions and discounts), estimates (incl. transitions), bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts, bank transaction explanations, categories, company info, and users
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
+- **Optional tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): collapses the tool catalog behind two meta-tools (`freeagent_search_tools`, `freeagent_call_tool`) so clients only pay the tool-definition token cost for tools they actually use
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
@@ -60,6 +61,23 @@ See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key po
 - Set `PRODUCTION_URL` env var for stable OAuth callback URLs
 
 Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`
+
+## Tool-Search Mode (optional)
+
+By default the server registers every catalog tool directly, which makes all ~50 tool definitions part of the MCP client's `tools/list` response. For clients with many connected MCP servers — where tool-definition tokens add up quickly — set:
+
+```bash
+export FREEAGENT_TOOL_SEARCH=true
+```
+
+In this mode the server exposes only two meta-tools:
+
+| Tool | Purpose |
+|------|---------|
+| `freeagent_search_tools` | Search the catalog and return JSONSchema for matching tools. Query forms: `select:name1,name2` for direct lookup, `+required optional` for scored search with required keywords, or plain keywords for a ranked search. |
+| `freeagent_call_tool` | Invoke any catalog tool by name with validated arguments (`{ name, arguments }`). Pair with `search_tools` to discover schemas on demand. |
+
+The full catalog is still reachable — it's just loaded on demand. This mirrors the deferred-loading pattern used by Claude Code's internal `ToolSearch`.
 
 ## Available Tools
 
