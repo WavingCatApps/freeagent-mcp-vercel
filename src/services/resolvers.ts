@@ -8,7 +8,7 @@
  */
 
 import type { FreeAgentApiClient } from "./api-client.js";
-import type { FreeAgentCategory, FreeAgentUser } from "../types.js";
+import type { FreeAgentCategory, FreeAgentContact, FreeAgentUser } from "../types.js";
 
 interface CategoryListResponse {
   admin_expenses_categories?: FreeAgentCategory[];
@@ -120,5 +120,62 @@ export async function resolveUser(
   }
   throw new Error(
     `This account has ${users.length} users; pass the \`user\` parameter (email, ID, or URL) to disambiguate.`
+  );
+}
+
+function contactLabel(c: FreeAgentContact): string {
+  if (c.organisation_name) return c.organisation_name;
+  const parts = [c.first_name, c.last_name].filter(Boolean);
+  return parts.join(" ") || "Unnamed contact";
+}
+
+/**
+ * Resolve a contact hint (URL, numeric ID, organisation or person name) to
+ * its canonical URL.
+ */
+export async function resolveContact(
+  client: FreeAgentApiClient,
+  hint: string
+): Promise<string> {
+  if (hint.startsWith("http")) return hint;
+
+  if (/^\d+$/.test(hint)) {
+    const response = await client.get<{ contact: FreeAgentContact }>(
+      `/contacts/${hint}`
+    );
+    return response.data.contact.url;
+  }
+
+  const response = await client.get<{ contacts: FreeAgentContact[] }>(
+    "/contacts",
+    { per_page: 100 }
+  );
+  const contacts = response.data.contacts ?? [];
+  const lower = hint.toLowerCase();
+
+  const exact = contacts.filter((c) => contactLabel(c).toLowerCase() === lower);
+  if (exact.length === 1) return exact[0].url;
+  if (exact.length > 1) {
+    throw new Error(
+      `Contact name "${hint}" matches ${exact.length} contacts exactly. Pass the contact ID or URL.`
+    );
+  }
+
+  const partial = contacts.filter((c) =>
+    contactLabel(c).toLowerCase().includes(lower)
+  );
+  if (partial.length === 1) return partial[0].url;
+  if (partial.length > 1) {
+    const suggestions = partial
+      .slice(0, 8)
+      .map(contactLabel)
+      .join(", ");
+    throw new Error(
+      `Contact "${hint}" matches multiple contacts: ${suggestions}. Pass the contact ID or URL.`
+    );
+  }
+
+  throw new Error(
+    `No contact matches "${hint}". Call freeagent_list_contacts to see available contacts.`
   );
 }

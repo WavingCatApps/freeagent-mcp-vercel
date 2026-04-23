@@ -649,6 +649,43 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+// Intent-bundle: draft an invoice from a contact's unbilled timeslips.
+export const InvoiceFromTimeslipsInputSchema = z.object({
+  contact: z.string()
+    .min(1)
+    .describe("Contact to invoice. Accepts a contact name, numeric ID, or URL."),
+  project: z.string()
+    .optional()
+    .describe("Optional: limit to a single project (URL or ID). Omit to invoice across all of the contact's active projects."),
+  from_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Include timeslips dated on or after this date (YYYY-MM-DD). Defaults to the first day of the previous month."),
+  to_date: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Include timeslips dated on or before this date (YYYY-MM-DD). Defaults to today."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Invoice date (YYYY-MM-DD). Defaults to today."),
+  due_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .describe("Invoice due date (YYYY-MM-DD)."),
+  reference: z.string()
+    .optional()
+    .describe("Invoice reference number."),
+  currency: z.string()
+    .length(3)
+    .optional()
+    .describe("Currency code (e.g. 'GBP', 'USD'). Defaults to GBP."),
+  payment_terms_in_days: z.number()
+    .int()
+    .optional()
+    .describe("Payment terms in days.")
+}).strict();
+
 // Intent-bundle: log a regular expense with human-friendly inputs.
 export const LogExpenseInputSchema = z.object({
   amount: z.string()
@@ -754,3 +791,4 @@ export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;
 export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;
 export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransactionInputSchema>;
 export type LogExpenseInput = z.infer<typeof LogExpenseInputSchema>;
+export type InvoiceFromTimeslipsInput = z.infer<typeof InvoiceFromTimeslipsInputSchema>;

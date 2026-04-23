@@ -9,6 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js";
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
+import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
 import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
@@ -21,7 +22,7 @@ import { listCategories, getCategory } from "./categories.js";
 import { getCompany, listUsers } from "./company.js";
 import {
   ListContactsInputSchema, GetContactInputSchema, CreateContactInputSchema,
-  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema,
+  ListInvoicesInputSchema, GetInvoiceInputSchema, CreateInvoiceInputSchema, InvoiceFromTimeslipsInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
@@ -103,6 +104,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreateInvoiceInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createInvoice,
+  },
+  {
+    name: "freeagent_invoice_from_timeslips",
+    title: "Draft FreeAgent Invoice From Timeslips",
+    description:
+      "Draft an invoice from a contact's unbilled timeslips in one call. Resolves the contact by name/ID/URL, finds active projects, collects unbilled timeslips in the given date range (defaults: first day of previous month → today), groups by task using the task or project billing rate, and posts a draft invoice. Note: the timeslips themselves are not auto-linked to the invoice.",
+    inputSchema: InvoiceFromTimeslipsInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: invoiceFromTimeslips,
   },
 
   // Expense Management
