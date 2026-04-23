@@ -13,6 +13,7 @@ import { listExpenses, getExpense, createExpense, updateExpense } from "./expens
 import { listTimeslips, getTimeslip, createTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
+import { reconcileBankTransaction } from "./reconcile.js";
 import { listProjects, getProject, createProject } from "./projects.js";
 import { listTasks, getTask, createTask } from "./tasks.js";
 import { listCategories, getCategory } from "./categories.js";
@@ -25,6 +26,7 @@ import {
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
   CreateBankTransactionExplanationInputSchema, UpdateBankTransactionExplanationInputSchema,
+  ReconcileBankTransactionInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
   ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
   ListCategoriesInputSchema, GetCategoryInputSchema,
@@ -228,6 +230,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateBankTransactionExplanation,
+  },
+  {
+    name: "freeagent_reconcile_bank_transaction",
+    title: "Reconcile FreeAgent Bank Transaction",
+    description:
+      "Explain a bank transaction in one call. Accepts a human-friendly hint (category name like 'Travel', nominal code like '285', or invoice reference like 'INV-001') and resolves it to the correct FreeAgent URL server-side. Auto-fills date and amount from the transaction, so you do not need to call get_bank_transaction or list_categories first. Provide exactly one of `category` or `paid_invoice`.",
+    inputSchema: ReconcileBankTransactionInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: reconcileBankTransaction,
   },
 
   // Project Management

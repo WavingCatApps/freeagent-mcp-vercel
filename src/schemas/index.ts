@@ -649,6 +649,28 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
     .describe("Destination bank account URL or ID for transfers")
 }).strict();
 
+// Intent-bundle: reconcile a bank transaction in one call.
+export const ReconcileBankTransactionInputSchema = z.object({
+  bank_transaction_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bank transaction ID (numeric) or full URL to reconcile."),
+  category: z.string()
+    .optional()
+    .describe("Category to post this transaction against. Accepts a category name (e.g. 'Travel'), nominal code (e.g. '285'), or full URL. Mutually exclusive with paid_invoice."),
+  paid_invoice: z.string()
+    .optional()
+    .describe("Invoice this transaction pays. Accepts an invoice reference (e.g. 'INV-001'), numeric ID, or full URL. Mutually exclusive with category."),
+  description: z.string()
+    .optional()
+    .describe("Free-text description for the explanation."),
+  marked_for_review: z.boolean()
+    .optional()
+    .describe("Set true to flag the explanation for human review (e.g. when the match is a guess)."),
+  receipt_reference: z.string()
+    .optional()
+    .describe("Receipt or transaction reference identifier.")
+}).strict();
+
 // Company schema
 export const GetCompanyInputSchema = z.object({
   response_format: ResponseFormatSchema
@@ -691,3 +713,4 @@ export type CreateBankTransactionExplanationInput = z.infer<typeof CreateBankTra
 export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTransactionExplanationInputSchema>;
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;
 export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;
+export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransactionInputSchema>;
