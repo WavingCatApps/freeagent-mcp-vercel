@@ -22,6 +22,8 @@ import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./ti
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
 import { reconcileBankTransaction } from "./reconcile.js";
+import { createTaskAndLogTime } from "./create-task-and-log-time.js";
+import { logTimeBatch } from "./log-time-batch.js";
 import { listProjects, getProject, createProject } from "./projects.js";
 import { listTasks, getTask, createTask } from "./tasks.js";
 import { listCategories, getCategory } from "./categories.js";
@@ -39,6 +41,7 @@ import {
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
   CreateBankTransactionExplanationInputSchema, UpdateBankTransactionExplanationInputSchema,
   ReconcileBankTransactionInputSchema,
+  CreateTaskAndLogTimeInputSchema, LogTimeBatchInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
   ListTasksInputSchema, GetTaskInputSchema, CreateTaskInputSchema,
   ListCategoriesInputSchema, GetCategoryInputSchema,
@@ -449,6 +452,24 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreateTaskInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createTask,
+  },
+  {
+    name: "freeagent_create_task_and_log_time",
+    title: "Create FreeAgent Task and Log Time",
+    description:
+      "Create a new task on a project and log one or more timeslips against it in one call. Accepts a project name/ID/URL, a task name, and an array of { dated_on, hours, comment? } entries. Resolves the project server-side; defaults `user` to the sole account user when there is exactly one. Per-entry timeslip failures are surfaced in the response — the task stays created either way.",
+    inputSchema: CreateTaskAndLogTimeInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createTaskAndLogTime,
+  },
+  {
+    name: "freeagent_log_time_batch",
+    title: "Log FreeAgent Time Across Multiple Tasks/Days",
+    description:
+      "Log time across one or more tasks and/or days in a single call. Takes an array of { task, dated_on, hours, comment? } entries where `task` may be a name (requires project scope on the entry or top-level), numeric ID, or URL. Defaults `user` to the sole account user. Each entry is resolved independently; per-entry failures are reported without aborting the batch.",
+    inputSchema: LogTimeBatchInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: logTimeBatch,
   },
 
   // Category Management

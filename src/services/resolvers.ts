@@ -8,7 +8,14 @@
  */
 
 import type { FreeAgentApiClient } from "./api-client.js";
-import type { FreeAgentBill, FreeAgentCategory, FreeAgentContact, FreeAgentUser } from "../types.js";
+import type {
+  FreeAgentBill,
+  FreeAgentCategory,
+  FreeAgentContact,
+  FreeAgentProject,
+  FreeAgentTask,
+  FreeAgentUser,
+} from "../types.js";
 
 interface CategoryListResponse {
   admin_expenses_categories?: FreeAgentCategory[];
@@ -209,5 +216,132 @@ export async function resolveBill(
   }
   throw new Error(
     `No open bill has reference "${hint}". Check the reference, or pass the bill ID/URL directly.`
+  );
+}
+
+/**
+ * Resolve a project hint (URL, numeric ID, name) to its canonical URL.
+ *
+ * Prefers an exact case-insensitive match on name before falling back to
+ * substring matching. Searches active projects first; retries across all
+ * projects if nothing matches, so completed/hidden projects remain findable
+ * by exact name.
+ */
+export async function resolveProject(
+  client: FreeAgentApiClient,
+  hint: string
+): Promise<string> {
+  if (hint.startsWith("http")) return hint;
+
+  if (/^\d+$/.test(hint)) {
+    const response = await client.get<{ project: FreeAgentProject }>(
+      `/projects/${hint}`
+    );
+    return response.data.project.url;
+  }
+
+  const lower = hint.toLowerCase();
+
+  const tryMatch = (projects: FreeAgentProject[]): string | undefined => {
+    const exact = projects.filter((p) => p.name.toLowerCase() === lower);
+    if (exact.length === 1) return exact[0].url;
+    if (exact.length > 1) {
+      throw new Error(
+        `Project name "${hint}" matches ${exact.length} projects exactly. Pass the project ID or URL.`
+      );
+    }
+    const partial = projects.filter((p) => p.name.toLowerCase().includes(lower));
+    if (partial.length === 1) return partial[0].url;
+    if (partial.length > 1) {
+      const suggestions = partial.slice(0, 8).map((p) => p.name).join(", ");
+      throw new Error(
+        `Project "${hint}" matches multiple projects: ${suggestions}. Pass the project ID or URL.`
+      );
+    }
+    return undefined;
+  };
+
+  const active = await client.get<{ projects: FreeAgentProject[] }>(
+    "/projects",
+    { view: "active", per_page: 100 }
+  );
+  const activeMatch = tryMatch(active.data.projects ?? []);
+  if (activeMatch) return activeMatch;
+
+  const all = await client.get<{ projects: FreeAgentProject[] }>(
+    "/projects",
+    { view: "all", per_page: 100 }
+  );
+  const allMatch = tryMatch(all.data.projects ?? []);
+  if (allMatch) return allMatch;
+
+  throw new Error(
+    `No project matches "${hint}". Call freeagent_list_projects to see available projects.`
+  );
+}
+
+/**
+ * Resolve a task hint (URL, numeric ID, or name-within-project) to its
+ * canonical URL together with the project URL it belongs to.
+ *
+ * - URL or numeric ID: fetched directly; `projectHint` is only used to sanity
+ *   check that the task belongs to the expected project.
+ * - Name: `projectHint` is required to scope the lookup, since task names are
+ *   only unique within a project.
+ */
+export async function resolveTask(
+  client: FreeAgentApiClient,
+  hint: string,
+  projectHint?: string
+): Promise<{ url: string; projectUrl: string }> {
+  if (hint.startsWith("http") || /^\d+$/.test(hint)) {
+    const taskPath = hint.startsWith("http") ? hint : `/tasks/${hint}`;
+    const response = await client.get<{ task: FreeAgentTask }>(taskPath);
+    const task = response.data.task;
+    if (projectHint) {
+      const expected = await resolveProject(client, projectHint);
+      if (task.project !== expected) {
+        throw new Error(
+          `Task ${task.url} belongs to a different project than "${projectHint}".`
+        );
+      }
+    }
+    return { url: task.url, projectUrl: task.project };
+  }
+
+  if (!projectHint) {
+    throw new Error(
+      `Task "${hint}" must be paired with a \`project\` (name, ID, or URL) when passed by name, since task names are not globally unique.`
+    );
+  }
+
+  const projectUrl = await resolveProject(client, projectHint);
+  const response = await client.get<{ tasks: FreeAgentTask[] }>("/tasks", {
+    project: projectUrl,
+    view: "active",
+    per_page: 100,
+  });
+  const tasks = response.data.tasks ?? [];
+  const lower = hint.toLowerCase();
+
+  const exact = tasks.filter((t) => t.name.toLowerCase() === lower);
+  if (exact.length === 1) return { url: exact[0].url, projectUrl };
+  if (exact.length > 1) {
+    throw new Error(
+      `Task name "${hint}" matches ${exact.length} active tasks on this project. Pass the task ID or URL.`
+    );
+  }
+
+  const partial = tasks.filter((t) => t.name.toLowerCase().includes(lower));
+  if (partial.length === 1) return { url: partial[0].url, projectUrl };
+  if (partial.length > 1) {
+    const suggestions = partial.slice(0, 8).map((t) => t.name).join(", ");
+    throw new Error(
+      `Task "${hint}" matches multiple tasks on this project: ${suggestions}. Pass the task ID or URL, or use the exact task name.`
+    );
+  }
+
+  throw new Error(
+    `No active task matches "${hint}" on this project. Call freeagent_list_tasks to see available tasks, or create the task first.`
   );
 }

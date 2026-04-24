@@ -970,6 +970,75 @@ export const LogExpenseInputSchema = z.object({
     .describe("Project URL or ID to associate with the expense.")
 }).strict();
 
+// Intent-bundle: create a task and log one or more timeslips against it.
+const LogTimeEntrySchema = z.object({
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Date of work in YYYY-MM-DD format."),
+  hours: z.string()
+    .describe("Hours worked as a decimal string (e.g. '7.5')."),
+  comment: z.string()
+    .optional()
+    .describe("Optional description of the work performed.")
+}).strict();
+
+export const CreateTaskAndLogTimeInputSchema = z.object({
+  project: z.string()
+    .min(1)
+    .describe("Project the new task belongs to. Accepts a project name, numeric ID, or URL."),
+  task_name: z.string()
+    .min(1)
+    .describe("Name of the new task to create within the project."),
+  is_billable: z.boolean()
+    .default(true)
+    .describe("Whether the new task is billable."),
+  billing_rate: z.string()
+    .optional()
+    .describe("Billing rate for the new task (decimal string). Falls back to the project's normal_billing_rate when omitted."),
+  billing_period: z.enum(["hour", "day"])
+    .optional()
+    .describe("Billing period for the new task ('hour' or 'day')."),
+  status: z.enum(["Active", "Completed", "Hidden"])
+    .default("Active")
+    .describe("Status of the new task."),
+  user: z.string()
+    .optional()
+    .describe("User to log the time against. Accepts email, numeric ID, or URL. Defaults to the sole user on the account when there is exactly one."),
+  entries: z.array(LogTimeEntrySchema)
+    .min(1)
+    .describe("One or more timeslips to log against the newly-created task. Each entry needs dated_on and hours; comment is optional.")
+}).strict();
+
+// Intent-bundle: log time across one or more tasks / days in a single call.
+const BatchLogTimeEntrySchema = z.object({
+  task: z.string()
+    .min(1)
+    .describe("Task to log against. Accepts a task name (requires `project` on the entry or top-level), numeric ID, or full URL."),
+  project: z.string()
+    .optional()
+    .describe("Optional project scope for this entry. Required when `task` is a name and no top-level project is set. Accepts a project name, numeric ID, or URL."),
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Date of work in YYYY-MM-DD format."),
+  hours: z.string()
+    .describe("Hours worked as a decimal string (e.g. '7.5')."),
+  comment: z.string()
+    .optional()
+    .describe("Optional description of the work performed.")
+}).strict();
+
+export const LogTimeBatchInputSchema = z.object({
+  entries: z.array(BatchLogTimeEntrySchema)
+    .min(1)
+    .describe("One or more timeslip entries to log. Entries may reference different tasks and different dates; resolution is per-entry."),
+  project: z.string()
+    .optional()
+    .describe("Optional top-level project scope used when an entry passes `task` by name and has no own project. Accepts a project name, numeric ID, or URL."),
+  user: z.string()
+    .optional()
+    .describe("User to log the time against for all entries. Accepts email, numeric ID, or URL. Defaults to the sole user on the account when there is exactly one.")
+}).strict();
+
 // Intent-bundle: reconcile a bank transaction in one call.
 export const ReconcileBankTransactionInputSchema = z.object({
   bank_transaction_id: z.string()
@@ -1039,6 +1108,8 @@ export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTra
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;
 export type ListUsersInput = z.infer<typeof ListUsersInputSchema>;
 export type ReconcileBankTransactionInput = z.infer<typeof ReconcileBankTransactionInputSchema>;
+export type CreateTaskAndLogTimeInput = z.infer<typeof CreateTaskAndLogTimeInputSchema>;
+export type LogTimeBatchInput = z.infer<typeof LogTimeBatchInputSchema>;
 export type LogExpenseInput = z.infer<typeof LogExpenseInputSchema>;
 export type InvoiceFromTimeslipsInput = z.infer<typeof InvoiceFromTimeslipsInputSchema>;
 export type TransitionInvoiceInput = z.infer<typeof TransitionInvoiceInputSchema>;
