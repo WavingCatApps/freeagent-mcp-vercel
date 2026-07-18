@@ -1,0 +1,227 @@
+diff --git a/src/index.ts b/src/index.ts
+index 06f5566..8f62bd4 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -14,6 +14,16 @@ import { registerAllTools } from "./tools/register.js";
+ // Get configuration from environment
+ const ACCESS_TOKEN = process.env.FREEAGENT_ACCESS_TOKEN;
+ const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
++const CLIENT_ID = process.env.FREEAGENT_CLIENT_ID;
++const CLIENT_SECRET = process.env.FREEAGENT_CLIENT_SECRET;
++const REFRESH_TOKEN = process.env.FREEAGENT_REFRESH_TOKEN;
++
++// Refresh is optional: without it the server still runs, but the access token
++// expires after about an hour and has to be re-minted by hand.
++const REFRESH_CONFIG =
++  CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN
++    ? { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, refreshToken: REFRESH_TOKEN }
++    : undefined;
+ 
+ // Logging helper with timestamps
+ function log(level: string, message: string, data?: Record<string, unknown>) {
+@@ -29,8 +39,8 @@ function log(level: string, message: string, data?: Record<string, unknown>) {
+ 
+ async function main() {
+   // Validate environment variables
+-  if (!ACCESS_TOKEN) {
+-    log("error", "FREEAGENT_ACCESS_TOKEN environment variable is required", {
++  if (!ACCESS_TOKEN && !REFRESH_CONFIG) {
++    log("error", "FREEAGENT_ACCESS_TOKEN or refresh credentials are required", {
+       instructions: [
+         "Create an app at https://dev.freeagent.com",
+         "Use OAuth 2.0 to obtain an access token",
+@@ -54,7 +64,7 @@ async function main() {
+     version: "1.0.0"
+   });
+ 
+-  const apiClient = new FreeAgentApiClient(ACCESS_TOKEN, USE_SANDBOX);
++  const apiClient = new FreeAgentApiClient(ACCESS_TOKEN ?? "", USE_SANDBOX, REFRESH_CONFIG);
+   registerAllTools(server, apiClient);
+ 
+   // Create transport
+@@ -140,11 +150,15 @@ async function main() {
+       clearInterval(heartbeatInterval);
+     });
+ 
+-    // Warning: Log token expiration concern (tokens typically expire after 1 hour)
+-    log("warn", "Note: FreeAgent access tokens typically expire after 1 hour. If you experience disconnects, check token expiration.", {
+-      tokenLength: ACCESS_TOKEN.length,
+-      suggestion: "Consider implementing OAuth refresh tokens for long-running connections",
+-    });
++    if (REFRESH_CONFIG) {
++      log("info", "Automatic token refresh is enabled.", {
++        detail: "Expired access tokens are refreshed and the request retried once.",
++      });
++    } else {
++      log("warn", "No refresh credentials configured. FreeAgent access tokens expire after about an hour.", {
++        suggestion: "Set FREEAGENT_CLIENT_ID, FREEAGENT_CLIENT_SECRET and FREEAGENT_REFRESH_TOKEN to refresh automatically.",
++      });
++    }
+   } catch (error) {
+     log("error", "Failed to connect server to transport", {
+       error: error instanceof Error ? error.message : String(error),
+diff --git a/src/services/api-client.test.ts b/src/services/api-client.test.ts
+index a740929..e294a49 100644
+--- a/src/services/api-client.test.ts
++++ b/src/services/api-client.test.ts
+@@ -6,6 +6,11 @@ interface MockAxiosInstance {
+   post: Mock;
+   put: Mock;
+   delete: Mock;
++  request: Mock;
++  interceptors: {
++    request: { use: Mock };
++    response: { use: Mock };
++  };
+ }
+ 
+ // Mock axios at the module level
+@@ -15,11 +20,18 @@ vi.mock("axios", () => {
+     post: vi.fn(),
+     put: vi.fn(),
+     delete: vi.fn(),
++    request: vi.fn(),
++    // The client registers auth and refresh interceptors in its constructor.
++    interceptors: {
++      request: { use: vi.fn() },
++      response: { use: vi.fn() },
++    },
+   };
+ 
+   return {
+     default: {
+       create: vi.fn(() => mockAxiosInstance),
++      post: vi.fn(),
+       isAxiosError: vi.fn((error: unknown) => (error as Record<string, unknown>).isAxiosError === true),
+     },
+     __mockInstance: mockAxiosInstance,
+diff --git a/src/services/api-client.ts b/src/services/api-client.ts
+index 60f4546..6684d7c 100644
+--- a/src/services/api-client.ts
++++ b/src/services/api-client.ts
+@@ -11,27 +11,123 @@ export interface ApiResponse<T> {
+   headers: Record<string, string>;
+ }
+ 
++export interface RefreshConfig {
++  clientId: string;
++  clientSecret: string;
++  refreshToken: string;
++}
++
+ export class FreeAgentApiClient {
+   private axiosInstance: AxiosInstance;
+   private accessToken: string;
+   private useSandbox: boolean;
++  private refreshConfig?: RefreshConfig;
++  private refreshInFlight?: Promise<string>;
+ 
+-  constructor(accessToken: string, useSandbox: boolean = false) {
++  constructor(accessToken: string, useSandbox: boolean = false, refreshConfig?: RefreshConfig) {
+     this.accessToken = accessToken;
+     this.useSandbox = useSandbox;
++    this.refreshConfig = refreshConfig;
+ 
+     const baseURL = useSandbox ? SANDBOX_API_BASE_URL : API_BASE_URL;
+ 
+     this.axiosInstance = axios.create({
+       baseURL: `${baseURL}/${API_VERSION}`,
+       headers: {
+-        "Authorization": `Bearer ${accessToken}`,
+         "User-Agent": "FreeAgent-MCP-Server/1.0.0",
+         "Accept": "application/json",
+         "Content-Type": "application/json"
+       },
+       timeout: 30000
+     });
++
++    // Attach the current token per request rather than freezing it at construction,
++    // so a refreshed token is picked up by subsequent calls.
++    this.axiosInstance.interceptors.request.use(async (config) => {
++      if (!this.accessToken && this.refreshConfig) {
++        await this.refreshAccessToken();
++      }
++      config.headers.set("Authorization", `Bearer ${this.accessToken}`);
++      return config;
++    });
++
++    // FreeAgent access tokens expire after roughly an hour. Without this, a
++    // long-running stdio session dies mid-task and needs a manual re-mint.
++    this.axiosInstance.interceptors.response.use(
++      (response) => response,
++      async (error: AxiosError) => {
++        const original = error.config as (AxiosRequestConfig & { _retried?: boolean }) | undefined;
++
++        if (
++          error.response?.status === 401 &&
++          this.refreshConfig &&
++          original &&
++          !original._retried
++        ) {
++          original._retried = true;
++          await this.refreshAccessToken();
++          return this.axiosInstance.request(original);
++        }
++
++        return Promise.reject(error);
++      }
++    );
++  }
++
++  /**
++   * Exchange the refresh token for a new access token.
++   * Concurrent callers share a single in-flight refresh so a burst of parallel
++   * tool calls does not trigger several redundant token exchanges.
++   */
++  private async refreshAccessToken(): Promise<string> {
++    if (!this.refreshConfig) {
++      throw new Error(
++        "Access token expired and no refresh credentials are configured. " +
++        "Set FREEAGENT_CLIENT_ID, FREEAGENT_CLIENT_SECRET and FREEAGENT_REFRESH_TOKEN."
++      );
++    }
++
++    if (this.refreshInFlight) return this.refreshInFlight;
++
++    const baseURL = this.useSandbox ? SANDBOX_API_BASE_URL : API_BASE_URL;
++    const { clientId, clientSecret, refreshToken } = this.refreshConfig;
++
++    this.refreshInFlight = (async () => {
++      try {
++        // Plain axios, not the instance, to avoid re-entering the interceptors.
++        const response = await axios.post<{ access_token: string }>(
++          `${baseURL}/${API_VERSION}/token_endpoint`,
++          new URLSearchParams({
++            grant_type: "refresh_token",
++            refresh_token: refreshToken
++          }).toString(),
++          {
++            auth: { username: clientId, password: clientSecret },
++            headers: { "Content-Type": "application/x-www-form-urlencoded" },
++            timeout: 30000
++          }
++        );
++
++        if (!response.data?.access_token) {
++          throw new Error("Token endpoint returned no access_token.");
++        }
++
++        this.accessToken = response.data.access_token;
++        return this.accessToken;
++      } catch (err) {
++        const detail = axios.isAxiosError(err)
++          ? `${err.response?.status ?? "network error"}`
++          : String(err);
++        throw new Error(
++          `Failed to refresh the FreeAgent access token (${detail}). ` +
++          "The refresh token may have been revoked; re-run the OAuth flow."
++        );
++      } finally {
++        this.refreshInFlight = undefined;
++      }
++    })();
++
++    return this.refreshInFlight;
+   }
+ 
+   /**

@@ -14,6 +14,16 @@ import { registerAllTools } from "./tools/register.js";
 // Get configuration from environment
 const ACCESS_TOKEN = process.env.FREEAGENT_ACCESS_TOKEN;
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
+const CLIENT_ID = process.env.FREEAGENT_CLIENT_ID;
+const CLIENT_SECRET = process.env.FREEAGENT_CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.FREEAGENT_REFRESH_TOKEN;
+
+// Refresh is optional: without it the server still runs, but the access token
+// expires after about an hour and has to be re-minted by hand.
+const REFRESH_CONFIG =
+  CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN
+    ? { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, refreshToken: REFRESH_TOKEN }
+    : undefined;
 
 // Logging helper with timestamps
 function log(level: string, message: string, data?: Record<string, unknown>) {
@@ -29,8 +39,8 @@ function log(level: string, message: string, data?: Record<string, unknown>) {
 
 async function main() {
   // Validate environment variables
-  if (!ACCESS_TOKEN) {
-    log("error", "FREEAGENT_ACCESS_TOKEN environment variable is required", {
+  if (!ACCESS_TOKEN && !REFRESH_CONFIG) {
+    log("error", "FREEAGENT_ACCESS_TOKEN or refresh credentials are required", {
       instructions: [
         "Create an app at https://dev.freeagent.com",
         "Use OAuth 2.0 to obtain an access token",
@@ -54,7 +64,7 @@ async function main() {
     version: "1.0.0"
   });
 
-  const apiClient = new FreeAgentApiClient(ACCESS_TOKEN, USE_SANDBOX);
+  const apiClient = new FreeAgentApiClient(ACCESS_TOKEN ?? "", USE_SANDBOX, REFRESH_CONFIG);
   registerAllTools(server, apiClient);
 
   // Create transport
@@ -140,11 +150,15 @@ async function main() {
       clearInterval(heartbeatInterval);
     });
 
-    // Warning: Log token expiration concern (tokens typically expire after 1 hour)
-    log("warn", "Note: FreeAgent access tokens typically expire after 1 hour. If you experience disconnects, check token expiration.", {
-      tokenLength: ACCESS_TOKEN.length,
-      suggestion: "Consider implementing OAuth refresh tokens for long-running connections",
-    });
+    if (REFRESH_CONFIG) {
+      log("info", "Automatic token refresh is enabled.", {
+        detail: "Expired access tokens are refreshed and the request retried once.",
+      });
+    } else {
+      log("warn", "No refresh credentials configured. FreeAgent access tokens expire after about an hour.", {
+        suggestion: "Set FREEAGENT_CLIENT_ID, FREEAGENT_CLIENT_SECRET and FREEAGENT_REFRESH_TOKEN to refresh automatically.",
+      });
+    }
   } catch (error) {
     log("error", "Failed to connect server to transport", {
       error: error instanceof Error ? error.message : String(error),

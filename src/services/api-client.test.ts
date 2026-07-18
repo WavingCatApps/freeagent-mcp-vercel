@@ -6,6 +6,11 @@ interface MockAxiosInstance {
   post: Mock;
   put: Mock;
   delete: Mock;
+  request: Mock;
+  interceptors: {
+    request: { use: Mock };
+    response: { use: Mock };
+  };
 }
 
 // Mock axios at the module level
@@ -15,11 +20,18 @@ vi.mock("axios", () => {
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
+    request: vi.fn(),
+    // The client registers auth and refresh interceptors in its constructor.
+    interceptors: {
+      request: { use: vi.fn() },
+      response: { use: vi.fn() },
+    },
   };
 
   return {
     default: {
       create: vi.fn(() => mockAxiosInstance),
+      post: vi.fn(),
       isAxiosError: vi.fn((error: unknown) => (error as Record<string, unknown>).isAxiosError === true),
     },
     __mockInstance: mockAxiosInstance,
