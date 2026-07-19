@@ -620,10 +620,23 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
         annotations: tool.annotations,
       },
       async (params: any) => {
+        // Stderr breadcrumbs (visible in mcp-server-*.log): Claude Desktop's own
+        // log lines don't name the tool, which made the 19 Jul "hang" report
+        // undiagnosable from the server side. This records tool, duration, outcome.
+        const startedAt = Date.now();
+        const logCall = (outcome: "ok" | "error", detail?: string) =>
+          console.error(JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: outcome === "ok" ? "info" : "warn",
+            message: "tool call finished",
+            data: { tool: tool.name, outcome, durationMs: Date.now() - startedAt, ...(detail && { detail }) },
+          }));
         try {
           const result = await tool.handler(apiClient, params, ctx);
+          logCall("ok");
           return { content: [{ type: "text" as const, text: result }] };
         } catch (error) {
+          logCall("error", error instanceof Error ? error.message : String(error));
           return { isError: true, content: [{ type: "text" as const, text: formatErrorForLLM(error as Error) }] };
         }
       }

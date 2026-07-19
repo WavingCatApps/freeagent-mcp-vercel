@@ -17,6 +17,49 @@ export interface RefreshConfig {
   refreshToken: string;
 }
 
+/** How many times a 429-rejected request is retried before giving up. */
+export const RATE_LIMIT_MAX_RETRIES = 2;
+/** Upper bound on a single rate-limit wait, whatever Retry-After says. */
+export const RATE_LIMIT_MAX_WAIT_MS = 65_000;
+/** Wait used when a 429 arrives without a usable Retry-After header. */
+export const RATE_LIMIT_DEFAULT_WAIT_MS = 30_000;
+
+/** Default per-request timeout; overridable via FREEAGENT_TIMEOUT_MS. */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+
+function requestTimeoutMs(): number {
+  const raw = Number(process.env.FREEAGENT_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+}
+
+/**
+ * Parse a Retry-After header (delta-seconds or HTTP-date) into a wait in ms,
+ * clamped to [1s, RATE_LIMIT_MAX_WAIT_MS]. Missing/garbage input falls back
+ * to RATE_LIMIT_DEFAULT_WAIT_MS.
+ */
+export function parseRetryAfterMs(headerValue: unknown): number {
+  let ms: number | undefined;
+
+  if (typeof headerValue === "string" || typeof headerValue === "number") {
+    const asNumber = Number(headerValue);
+    if (Number.isFinite(asNumber)) {
+      ms = asNumber * 1000;
+    } else if (typeof headerValue === "string") {
+      const asDate = Date.parse(headerValue);
+      if (!Number.isNaN(asDate)) ms = asDate - Date.now();
+    }
+  }
+
+  if (ms === undefined || !Number.isFinite(ms)) ms = RATE_LIMIT_DEFAULT_WAIT_MS;
+  return Math.min(Math.max(ms, 1000), RATE_LIMIT_MAX_WAIT_MS);
+}
+
+// Structured stderr logging: stderr is safe on a stdio MCP transport and ends
+// up in Claude Desktop's mcp-server-*.log, which is where hangs get diagnosed.
+function logWarn(message: string, data?: Record<string, unknown>) {
+  console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "warn", message, ...(data && { data }) }));
+}
+
 export class FreeAgentApiClient {
   private axiosInstance: AxiosInstance;
   private accessToken: string;
@@ -38,7 +81,7 @@ export class FreeAgentApiClient {
         "Accept": "application/json",
         "Content-Type": "application/json"
       },
-      timeout: 30000
+      timeout: requestTimeoutMs()
     });
 
     // Attach the current token per request rather than freezing it at construction,
@@ -53,10 +96,14 @@ export class FreeAgentApiClient {
 
     // FreeAgent access tokens expire after roughly an hour. Without this, a
     // long-running stdio session dies mid-task and needs a manual re-mint.
+    // 429s are retried with backoff because the sandbox allows only 5
+    // requests/min (production 15/min) and several tools make 2-3 API calls.
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        const original = error.config as (AxiosRequestConfig & { _retried?: boolean }) | undefined;
+        const original = error.config as
+          | (AxiosRequestConfig & { _retried?: boolean; _rateLimitRetries?: number })
+          | undefined;
 
         if (
           error.response?.status === 401 &&
@@ -69,9 +116,35 @@ export class FreeAgentApiClient {
           return this.axiosInstance.request(original);
         }
 
+        if (error.response?.status === 429 && original) {
+          const attempts = original._rateLimitRetries ?? 0;
+          if (attempts < RATE_LIMIT_MAX_RETRIES) {
+            original._rateLimitRetries = attempts + 1;
+            const waitMs = parseRetryAfterMs(error.response.headers?.["retry-after"]);
+            logWarn("FreeAgent rate limit hit (429); backing off before retrying", {
+              url: original.url,
+              attempt: original._rateLimitRetries,
+              maxRetries: RATE_LIMIT_MAX_RETRIES,
+              waitMs,
+              environment: this.useSandbox ? "sandbox" : "production",
+            });
+            await this.sleep(waitMs);
+            return this.axiosInstance.request(original);
+          }
+          logWarn("FreeAgent rate limit hit (429); retries exhausted", {
+            url: original.url,
+            attempts,
+          });
+        }
+
         return Promise.reject(error);
       }
     );
+  }
+
+  /** Wrapped so tests can stub the wait without faking global timers. */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -104,7 +177,9 @@ export class FreeAgentApiClient {
           {
             auth: { username: clientId, password: clientSecret },
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            timeout: 30000
+            // Bounded so a stalled token endpoint can never wedge the shared
+            // in-flight refresh promise (and with it every queued request).
+            timeout: requestTimeoutMs()
           }
         );
 
@@ -190,12 +265,15 @@ export class FreeAgentApiClient {
         const status = axiosError.response.status;
         const data = axiosError.response.data;
 
-        // Rate limiting
+        // Rate limiting (surfaced only after automatic retries are exhausted)
         if (status === 429) {
           const retryAfter = axiosError.response.headers["retry-after"];
+          const limit = this.useSandbox
+            ? "5 requests per 60 seconds (sandbox)"
+            : "15 requests per 60 seconds";
           return new Error(
-            `Rate limit exceeded. Please retry after ${retryAfter || 60} seconds. ` +
-            `FreeAgent allows 15 requests per 60 seconds.`
+            `Rate limit exceeded and automatic retries (${RATE_LIMIT_MAX_RETRIES}) were exhausted. ` +
+            `Wait ${retryAfter || 60} seconds before the next call. FreeAgent allows ${limit}.`
           );
         }
 
