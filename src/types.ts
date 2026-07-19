@@ -226,6 +226,8 @@ export interface FreeAgentBankTransactionExplanation {
   gross_value: string;
   description?: string;
   category?: string;
+  type?: string;
+  linked_transfer_account?: string;
   ec_status?: string;
   receipt_reference?: string;
   marked_for_review?: boolean;

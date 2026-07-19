@@ -1056,3 +1056,110 @@ export type GetPriceListItemInput = z.infer<typeof GetPriceListItemInputSchema>;
 export type CreatePriceListItemInput = z.infer<typeof CreatePriceListItemInputSchema>;
 export type SearchToolsInput = z.infer<typeof SearchToolsInputSchema>;
 export type CallToolInput = z.infer<typeof CallToolInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Journal sets (added in freeagent-mcp-kittens fork)
+// ---------------------------------------------------------------------------
+
+export const JournalEntryInputSchema = z.object({
+  category: z.string()
+    .min(1)
+    .describe("Accounting category for the entry. Accepts a category name (e.g. 'Corporation Tax'), nominal code (e.g. '625'), or full URL."),
+  debit_value: z.number()
+    .describe("Entry value. Positive = debit, negative = credit. All entries in a set must sum to zero."),
+  description: z.string().optional()
+    .describe("Free-text description for this entry."),
+  user: z.string().optional()
+    .describe("Required for user categories (salary, dividends, etc). Accepts a user name, email, numeric ID, or full URL.")
+}).strict();
+
+export const ListJournalSetsInputSchema = z.object({
+  from_date: z.string().optional().describe("Filter sets dated on or after this date (YYYY-MM-DD)."),
+  to_date: z.string().optional().describe("Filter sets dated on or before this date (YYYY-MM-DD)."),
+  tag: z.string().optional().describe("Filter by application tag."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const GetJournalSetInputSchema = z.object({
+  journal_set_id: z.string().min(1).describe("Journal set numeric ID or full URL."),
+  response_format: ResponseFormatSchema
+}).strict();
+
+export const CreateJournalSetInputSchema = z.object({
+  dated_on: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Date the journal entries take effect (YYYY-MM-DD)."),
+  description: z.string().min(1)
+    .describe("Description of the journal set (e.g. 'FY24-25 Corporation Tax zeroing - IoM 0% rate')."),
+  journal_entries: z.array(JournalEntryInputSchema)
+    .min(2)
+    .describe("The entries making up the set. Must balance: debit values must sum to zero."),
+  tag: z.string().optional()
+    .describe("CAUTION: tagged journal sets become UNEDITABLE in the FreeAgent web UI (API-only). Leave unset unless that is deliberate.")
+}).strict().refine(
+  (v) => Math.abs(v.journal_entries.reduce((s, e) => s + e.debit_value, 0)) < 0.005,
+  { message: "Journal set does not balance: debit values must sum to zero (debits positive, credits negative)." }
+);
+
+export const UpdateJournalEntrySchema = z.object({
+  url: z.string().optional()
+    .describe("URL of an existing entry to modify or remove. Omit to add a new entry."),
+  _destroy: z.boolean().optional()
+    .describe("Set true (with url) to remove that entry from the set."),
+  category: z.string().optional()
+    .describe("Category name, nominal code, or URL (for new or modified entries)."),
+  debit_value: z.number().optional()
+    .describe("Entry value. Positive = debit, negative = credit."),
+  description: z.string().optional(),
+  user: z.string().optional()
+    .describe("User name, email, ID, or URL for user categories.")
+}).strict();
+
+export const UpdateJournalSetInputSchema = z.object({
+  journal_set_id: z.string().min(1).describe("Journal set numeric ID or full URL."),
+  dated_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  description: z.string().optional(),
+  journal_entries: z.array(UpdateJournalEntrySchema).optional()
+    .describe("Entries to add (no url), modify (url + fields), or remove (url + _destroy). The resulting set must still balance; FreeAgent rejects unbalanced sets.")
+}).strict();
+
+export const DeleteJournalSetInputSchema = z.object({
+  journal_set_id: z.string().min(1).describe("Journal set numeric ID or full URL."),
+  confirm: z.literal(true)
+    .describe("Must be exactly true. Acknowledges this permanently deletes the journal set and all its entries.")
+}).strict();
+
+// ---------------------------------------------------------------------------
+// Bank statement upload + explanation delete (fork additions)
+// ---------------------------------------------------------------------------
+
+export const StatementTransactionSchema = z.object({
+  dated_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Transaction date (YYYY-MM-DD)."),
+  amount: z.number().describe("Amount in the company's native currency. Negative = money out."),
+  description: z.string().min(1).describe("Transaction description as it should appear in FreeAgent."),
+  fitid: z.string().optional().describe("Unique transaction ID (FITID). Strongly recommended to prevent false de-duplication."),
+  transaction_type: z.enum(["CREDIT","DEBIT","INT","DIV","FEE","SRVCHG","DEP","ATM","POS","XFER","CHECK","PAYMENT","CASH","DIRECTDEP","DIRECTDEBIT","REPEATPMT","OTHER"]).optional()
+    .describe("OFX transaction type. Note some types force the sign (e.g. XFER always negative). Default OTHER (sign taken from amount).")
+}).strict();
+
+export const UploadBankStatementInputSchema = z.object({
+  bank_account: z.string().min(1)
+    .describe("Bank account numeric ID or full URL to upload into."),
+  transactions: z.array(StatementTransactionSchema).min(1)
+    .describe("Transactions to add. WARNING: FreeAgent de-duplicates against existing transactions with the same date+amount+description, silently dropping matches. To deliberately add a same-day twin, vary the description or supply a unique fitid. The tool verifies what actually imported and reports any dropped rows.")
+}).strict();
+
+export const DeleteBankTransactionExplanationInputSchema = z.object({
+  bank_transaction_explanation_id: z.string().min(1)
+    .describe("Explanation numeric ID or full URL to delete. The underlying bank transaction is NOT deleted; it returns to unexplained."),
+  confirm: z.literal(true)
+    .describe("Must be exactly true. Acknowledges this permanently deletes the explanation (unlinking any transfer pairing).")
+}).strict();
+
+export type ListJournalSetsInput = z.infer<typeof ListJournalSetsInputSchema>;
+export type GetJournalSetInput = z.infer<typeof GetJournalSetInputSchema>;
+export type CreateJournalSetInput = z.infer<typeof CreateJournalSetInputSchema>;
+export type UpdateJournalSetInput = z.infer<typeof UpdateJournalSetInputSchema>;
+export type DeleteJournalSetInput = z.infer<typeof DeleteJournalSetInputSchema>;
+export type UploadBankStatementInput = z.infer<typeof UploadBankStatementInputSchema>;
+export type DeleteBankTransactionExplanationInput = z.infer<typeof DeleteBankTransactionExplanationInputSchema>;

@@ -22,6 +22,8 @@ import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./ti
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
 import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
 import { reconcileBankTransaction } from "./reconcile.js";
+import { listJournalSets, getJournalSet, createJournalSet, updateJournalSet, deleteJournalSet } from "./journal-sets.js";
+import { uploadBankStatement, deleteBankTransactionExplanation } from "./statement-upload.js";
 import { listProjects, getProject, createProject } from "./projects.js";
 import { listTasks, getTask, createTask } from "./tasks.js";
 import { listCategories, getCategory } from "./categories.js";
@@ -44,6 +46,9 @@ import {
   ListCategoriesInputSchema, GetCategoryInputSchema,
   GetCompanyInputSchema, ListUsersInputSchema,
   SearchToolsInputSchema, CallToolInputSchema,
+  ListJournalSetsInputSchema, GetJournalSetInputSchema, CreateJournalSetInputSchema,
+  UpdateJournalSetInputSchema, DeleteJournalSetInputSchema,
+  UploadBankStatementInputSchema, DeleteBankTransactionExplanationInputSchema,
 } from "../schemas/index.js";
 import { searchTools, callTool } from "./tool-search.js";
 
@@ -207,6 +212,66 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: CreatePriceListItemInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createPriceListItem,
+  },
+
+  // Journal Sets (fork addition: manual-jurisdiction adjustments, e.g. IoM CT zeroing)
+  {
+    name: "freeagent_list_journal_sets",
+    title: "List FreeAgent Journal Sets",
+    description: "List journal sets (balanced sets of manual accounting entries), filterable by date range and tag.",
+    inputSchema: ListJournalSetsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listJournalSets,
+  },
+  {
+    name: "freeagent_get_journal_set",
+    title: "Get FreeAgent Journal Set",
+    description: "Retrieve a single journal set with all its entries.",
+    inputSchema: GetJournalSetInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: getJournalSet,
+  },
+  {
+    name: "freeagent_create_journal_set",
+    title: "Create FreeAgent Journal Set",
+    description: "Create a balanced set of journal entries (debits positive, credits negative, must sum to zero). Categories accept names, nominal codes, or URLs. Changes the company's accounts: confirm with the user before calling.",
+    inputSchema: CreateJournalSetInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: createJournalSet,
+  },
+  {
+    name: "freeagent_update_journal_set",
+    title: "Update FreeAgent Journal Set",
+    description: "Update a journal set: change date/description, modify entries, add entries, or remove entries (_destroy). Overwrites existing accounting data: confirm with the user before calling.",
+    inputSchema: UpdateJournalSetInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    handler: updateJournalSet,
+  },
+  {
+    name: "freeagent_delete_journal_set",
+    title: "Delete FreeAgent Journal Set",
+    description: "Permanently delete a journal set and all its entries. Requires confirm: true. Confirm with the user before calling; the reply records what was removed.",
+    inputSchema: DeleteJournalSetInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    handler: deleteJournalSet,
+  },
+
+  // Statement upload + explanation delete (fork addition: reconciliation repair)
+  {
+    name: "freeagent_upload_bank_statement",
+    title: "Upload FreeAgent Bank Statement",
+    description: "Add bank transactions to an account via statement upload. WARNING: FreeAgent silently de-duplicates rows matching an existing transaction's date+amount+description; vary the description or set a unique fitid to add deliberate same-day twins. The tool verifies the import and reports dropped rows. Confirm with the user before calling.",
+    inputSchema: UploadBankStatementInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: uploadBankStatement,
+  },
+  {
+    name: "freeagent_delete_bank_transaction_explanation",
+    title: "Delete FreeAgent Bank Transaction Explanation",
+    description: "Permanently delete a bank transaction explanation, returning its transaction to unexplained and breaking any transfer pairing. Never deletes bank transactions themselves. Requires confirm: true. Confirm with the user before calling.",
+    inputSchema: DeleteBankTransactionExplanationInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    handler: deleteBankTransactionExplanation,
   },
 
   {
