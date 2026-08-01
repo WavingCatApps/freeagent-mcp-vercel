@@ -18,8 +18,8 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
 - [ ] `FREEAGENT_CLIENT_SECRET` = Your OAuth Client Secret
 - [ ] `JWT_SECRET` = Long random string (`openssl rand -hex 32`) — **required** for OAuth across serverless instances
 - [ ] `FREEAGENT_USE_SANDBOX` = `true` (for testing) or `false` (for production)
-- [ ] `PRODUCTION_URL` = Production hostname without scheme (optional; Preview uses `VERCEL_BRANCH_URL`)
-- [ ] FreeAgent redirect URIs cover production + Vercel wildcard hosts for this project
+- [ ] `PRODUCTION_URL` = Production hostname without scheme (optional; Preview uses request host / `VERCEL_URL`)
+- [ ] FreeAgent redirect URIs cover production + `https://freeagent-mcp-vercel-*-simonrices-projects.vercel.app/oauth/callback`
 
 ### 3. Code Ready
 - [ ] Dependencies installed: `bun install`

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getBaseUrl } from "./constants.js";
+import { getBaseUrl, getRequestBaseUrl, toHttpsOrigin } from "./constants.js";
 
 const ENV_KEYS = [
   "VERCEL_ENV",
@@ -18,6 +18,39 @@ function clearUrlEnv(): void {
   }
 }
 
+describe("toHttpsOrigin", () => {
+  it("adds https and strips trailing slash", () => {
+    expect(toHttpsOrigin("example.vercel.app/")).toBe("https://example.vercel.app");
+  });
+
+  it("keeps an existing https origin", () => {
+    expect(toHttpsOrigin("https://example.vercel.app/")).toBe("https://example.vercel.app");
+  });
+});
+
+describe("getRequestBaseUrl", () => {
+  it("uses x-forwarded-host and x-forwarded-proto", () => {
+    expect(
+      getRequestBaseUrl({
+        headers: {
+          "x-forwarded-host": "freeagent-mcp-vercel-a3vcrtaem-simonrices-projects.vercel.app",
+          "x-forwarded-proto": "https",
+        },
+        protocol: "http",
+      })
+    ).toBe("https://freeagent-mcp-vercel-a3vcrtaem-simonrices-projects.vercel.app");
+  });
+
+  it("falls back to Host and allows localhost http", () => {
+    expect(
+      getRequestBaseUrl({
+        headers: { host: "localhost:3456" },
+        protocol: "http",
+      })
+    ).toBe("http://localhost:3456");
+  });
+});
+
 describe("getBaseUrl", () => {
   afterEach(() => {
     for (const key of ENV_KEYS) {
@@ -31,27 +64,27 @@ describe("getBaseUrl", () => {
     originalEnv[key] = process.env[key];
   }
 
-  it("uses VERCEL_BRANCH_URL on preview even when PRODUCTION_URL is set", () => {
+  it("prefers VERCEL_URL on preview over branch and PRODUCTION_URL", () => {
     clearUrlEnv();
     process.env.VERCEL_ENV = "preview";
     process.env.PRODUCTION_URL = "freeagent-mcp-vercel-simonrices-projects.vercel.app";
     process.env.VERCEL_BRANCH_URL =
       "freeagent-mcp-vercel-git-cursor-fix-9d6ab9-simonrices-projects.vercel.app";
-    process.env.VERCEL_URL = "freeagent-mcp-vercel-dxfroy8nk-simonrices-projects.vercel.app";
+    process.env.VERCEL_URL = "freeagent-mcp-vercel-a3vcrtaem-simonrices-projects.vercel.app";
 
     expect(getBaseUrl()).toBe(
-      "https://freeagent-mcp-vercel-git-cursor-fix-9d6ab9-simonrices-projects.vercel.app"
+      "https://freeagent-mcp-vercel-a3vcrtaem-simonrices-projects.vercel.app"
     );
   });
 
-  it("falls back to VERCEL_URL on preview when branch URL is absent", () => {
+  it("falls back to VERCEL_BRANCH_URL on preview when VERCEL_URL is absent", () => {
     clearUrlEnv();
     process.env.VERCEL_ENV = "preview";
-    process.env.PRODUCTION_URL = "freeagent-mcp-vercel-simonrices-projects.vercel.app";
-    process.env.VERCEL_URL = "freeagent-mcp-vercel-dxfroy8nk-simonrices-projects.vercel.app";
+    process.env.VERCEL_BRANCH_URL =
+      "freeagent-mcp-vercel-git-cursor-fix-9d6ab9-simonrices-projects.vercel.app";
 
     expect(getBaseUrl()).toBe(
-      "https://freeagent-mcp-vercel-dxfroy8nk-simonrices-projects.vercel.app"
+      "https://freeagent-mcp-vercel-git-cursor-fix-9d6ab9-simonrices-projects.vercel.app"
     );
   });
 
@@ -59,8 +92,7 @@ describe("getBaseUrl", () => {
     clearUrlEnv();
     process.env.VERCEL_ENV = "production";
     process.env.PRODUCTION_URL = "freeagent-mcp-vercel-simonrices-projects.vercel.app";
-    process.env.VERCEL_BRANCH_URL =
-      "freeagent-mcp-vercel-git-master-simonrices-projects.vercel.app";
+    process.env.VERCEL_URL = "freeagent-mcp-vercel-a3vcrtaem-simonrices-projects.vercel.app";
 
     expect(getBaseUrl()).toBe(
       "https://freeagent-mcp-vercel-simonrices-projects.vercel.app"
@@ -72,17 +104,6 @@ describe("getBaseUrl", () => {
     process.env.VERCEL_ENV = "production";
     process.env.VERCEL_PROJECT_PRODUCTION_URL =
       "freeagent-mcp-vercel-simonrices-projects.vercel.app";
-
-    expect(getBaseUrl()).toBe(
-      "https://freeagent-mcp-vercel-simonrices-projects.vercel.app"
-    );
-  });
-
-  it("accepts a full https PRODUCTION_URL without double-prefixing", () => {
-    clearUrlEnv();
-    process.env.VERCEL_ENV = "production";
-    process.env.PRODUCTION_URL =
-      "https://freeagent-mcp-vercel-simonrices-projects.vercel.app/";
 
     expect(getBaseUrl()).toBe(
       "https://freeagent-mcp-vercel-simonrices-projects.vercel.app"

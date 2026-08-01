@@ -16,7 +16,7 @@ import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient } from "../src/services/api-client.js";
-import { getBaseUrl } from "../src/constants.js";
+import { getBaseUrl, getRequestBaseUrl } from "../src/constants.js";
 import { registerAllTools } from "../src/tools/register.js";
 
 // Configuration
@@ -27,7 +27,7 @@ const BASE_URL = getBaseUrl();
 // Create Express app
 const app = express();
 
-// Enable trust proxy for Vercel (required for X-Forwarded-For headers)
+// Enable trust proxy for Vercel (required for X-Forwarded-For / Host headers)
 // Vercel is 1 proxy hop away, so we trust the first proxy
 app.set('trust proxy', 1);
 
@@ -35,6 +35,45 @@ app.use(express.json());
 
 // Create JWT-based OAuth provider (stateless)
 const oauthProvider = createFreeAgentJWTOAuthProvider();
+
+function publicOrigin(req: express.Request): string {
+  return getRequestBaseUrl(req) || BASE_URL;
+}
+
+/**
+ * Advertise OAuth metadata for the host the client actually requested.
+ * The MCP SDK router bakes issuer/baseUrl in at startup; without this,
+ * preview deploys always point FreeAgent at VERCEL_BRANCH_URL / PRODUCTION_URL
+ * even when the MCP client is configured with a short per-deploy URL.
+ */
+app.get("/.well-known/oauth-authorization-server", (req, res) => {
+  const origin = publicOrigin(req);
+  res.json({
+    issuer: `${origin}/`,
+    service_documentation: "https://dev.freeagent.com/docs/oauth",
+    authorization_endpoint: `${origin}/authorize`,
+    response_types_supported: ["code"],
+    code_challenge_methods_supported: ["S256"],
+    token_endpoint: `${origin}/token`,
+    token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    scopes_supported: ["freeagent"],
+    revocation_endpoint: `${origin}/revoke`,
+    revocation_endpoint_auth_methods_supported: ["client_secret_post"],
+    registration_endpoint: `${origin}/register`,
+  });
+});
+
+app.get("/.well-known/oauth-protected-resource", (req, res) => {
+  const origin = publicOrigin(req);
+  res.json({
+    resource: `${origin}/`,
+    authorization_servers: [`${origin}/`],
+    scopes_supported: ["freeagent"],
+    resource_name: "FreeAgent MCP Server",
+    resource_documentation: "https://dev.freeagent.com/docs/oauth",
+  });
+});
 
 // Add error logging for OAuth token endpoint
 app.use((req: any, res: any, next: any) => {
@@ -63,6 +102,7 @@ app.use((req: any, res: any, next: any) => {
 });
 
 // Install full OAuth router (provides /authorize, /token, /register, etc.)
+// Issuer/baseUrl here are fallbacks; well-known routes above are request-host aware.
 app.use(mcpAuthRouter({
   provider: oauthProvider,
   issuerUrl: new URL(BASE_URL),
@@ -116,12 +156,6 @@ function createMcpServer(freeagentToken: string): McpServer {
   return server;
 }
 
-// Shared MCP request handler - creates a stateless server per request
-const bearerAuth = requireBearerAuth({
-  verifier: oauthProvider,
-  resourceMetadataUrl: `${BASE_URL}/.well-known/oauth-protected-resource`
-});
-
 async function handleMcpRequest(req: any, res: any) {
   try {
     const mcpToken = req.headers.authorization?.replace("Bearer ", "");
@@ -150,9 +184,20 @@ async function handleMcpRequest(req: any, res: any) {
 }
 
 // MCP endpoints - POST for tool calls, GET for SSE stream, DELETE returns 405 (stateless)
+// Bearer auth is applied per-request so WWW-Authenticate resource_metadata uses request host.
 for (const path of ["/mcp", "/"]) {
-  app.post(path, bearerAuth, handleMcpRequest);
-  app.get(path, bearerAuth, handleMcpRequest);
+  app.post(path, (req, res, next) => {
+    requireBearerAuth({
+      verifier: oauthProvider,
+      resourceMetadataUrl: `${publicOrigin(req)}/.well-known/oauth-protected-resource`,
+    })(req, res, next);
+  }, handleMcpRequest);
+  app.get(path, (req, res, next) => {
+    requireBearerAuth({
+      verifier: oauthProvider,
+      resourceMetadataUrl: `${publicOrigin(req)}/.well-known/oauth-protected-resource`,
+    })(req, res, next);
+  }, handleMcpRequest);
   app.delete(path, (_req: any, res: any) => {
     res.status(405).json({ error: "Method not allowed - server is stateless, no sessions to terminate" });
   });

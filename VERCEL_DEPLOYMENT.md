@@ -37,7 +37,7 @@ See [OAUTH_SETUP.md](./OAUTH_SETUP.md) for complete OAuth configuration instruct
    - `FREEAGENT_CLIENT_SECRET`: Your FreeAgent OAuth Client Secret
    - `JWT_SECRET`: A long random string (required — signs OAuth JWTs across serverless instances; `openssl rand -hex 32`)
    - `FREEAGENT_USE_SANDBOX`: Set to `true` for sandbox, `false` for production
-   - `PRODUCTION_URL` (optional on production): Production hostname without scheme, e.g. `your-project.vercel.app`. Preview deploys ignore this and use `VERCEL_BRANCH_URL`.
+   - `PRODUCTION_URL` (optional on production): Production hostname without scheme, e.g. `your-project.vercel.app`. Preview OAuth uses the request host / `VERCEL_URL` (short per-deploy URL).
 
 #### Via Vercel CLI
 

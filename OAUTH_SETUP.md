@@ -48,7 +48,7 @@ You need to set these environment variables in Vercel:
 | `FREEAGENT_CLIENT_SECRET` | Your OAuth Client Secret | From FreeAgent Developer Dashboard |
 | `JWT_SECRET` | A long random string | **Required on Vercel.** Stable secret used to sign OAuth auth-code and access-token JWTs across serverless instances. Generate with `openssl rand -hex 32`. |
 | `FREEAGENT_USE_SANDBOX` | `true` or `false` | Use `true` for sandbox, `false` for production |
-| `PRODUCTION_URL` | Your production hostname (no scheme) | Optional on production (falls back to `VERCEL_PROJECT_PRODUCTION_URL`). Ignored on Preview — previews use `VERCEL_BRANCH_URL` so FreeAgent redirects match branch/deploy hosts. |
+| `PRODUCTION_URL` | Your production hostname (no scheme) | Optional on production (falls back to `VERCEL_PROJECT_PRODUCTION_URL`). Preview OAuth uses the request `Host` / `VERCEL_URL` (per-deploy host) so FreeAgent alphanumeric `*` wildcards can match. |
 
 ### Via Vercel CLI
 

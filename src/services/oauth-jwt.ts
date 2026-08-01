@@ -20,7 +20,7 @@ import { OAuthClientInformationFull, OAuthTokens, OAuthTokenRevocationRequest } 
 import { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import crypto from "crypto";
 import type { Response } from "express";
-import { getBaseUrl } from "../constants.js";
+import { getBaseUrl, getRequestBaseUrl } from "../constants.js";
 
 // Configuration
 const FREEAGENT_CLIENT_ID = process.env.FREEAGENT_CLIENT_ID!;
@@ -85,6 +85,8 @@ export interface AuthRequestPayload {
   codeChallenge: string;
   clientId: string;
   redirectUri: string;
+  /** Public origin used as FreeAgent redirect_uri (must match at /token exchange) */
+  serverBaseUrl: string;
   state?: string;
 }
 
@@ -94,6 +96,8 @@ export interface AuthCodePayload {
   codeChallenge: string;
   clientId: string;
   redirectUri: string;
+  /** Public origin used as FreeAgent redirect_uri (must match authorize) */
+  serverBaseUrl: string;
   state?: string;
   freeagentCode: string;
 }
@@ -187,11 +191,17 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
     res: Response
   ): Promise<void> {
     try {
+      // Prefer the Host the MCP client actually hit (e.g. per-deploy URL) so
+      // FreeAgent redirect_uri can match project-scoped alphanumeric wildcards.
+      const serverBaseUrl =
+        (res.req ? getRequestBaseUrl(res.req) : undefined) || getBaseUrl();
+
       const authRequest: AuthRequestPayload = {
         typ: "auth_req",
         codeChallenge: params.codeChallenge,
         clientId: client.client_id,
         redirectUri: params.redirectUri,
+        serverBaseUrl,
         state: params.state,
       };
       const authRequestJwt = signAuthJwt(authRequest);
@@ -199,7 +209,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       const freeagentAuthUrl = new URL(`${FREEAGENT_BASE}/v2/approve_app`);
       freeagentAuthUrl.searchParams.set("client_id", FREEAGENT_CLIENT_ID);
       freeagentAuthUrl.searchParams.set("response_type", "code");
-      freeagentAuthUrl.searchParams.set("redirect_uri", `${BASE_URL}/oauth/callback`);
+      freeagentAuthUrl.searchParams.set("redirect_uri", `${serverBaseUrl}/oauth/callback`);
       freeagentAuthUrl.searchParams.set("state", authRequestJwt);
 
       res.redirect(freeagentAuthUrl.toString());
@@ -236,6 +246,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       codeChallenge: authRequest.codeChallenge,
       clientId: authRequest.clientId,
       redirectUri: authRequest.redirectUri,
+      serverBaseUrl: authRequest.serverBaseUrl || BASE_URL,
       state: authRequest.state,
       freeagentCode,
     };
@@ -282,6 +293,9 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       throw new Error("Invalid or expired authorization code");
     }
 
+    // Must match the redirect_uri used at authorize (stored in the auth-code JWT)
+    const freeagentRedirectUri = `${authCode.serverBaseUrl || BASE_URL}/oauth/callback`;
+
     // Exchange FreeAgent code for tokens
     const tokenResponse = await fetch(`${FREEAGENT_BASE}/v2/token_endpoint`, {
       method: "POST",
@@ -292,7 +306,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code: authCode.freeagentCode,
-        redirect_uri: `${BASE_URL}/oauth/callback`,
+        redirect_uri: freeagentRedirectUri,
       }),
     });
 
