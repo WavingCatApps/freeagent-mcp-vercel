@@ -35,13 +35,16 @@ See [OAUTH_SETUP.md](./OAUTH_SETUP.md) for complete OAuth configuration instruct
 3. Add the following variables:
    - `FREEAGENT_CLIENT_ID`: Your FreeAgent OAuth Client ID
    - `FREEAGENT_CLIENT_SECRET`: Your FreeAgent OAuth Client Secret
+   - `JWT_SECRET`: A long random string (required — signs OAuth JWTs across serverless instances; `openssl rand -hex 32`)
    - `FREEAGENT_USE_SANDBOX`: Set to `true` for sandbox, `false` for production
+   - `PRODUCTION_URL` (optional on production): Production hostname without scheme, e.g. `your-project.vercel.app`. Preview OAuth uses the request host / `VERCEL_URL` (short per-deploy URL).
 
 #### Via Vercel CLI
 
 ```bash
 vercel env add FREEAGENT_CLIENT_ID
 vercel env add FREEAGENT_CLIENT_SECRET
+vercel env add JWT_SECRET
 vercel env add FREEAGENT_USE_SANDBOX
 ```
 

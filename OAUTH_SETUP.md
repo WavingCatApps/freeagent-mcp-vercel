@@ -34,7 +34,7 @@ When deployed to the web (e.g., on Vercel), the MCP server uses OAuth 2.0 to aut
 
 ## Step 2: Configure Vercel Environment Variables
 
-You need to set three environment variables in Vercel:
+You need to set these environment variables in Vercel:
 
 ### Via Vercel Dashboard
 
@@ -46,7 +46,9 @@ You need to set three environment variables in Vercel:
 |---------------|-------|-------------|
 | `FREEAGENT_CLIENT_ID` | Your OAuth Client ID | From FreeAgent Developer Dashboard |
 | `FREEAGENT_CLIENT_SECRET` | Your OAuth Client Secret | From FreeAgent Developer Dashboard |
+| `JWT_SECRET` | A long random string | **Required on Vercel.** Stable secret used to sign OAuth auth-code and access-token JWTs across serverless instances. Generate with `openssl rand -hex 32`. |
 | `FREEAGENT_USE_SANDBOX` | `true` or `false` | Use `true` for sandbox, `false` for production |
+| `PRODUCTION_URL` | Your production hostname (no scheme) | Optional on production (falls back to `VERCEL_PROJECT_PRODUCTION_URL`). Preview OAuth uses the request `Host` / `VERCEL_URL` (per-deploy host) so FreeAgent alphanumeric `*` wildcards can match. |
 
 ### Via Vercel CLI
 
@@ -56,6 +58,9 @@ vercel env add FREEAGENT_CLIENT_ID
 
 vercel env add FREEAGENT_CLIENT_SECRET
 # Paste your Client Secret when prompted
+
+vercel env add JWT_SECRET
+# Paste a long random secret (e.g. output of: openssl rand -hex 32)
 
 vercel env add FREEAGENT_USE_SANDBOX
 # Enter "true" for sandbox or "false" for production
