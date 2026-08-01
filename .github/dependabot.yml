@@ -19,6 +19,7 @@ updates:
       typescript:
         patterns:
           - "typescript"
+          - "@typescript/native"
           - "@types/*"
       linting:
         patterns:
@@ -32,6 +33,12 @@ updates:
       deployment:
         patterns:
           - "@vercel/*"
+    # TypeScript 7 has no Compiler API yet (expected in 7.1), so tooling that
+    # imports `typescript` (typescript-eslint, @vercel/node) must stay on 6.x.
+    # Native TS 7 builds are installed via the `@typescript/native` alias.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
