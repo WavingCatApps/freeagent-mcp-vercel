@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorizationParams } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
+import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import type { Response as ExpressResponse } from "express";
 import jwt from "jsonwebtoken";
 import {
   createFreeAgentJWTOAuthProvider,
+  resolveExpiresInSeconds,
   resolveJwtSecret,
   type AuthCodePayload,
   type AuthRequestPayload,
@@ -181,5 +184,91 @@ describe("stateless OAuth auth codes", () => {
     await expect(
       provider.exchangeAuthorizationCode(client, authCodeJwt)
     ).rejects.toThrow("Invalid or expired authorization code");
+  });
+});
+
+describe("resolveExpiresInSeconds", () => {
+  it("accepts numeric and numeric-string values", () => {
+    expect(resolveExpiresInSeconds(3600)).toBe(3600);
+    expect(resolveExpiresInSeconds("1800")).toBe(1800);
+  });
+
+  it("falls back for invalid values", () => {
+    expect(resolveExpiresInSeconds("nope", 99)).toBe(99);
+    expect(resolveExpiresInSeconds(0, 99)).toBe(99);
+    expect(resolveExpiresInSeconds(-5, 99)).toBe(99);
+  });
+});
+
+describe("verifyAccessToken error mapping", () => {
+  const provider = createFreeAgentJWTOAuthProvider();
+
+  it("throws InvalidTokenError for expired access tokens", async () => {
+    const expired = jwt.sign(
+      {
+        freeagentAccessToken: "fa",
+        freeagentRefreshToken: "fr",
+        clientId: "c",
+        scopes: ["freeagent"],
+        exp: Math.floor(Date.now() / 1000) - 10,
+      },
+      TEST_SECRET,
+      { algorithm: "HS256" }
+    );
+
+    await expect(provider.verifyAccessToken(expired)).rejects.toBeInstanceOf(
+      InvalidTokenError
+    );
+  });
+
+  it("throws InvalidTokenError for malformed tokens", async () => {
+    await expect(provider.verifyAccessToken("not-a-jwt")).rejects.toBeInstanceOf(
+      InvalidTokenError
+    );
+  });
+
+  it("maps expired tokens to HTTP 401 via requireBearerAuth", async () => {
+    const expired = jwt.sign(
+      {
+        freeagentAccessToken: "fa",
+        freeagentRefreshToken: "fr",
+        clientId: "c",
+        scopes: ["freeagent"],
+        exp: Math.floor(Date.now() / 1000) - 10,
+      },
+      TEST_SECRET,
+      { algorithm: "HS256" }
+    );
+
+    const middleware = requireBearerAuth({ verifier: provider });
+    let status = 0;
+    let body: unknown;
+    let wwwAuth = "";
+    const req = { headers: { authorization: `Bearer ${expired}` } };
+    const res = {
+      set(name: string, value: string) {
+        if (name.toLowerCase() === "www-authenticate") wwwAuth = value;
+      },
+      status(code: number) {
+        status = code;
+        return this;
+      },
+      json(payload: unknown) {
+        body = payload;
+        return this;
+      },
+    };
+
+    await middleware(
+      req as Parameters<ReturnType<typeof requireBearerAuth>>[0],
+      res as unknown as Parameters<ReturnType<typeof requireBearerAuth>>[1],
+      () => {
+        throw new Error("next() should not be called for expired tokens");
+      }
+    );
+
+    expect(status).toBe(401);
+    expect(body).toMatchObject({ error: "invalid_token" });
+    expect(wwwAuth).toContain('error="invalid_token"');
   });
 });

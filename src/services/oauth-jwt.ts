@@ -18,9 +18,17 @@ import { AuthorizationParams, OAuthServerProvider } from "@modelcontextprotocol/
 import { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import { OAuthClientInformationFull, OAuthTokens, OAuthTokenRevocationRequest } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { InvalidGrantError, InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import crypto from "crypto";
 import type { Response } from "express";
 import { getBaseUrl, getRequestBaseUrl } from "../constants.js";
+
+/** Coerce FreeAgent expires_in values to a finite positive second count. */
+export function resolveExpiresInSeconds(raw: unknown, fallback = 3600): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.floor(n);
+}
 
 // Configuration
 const FREEAGENT_CLIENT_ID = process.env.FREEAGENT_CLIENT_ID!;
@@ -316,11 +324,28 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
     }
 
     const freeagentTokens = await tokenResponse.json();
+    return this.issueMcpTokens(client, freeagentTokens, "oauth-token-exchange");
+  }
 
-    // Create JWT payload with FreeAgent tokens
+  /**
+   * Build MCP access/refresh JWTs from FreeAgent token endpoint JSON.
+   */
+  private issueMcpTokens(
+    client: OAuthClientInformationFull,
+    freeagentTokens: {
+      access_token: string;
+      refresh_token: string;
+      expires_in?: number | string;
+      refresh_token_expires_in?: number | string;
+    },
+    logComponent: string
+  ): OAuthTokens {
     const now = Math.floor(Date.now() / 1000);
-    // Use override for testing, otherwise use FreeAgent's expires_in
-    const expiresIn = MCP_TOKEN_EXPIRY_SECONDS ?? (freeagentTokens.expires_in || 3600);
+    // Use override for testing, otherwise use FreeAgent's expires_in.
+    // Always coerce to number — string expires_in would concatenate with `now`.
+    const expiresIn =
+      MCP_TOKEN_EXPIRY_SECONDS ??
+      resolveExpiresInSeconds(freeagentTokens.expires_in, 3600);
     const expiresAt = now + expiresIn;
 
     const payload: JWTPayload = {
@@ -332,18 +357,15 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
       exp: expiresAt,
     };
 
-    // Sign the JWT
     const mcpAccessToken = jwt.sign(payload, JWT_SECRET, {
-      algorithm: 'HS256',
+      algorithm: "HS256",
     });
 
-    // Create refresh token (also a JWT)
     // IMPORTANT: Embed full client metadata to survive serverless cold starts
     const refreshPayload = {
       freeagentRefreshToken: freeagentTokens.refresh_token,
       clientId: client.client_id,
-      type: 'refresh',
-      // Store full client info so we can reconstruct it after cold start
+      type: "refresh",
       clientMetadata: {
         client_id: client.client_id,
         client_name: client.client_name,
@@ -353,23 +375,19 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
         token_endpoint_auth_method: client.token_endpoint_auth_method,
       },
     };
-    // Use FreeAgent's refresh_token_expires_in (in seconds) if provided,
-    // otherwise fall back to our configured default
     const refreshExpiresIn = freeagentTokens.refresh_token_expires_in
-      ? freeagentTokens.refresh_token_expires_in
+      ? resolveExpiresInSeconds(freeagentTokens.refresh_token_expires_in)
       : MCP_REFRESH_TOKEN_EXPIRY_FALLBACK;
     const mcpRefreshToken = jwt.sign(refreshPayload, JWT_SECRET, {
-      algorithm: 'HS256',
+      algorithm: "HS256",
       expiresIn: refreshExpiresIn,
     });
 
-    // Log token creation (simplified)
     if (MCP_TOKEN_EXPIRY_SECONDS !== undefined) {
-      // Only log in test mode
       console.error(JSON.stringify({
         timestamp: new Date().toISOString(),
         level: "info",
-        component: "oauth-token-exchange",
+        component: logComponent,
         message: "MCP tokens created (test mode)",
         data: {
           testExpiresIn: expiresIn,
@@ -414,7 +432,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
             actualType: decoded.type,
           }
         }));
-        throw new Error("Invalid refresh token");
+        throw new InvalidGrantError("Invalid refresh token");
       }
 
       // Validate client_id matches (with flexibility for cold starts)
@@ -430,7 +448,7 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
             hasClientMetadata: !!decoded.clientMetadata,
           }
         }));
-        throw new Error("Invalid refresh token - client mismatch");
+        throw new InvalidGrantError("Invalid refresh token - client mismatch");
       }
 
       // If client was reconstructed as placeholder, restore real metadata from JWT
@@ -475,77 +493,17 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
             error: errorText,
           }
         }));
-        throw new Error(`FreeAgent refresh failed: ${tokenResponse.status} ${errorText}`);
+        throw new InvalidGrantError(
+          `FreeAgent refresh failed: ${tokenResponse.status} ${errorText}`
+        );
       }
 
       const freeagentTokens = await tokenResponse.json();
-
-      // Create new JWT with new FreeAgent tokens
-      const now = Math.floor(Date.now() / 1000);
-      // Use override for testing, otherwise use FreeAgent's expires_in
-      const expiresIn = MCP_TOKEN_EXPIRY_SECONDS ?? (freeagentTokens.expires_in || 3600);
-      const expiresAt = now + expiresIn;
-
-      const payload: JWTPayload = {
-        freeagentAccessToken: freeagentTokens.access_token,
-        freeagentRefreshToken: freeagentTokens.refresh_token,
-        clientId: client.client_id,
-        scopes: ["freeagent"],
-        iat: now,
-        exp: expiresAt,
-      };
-
-      const newMcpAccessToken = jwt.sign(payload, JWT_SECRET, {
-        algorithm: 'HS256',
-      });
-
-      // Rolling refresh: issue a new refresh token with a fresh expiry window
-      // based on FreeAgent's refresh_token_expires_in (typically ~20 years).
-      // This means our MCP refresh token mirrors FreeAgent's actual expiry,
-      // so users only re-authenticate when FreeAgent itself requires it.
-      const newRefreshPayload = {
-        freeagentRefreshToken: freeagentTokens.refresh_token,
-        clientId: client.client_id,
-        type: 'refresh',
-        clientMetadata: {
-          client_id: client.client_id,
-          client_name: client.client_name,
-          redirect_uris: client.redirect_uris,
-          grant_types: client.grant_types,
-          response_types: client.response_types,
-          token_endpoint_auth_method: client.token_endpoint_auth_method,
-        },
-      };
-      const refreshExpiresIn = freeagentTokens.refresh_token_expires_in
-        ? freeagentTokens.refresh_token_expires_in
-        : MCP_REFRESH_TOKEN_EXPIRY_FALLBACK;
-      const newMcpRefreshToken = jwt.sign(newRefreshPayload, JWT_SECRET, {
-        algorithm: 'HS256',
-        expiresIn: refreshExpiresIn,
-      });
-
-      // Log successful refresh (simplified)
-      if (MCP_TOKEN_EXPIRY_SECONDS !== undefined) {
-        // Only log details in test mode
-        console.error(JSON.stringify({
-          timestamp: new Date().toISOString(),
-          level: "info",
-          component: "oauth-refresh",
-          message: "Token refresh successful (test mode)",
-          data: {
-            testExpiresIn: expiresIn,
-            expiresAt: new Date(expiresAt * 1000).toISOString(),
-          }
-        }));
-      }
-
-      return {
-        access_token: newMcpAccessToken,
-        token_type: "bearer",
-        expires_in: expiresIn,
-        refresh_token: newMcpRefreshToken, // Rolling refresh: fresh token with new expiry
-      };
+      return this.issueMcpTokens(client, freeagentTokens, "oauth-refresh");
     } catch (error) {
+      if (error instanceof InvalidGrantError) {
+        throw error;
+      }
       console.error(JSON.stringify({
         timestamp: new Date().toISOString(),
         level: "error",
@@ -556,12 +514,16 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
           stack: error instanceof Error ? error.stack : undefined,
         }
       }));
-      throw new Error(`Refresh token exchange failed: ${error}`);
+      throw new InvalidGrantError(
+        `Refresh token exchange failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   /**
-   * Verify JWT and return auth info
+   * Verify JWT and return auth info.
+   * Must throw InvalidTokenError (→ HTTP 401) so MCP clients refresh instead of
+   * treating expiry as a server failure (generic Error → HTTP 500).
    */
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     try {
@@ -574,12 +536,13 @@ export class FreeAgentJWTOAuthProvider implements OAuthServerProvider {
         expiresAt: decoded.exp,
       };
     } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        console.error("Access token expired");
-        throw new Error("Access token expired");
+      if (error instanceof InvalidTokenError) {
+        throw error;
       }
-      console.error("Invalid access token:", error);
-      throw new Error("Invalid access token");
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new InvalidTokenError("Access token expired");
+      }
+      throw new InvalidTokenError("Invalid access token");
     }
   }
 
