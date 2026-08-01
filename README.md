@@ -60,7 +60,7 @@ See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key po
 - Handles `POST` (tool calls), `GET` (SSE streaming), and `DELETE` (returns 405 - stateless)
 - Set `PRODUCTION_URL` env var for stable OAuth callback URLs
 
-Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`
+Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET` (stable secret required on Vercel so OAuth JWTs verify across serverless instances)
 
 ## Tool-Search Mode (optional)
 
