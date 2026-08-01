@@ -58,7 +58,7 @@ See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key po
 - Uses `StreamableHTTPServerTransport` in stateless mode (no sessions)
 - OAuth 2.0 with PKCE via JWT-encoded tokens (no database needed)
 - Handles `POST` (tool calls), `GET` (SSE streaming), and `DELETE` (returns 405 - stateless)
-- Set `PRODUCTION_URL` env var for stable OAuth callback URLs
+- Set `PRODUCTION_URL` (or rely on `VERCEL_PROJECT_PRODUCTION_URL`) for stable production OAuth callback URLs. Preview deploys use `VERCEL_BRANCH_URL` so FreeAgent redirects hit the branch host.
 
 Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET` (stable secret required on Vercel so OAuth JWTs verify across serverless instances)
 

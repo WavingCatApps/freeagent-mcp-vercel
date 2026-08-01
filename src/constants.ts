@@ -25,16 +25,44 @@ export enum ResponseFormat {
 }
 
 /**
+ * Normalize a host or URL-ish env value to an https origin.
+ * Accepts bare hosts (`example.vercel.app`) or full URLs.
+ */
+function toHttpsOrigin(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return trimmed.replace(/\/$/, "");
+  }
+  return `https://${trimmed.replace(/\/$/, "")}`;
+}
+
+/**
  * Compute the base URL for the server, supporting Vercel deployment URLs.
- * Priority: PRODUCTION_URL > VERCEL_BRANCH_URL > VERCEL_URL > BASE_URL > localhost
+ *
+ * Preview/branch deploys prefer `VERCEL_BRANCH_URL` so FreeAgent's OAuth
+ * `redirect_uri` matches this deployment (and registered wildcard redirect
+ * URIs), instead of always collapsing to production via `PRODUCTION_URL`.
+ *
+ * Priority:
+ * - preview: VERCEL_BRANCH_URL > VERCEL_URL > BASE_URL > localhost
+ * - production / other: PRODUCTION_URL > VERCEL_PROJECT_PRODUCTION_URL >
+ *   VERCEL_BRANCH_URL > VERCEL_URL > BASE_URL > localhost
  */
 export function getBaseUrl(): string {
-  const PRODUCTION_URL = process.env.PRODUCTION_URL;
-  const VERCEL_BRANCH_URL = process.env.VERCEL_BRANCH_URL;
-  const VERCEL_URL = process.env.VERCEL_URL;
+  const vercelEnv = process.env.VERCEL_ENV;
+  const productionUrl =
+    process.env.PRODUCTION_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const branchUrl = process.env.VERCEL_BRANCH_URL;
+  const vercelUrl = process.env.VERCEL_URL;
 
-  if (PRODUCTION_URL) return `https://${PRODUCTION_URL}`;
-  if (VERCEL_BRANCH_URL) return `https://${VERCEL_BRANCH_URL}`;
-  if (VERCEL_URL) return `https://${VERCEL_URL}`;
+  if (vercelEnv === "preview") {
+    if (branchUrl) return toHttpsOrigin(branchUrl);
+    if (vercelUrl) return toHttpsOrigin(vercelUrl);
+    return process.env.BASE_URL || "http://localhost:3000";
+  }
+
+  if (productionUrl) return toHttpsOrigin(productionUrl);
+  if (branchUrl) return toHttpsOrigin(branchUrl);
+  if (vercelUrl) return toHttpsOrigin(vercelUrl);
   return process.env.BASE_URL || "http://localhost:3000";
 }
