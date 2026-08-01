@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthorizationParams } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
-import type { Response } from "express";
+import type { Response as ExpressResponse } from "express";
 import jwt from "jsonwebtoken";
 import {
   createFreeAgentJWTOAuthProvider,
@@ -70,7 +70,7 @@ describe("stateless OAuth auth codes", () => {
       redirectUri: "cursor://oauth/callback",
       state: "client-state-xyz",
     };
-    await provider.authorize(client, params, res as unknown as Response);
+    await provider.authorize(client, params, res as unknown as ExpressResponse);
 
     const freeagentUrl = new URL(redirectLocation);
     const authRequestJwt = freeagentUrl.searchParams.get("state");
@@ -127,7 +127,7 @@ describe("stateless OAuth auth codes", () => {
         expires_in: 3600,
         refresh_token_expires_in: 7200,
       }),
-    } as Response);
+    } as globalThis.Response);
 
     const tokens = await provider.exchangeAuthorizationCode(client, authCodeJwt);
 
