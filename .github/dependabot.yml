@@ -1,6 +1,7 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
+  # Bun repo: npm ecosystem updates package.json but not bun.lock.
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "daily"
