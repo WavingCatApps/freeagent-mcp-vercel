@@ -12,13 +12,12 @@ import type {
   ListExpensesInput,
   GetExpenseInput,
   CreateExpenseInput,
-  UpdateExpenseInput
+  UpdateExpenseInput,
+  DeleteExpenseInput,
+  GetMileageSettingsInput
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List expenses with optional filtering and pagination
@@ -362,4 +361,22 @@ export async function updateExpense(
     (expense.description ? `**Description**: ${expense.description}\n` : '') +
     (isMileage ? `**Miles**: ${expense.miles}\n` : '') +
     `**URL**: ${expense.url}`;
+}
+
+export async function deleteExpense(
+  client: FreeAgentApiClient,
+  params: DeleteExpenseInput
+): Promise<string> {
+  await client.delete(resourcePath(params.expense_id, "expenses"));
+  return `✅ Expense deleted: ${params.expense_id}`;
+}
+
+export async function getMileageSettings(
+  client: FreeAgentApiClient,
+  params: GetMileageSettingsInput
+): Promise<string> {
+  const response = await client.get<Record<string, unknown>>("/expenses/mileage_settings");
+  return formatResponse(response.data, params.response_format, () =>
+    `# Mileage Settings\n\n\`\`\`json\n${JSON.stringify(response.data, null, 2)}\n\`\`\``
+  );
 }

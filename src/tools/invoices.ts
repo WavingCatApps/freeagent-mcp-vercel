@@ -3,21 +3,21 @@
  */
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
+import { ResponseFormat } from "../constants.js";
 import type { FreeAgentContact, FreeAgentInvoice } from "../types.js";
 import type { ToolContext } from "./register.js";
-import {
-  formatDate,
-  formatCurrency,
-  formatResponse,
-  truncateIfNeeded,
-  createPaginationMetadata,
-  computeDiscountAmount,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatDate, formatCurrency, formatResponse, truncateIfNeeded, createPaginationMetadata, computeDiscountAmount, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath, resourceId } from "../utils/resource-path.js";
 import type {
   ListInvoicesInput,
   GetInvoiceInput,
-  CreateInvoiceInput
+  CreateInvoiceInput,
+  UpdateInvoiceInput,
+  DeleteInvoiceInput,
+  DuplicateInvoiceInput,
+  SendInvoiceEmailInput,
+  GetInvoiceTimelineInput,
+  DirectDebitInvoiceInput
 } from "../schemas/index.js";
 
 /**
@@ -385,4 +385,71 @@ export async function createInvoice(
     `URL: ${invoice.url}\n\n` +
     `Note: Invoice is created in Draft status. Use status transition endpoints to mark as Sent.`
   );
+}
+
+
+export async function updateInvoice(
+  client: FreeAgentApiClient,
+  params: UpdateInvoiceInput
+): Promise<string> {
+  const { invoice_id, ...fields } = params;
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined) body[k] = v;
+  const response = await client.put<{ invoice: FreeAgentInvoice }>(
+    resourcePath(invoice_id, "invoices"),
+    { invoice: body }
+  );
+  const invoice = response.data.invoice;
+  return `✅ Invoice updated ${extractIdFromUrl(invoice.url)}\n**Status**: ${invoice.status}\n**URL**: ${invoice.url}`;
+}
+
+export async function deleteInvoice(
+  client: FreeAgentApiClient,
+  params: DeleteInvoiceInput
+): Promise<string> {
+  await client.delete(resourcePath(params.invoice_id, "invoices"));
+  return `✅ Invoice deleted: ${params.invoice_id}`;
+}
+
+export async function duplicateInvoice(
+  client: FreeAgentApiClient,
+  params: DuplicateInvoiceInput
+): Promise<string> {
+  const id = resourceId(params.invoice_id);
+  const response = await client.post<{ invoice: FreeAgentInvoice }>(`/invoices/${id}/duplicate`);
+  const invoice = response.data.invoice;
+  return `✅ Invoice duplicated → ${extractIdFromUrl(invoice.url)} (draft)\n**URL**: ${invoice.url}`;
+}
+
+export async function sendInvoiceEmail(
+  client: FreeAgentApiClient,
+  params: SendInvoiceEmailInput
+): Promise<string> {
+  const id = resourceId(params.invoice_id);
+  const email: Record<string, unknown> = {};
+  if (params.to) email.to = params.to;
+  if (params.cc) email.cc = params.cc;
+  if (params.subject) email.subject = params.subject;
+  if (params.body) email.body = params.body;
+  if (params.from) email.from = params.from;
+  await client.post(`/invoices/${id}/emails`, { invoice: { email } });
+  return `✅ Invoice email sent for ${params.invoice_id}`;
+}
+
+export async function getInvoiceTimeline(
+  client: FreeAgentApiClient,
+  params: GetInvoiceTimelineInput
+): Promise<string> {
+  const response = await client.get<Record<string, unknown>>("/invoices/timeline");
+  if (params.response_format === ResponseFormat.JSON) return JSON.stringify(response.data, null, 2);
+  return `# Invoice Timeline\n\n\`\`\`json\n${JSON.stringify(response.data, null, 2)}\n\`\`\``;
+}
+
+export async function directDebitInvoice(
+  client: FreeAgentApiClient,
+  params: DirectDebitInvoiceInput
+): Promise<string> {
+  const id = resourceId(params.invoice_id);
+  const response = await client.post<Record<string, unknown>>(`/invoices/${id}/direct_debit`);
+  return `✅ Direct debit payment initiated for invoice ${params.invoice_id}\n\n\`\`\`json\n${JSON.stringify(response.data, null, 2)}\n\`\`\``;
 }

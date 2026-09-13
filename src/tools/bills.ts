@@ -11,12 +11,11 @@ import type {
   ListBillsInput,
   GetBillInput,
   CreateBillInput,
+  UpdateBillInput,
+  DeleteBillInput,
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl,
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 export async function listBills(
   client: FreeAgentApiClient,
@@ -150,4 +149,28 @@ export async function createBill(
     `**Contact**: ${bill.contact}\n` +
     `**URL**: ${bill.url}`
   );
+}
+
+
+export async function updateBill(
+  client: FreeAgentApiClient,
+  params: UpdateBillInput
+): Promise<string> {
+  const { bill_id, ...fields } = params;
+  const path = resourcePath(bill_id, "bills");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await client.put<{ bill: FreeAgentBill }>(path, { bill: body });
+  const bill = response.data.bill;
+  return `✅ Bill updated ${extractIdFromUrl(bill.url)}\n\n**Total**: ${bill.currency ?? "GBP"} ${bill.total_value}\n**URL**: ${bill.url}`;
+}
+
+export async function deleteBill(
+  client: FreeAgentApiClient,
+  params: DeleteBillInput
+): Promise<string> {
+  await client.delete(resourcePath(params.bill_id, "bills"));
+  return `✅ Bill deleted: ${params.bill_id}`;
 }

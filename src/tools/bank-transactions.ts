@@ -12,13 +12,11 @@ import type {
   ListBankTransactionExplanationsInput,
   GetBankTransactionExplanationInput,
   CreateBankTransactionExplanationInput,
-  UpdateBankTransactionExplanationInput
+  UpdateBankTransactionExplanationInput,
+  DeleteBankTransactionExplanationInput
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List bank transaction explanations with optional filtering and pagination
@@ -359,4 +357,13 @@ export async function updateBankTransactionExplanation(
     (explanation.description ? `**Description**: ${explanation.description}\n` : '') +
     (explanation.category ? `**Category**: ${explanation.category}\n` : '') +
     `**URL**: ${explanation.url}`;
+}
+
+
+export async function deleteBankTransactionExplanation(
+  client: FreeAgentApiClient,
+  params: DeleteBankTransactionExplanationInput
+): Promise<string> {
+  await client.delete(resourcePath(params.bank_transaction_explanation_id, "bank_transaction_explanations"));
+  return `✅ Bank transaction explanation deleted: ${params.bank_transaction_explanation_id}`;
 }

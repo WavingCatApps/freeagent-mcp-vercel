@@ -1,7 +1,10 @@
 import { FreeAgentApiClient } from "../services/api-client.js";
 import { ResponseFormat } from "../constants.js";
 import type { FreeAgentProject } from "../types.js";
-import type { ListProjectsInput, GetProjectInput, CreateProjectInput } from "../schemas/index.js";
+import type { ListProjectsInput, GetProjectInput, CreateProjectInput,
+  UpdateProjectInput,
+  DeleteProjectInput } from "../schemas/index.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List all projects in FreeAgent
@@ -130,4 +133,27 @@ export async function createProject(
     `  Budget: ${project.budget} ${project.budget_units}`,
     `  Currency: ${project.currency}`,
   ].join("\n");
+}
+
+export async function updateProject(
+  apiClient: FreeAgentApiClient,
+  params: UpdateProjectInput
+): Promise<string> {
+  const { project_id, ...fields } = params;
+  const path = resourcePath(project_id, "projects");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await apiClient.put<{ project: FreeAgentProject }>(path, { project: body });
+  const project = response.data.project;
+  return `✅ Project updated: ${project.name} (${project.url})`;
+}
+
+export async function deleteProject(
+  apiClient: FreeAgentApiClient,
+  params: DeleteProjectInput
+): Promise<string> {
+  await apiClient.delete(resourcePath(params.project_id, "projects"));
+  return `✅ Project deleted: ${params.project_id}`;
 }

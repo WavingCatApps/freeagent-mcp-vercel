@@ -10,13 +10,14 @@ import type {
   ListBankAccountsInput,
   GetBankAccountInput,
   ListBankTransactionsInput,
-  GetBankTransactionInput
+  GetBankTransactionInput,
+  CreateBankAccountInput,
+  UpdateBankAccountInput,
+  DeleteBankAccountInput,
+  UploadBankStatementInput
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List all bank accounts
@@ -290,4 +291,56 @@ export async function getBankTransaction(
       return lines.join("\n");
     }
   );
+}
+
+
+export async function createBankAccount(
+  client: FreeAgentApiClient,
+  params: CreateBankAccountInput
+): Promise<string> {
+  const response = await client.post<{ bank_account: FreeAgentBankAccount }>(
+    "/bank_accounts",
+    { bank_account: params }
+  );
+  const account = response.data.bank_account;
+  return `✅ Bank account created ${extractIdFromUrl(account.url)}: ${account.name}\n**URL**: ${account.url}`;
+}
+
+export async function updateBankAccount(
+  client: FreeAgentApiClient,
+  params: UpdateBankAccountInput
+): Promise<string> {
+  const { bank_account_id, ...fields } = params;
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined) body[k] = v;
+  const response = await client.put<{ bank_account: FreeAgentBankAccount }>(
+    resourcePath(bank_account_id, "bank_accounts"),
+    { bank_account: body }
+  );
+  return `✅ Bank account updated ${extractIdFromUrl(response.data.bank_account.url)}`;
+}
+
+export async function deleteBankAccount(
+  client: FreeAgentApiClient,
+  params: DeleteBankAccountInput
+): Promise<string> {
+  await client.delete(resourcePath(params.bank_account_id, "bank_accounts"));
+  return `✅ Bank account deleted: ${params.bank_account_id}`;
+}
+
+export async function uploadBankStatement(
+  client: FreeAgentApiClient,
+  params: UploadBankStatementInput
+): Promise<string> {
+  // FreeAgent accepts statement lines as JSON — not a binary file upload.
+  const bankAccountUrl = params.bank_account.startsWith("http")
+    ? params.bank_account
+    : undefined;
+  const payload = {
+    bank_account: bankAccountUrl ?? resourcePath(params.bank_account, "bank_accounts"),
+    statement: params.statement,
+  };
+  // FreeAgent endpoint for array upload
+  const response = await client.post<Record<string, unknown>>("/bank_transactions/statement", payload);
+  return `✅ Bank statement lines uploaded (${params.statement.length} transactions)\n\n\`\`\`json\n${JSON.stringify(response.data, null, 2)}\n\`\`\``;
 }

@@ -46,6 +46,7 @@ import {
   SearchToolsInputSchema, CallToolInputSchema,
 } from "../schemas/index.js";
 import { searchTools, callTool } from "./tool-search.js";
+import { gapToolDefinitions } from "./gap-tools.js";
 
 export interface ToolContext {
   clientSupportsElicitation: boolean;
@@ -486,6 +487,7 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: listUsers,
   },
+  ...gapToolDefinitions,
 ];
 
 /**

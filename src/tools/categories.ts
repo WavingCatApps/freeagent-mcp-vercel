@@ -1,7 +1,8 @@
 import { FreeAgentApiClient } from "../services/api-client.js";
 import { ResponseFormat } from "../constants.js";
 import type { FreeAgentCategory } from "../types.js";
-import type { ListCategoriesInput, GetCategoryInput } from "../schemas/index.js";
+import type { ListCategoriesInput, GetCategoryInput, CreateCategoryInput, UpdateCategoryInput, DeleteCategoryInput } from "../schemas/index.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List all categories in FreeAgent
@@ -140,4 +141,49 @@ export async function getCategory(
   details.push(`  Updated: ${category.updated_at}`);
 
   return details.join("\n");
+}
+
+export async function createCategory(
+  apiClient: FreeAgentApiClient,
+  params: CreateCategoryInput
+): Promise<string> {
+  const payload: Record<string, unknown> = {
+    description: params.description,
+    nominal_code: params.nominal_code,
+  };
+  // FreeAgent nests create under the group key
+  const groupKey = ({
+    "Income": "income_category",
+    "Cost of Sales": "cost_of_sales_category",
+    "Admin Expenses": "admin_expenses_category",
+    "Current Assets": "general_category",
+    "Liabilities": "general_category",
+    "Equity": "general_category",
+  } as Record<string, string>)[params.group_description] ?? "general_category";
+  const response = await apiClient.post<Record<string, FreeAgentCategory>>("/categories", { [groupKey]: payload });
+  const created = Object.values(response.data)[0] as FreeAgentCategory;
+  return `✅ Category created: ${created.description} (${created.url ?? created.nominal_code})`;
+}
+
+export async function updateCategory(
+  apiClient: FreeAgentApiClient,
+  params: UpdateCategoryInput
+): Promise<string> {
+  const { nominal_code, ...fields } = params;
+  const path = resourcePath(nominal_code, "categories");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await apiClient.put<Record<string, FreeAgentCategory>>(path, { category: body });
+  const updated = Object.values(response.data)[0] as FreeAgentCategory;
+  return `✅ Category updated: ${updated.description ?? nominal_code}`;
+}
+
+export async function deleteCategory(
+  apiClient: FreeAgentApiClient,
+  params: DeleteCategoryInput
+): Promise<string> {
+  await apiClient.delete(resourcePath(params.nominal_code, "categories"));
+  return `✅ Category deleted: ${params.nominal_code}`;
 }

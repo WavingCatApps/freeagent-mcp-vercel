@@ -4,11 +4,7 @@
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { FreeAgentCompany, FreeAgentUser } from "../types.js";
-import {
-  formatDate,
-  formatResponse,
-  truncateIfNeeded
-} from "../services/formatter.js";
+import { formatDate, formatResponse, truncateIfNeeded } from "../services/formatter.js";
 import type { GetCompanyInput, ListUsersInput } from "../schemas/index.js";
 
 /**

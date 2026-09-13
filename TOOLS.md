@@ -1365,3 +1365,52 @@ Intent bundles are cross-resource tools that collapse a multi-call sequence into
 | `freeagent_invoice_from_timeslips` | `list_projects` → `list_timeslips` → `get_task` (per task) → `create_invoice` → `update_timeslip` (per timeslip) | [Invoice Management](#invoice-management) |
 
 All three resolve human-friendly hints (names, codes, references) to canonical FreeAgent URLs server-side, and surface suggestion-rich errors when a hint is ambiguous or matches nothing.
+
+---
+
+## Gap coverage additions
+
+Additional tools beyond the original core set. See tool descriptions in `tools/list` for parameters.
+
+### CRUD fillers
+- Contacts / projects / tasks / bills / price list items / expenses / timeslips: update and/or delete where previously missing
+- Bank accounts: create / update / delete
+- Categories: create / update / delete
+- Users: get / create / update / delete (including `me`)
+- Bank transaction explanations: delete
+- Bank statement upload via JSON lines (`freeagent_upload_bank_statement`)
+- Invoice: update, delete, duplicate, send email, timeline, direct debit
+- Estimate: update, delete, duplicate, send email
+- Company: business categories, tax timeline
+- Mileage settings: `freeagent_get_mileage_settings`
+
+### Credit notes
+- `freeagent_list_credit_notes`, `freeagent_get_credit_note`, `freeagent_create_credit_note`, `freeagent_update_credit_note`, `freeagent_delete_credit_note`
+- `freeagent_transition_credit_note`, `freeagent_send_credit_note_email`
+- Reconciliations: list/get/create/update/delete
+
+### Notes & attachments
+- Notes: list/get/create/update/delete (contact or project parent)
+- Attachments: get metadata / delete (no binary inline)
+
+### Accounting reports
+- Profit & loss, balance sheet, trial balance, cashflow
+- Accounting transactions list/get
+
+### Journals & capital assets
+- Journal sets CRUD + opening balances
+- Capital assets list/get; capital asset types CRUD
+
+### Tax & payroll
+- VAT / corporation tax / final accounts / income tax (self assessment) list/get/transitions
+- Payroll periods, payslips, payment transitions, profiles
+
+### Other
+- Properties CRUD, stock items list/get, hire purchases list/get
+- Bank feeds, email addresses, account locks, CIS bands/settings, sales tax periods
+
+### Not included
+- Timeslip timers
+- PDF binary downloads
+- File-based statement upload
+- Accountancy Practice API

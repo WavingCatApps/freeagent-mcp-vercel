@@ -12,11 +12,7 @@ import type {
   ListRecurringInvoicesInput,
   GetRecurringInvoiceInput,
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl,
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
 
 export async function listRecurringInvoices(
   client: FreeAgentApiClient,

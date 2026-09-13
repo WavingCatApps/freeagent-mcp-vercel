@@ -10,13 +10,11 @@ import type {
   ListTimeslipsInput,
   GetTimeslipInput,
   CreateTimeslipInput,
-  UpdateTimeslipInput
+  UpdateTimeslipInput,
+  DeleteTimeslipInput
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List timeslips with optional filtering and pagination
@@ -224,4 +222,12 @@ export async function updateTimeslip(
     `**Hours**: ${timeslip.hours}\n` +
     (timeslip.billed_on_invoice ? `**Billed on invoice**: ${timeslip.billed_on_invoice}\n` : "") +
     `**URL**: ${timeslip.url}`;
+}
+
+export async function deleteTimeslip(
+  client: FreeAgentApiClient,
+  params: DeleteTimeslipInput
+): Promise<string> {
+  await client.delete(resourcePath(params.timeslip_id, "timeslips"));
+  return `✅ Timeslip deleted: ${params.timeslip_id}`;
 }
