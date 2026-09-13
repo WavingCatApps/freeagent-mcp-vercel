@@ -70,6 +70,39 @@ vercel --prod
 vercel
 ```
 
+#### Option C: Deploy via Vercel MCP (Hobby, no Git link)
+
+Use this when the Vercel project is **not** connected to GitHub or Origin (for example Git was disconnected on purpose). Deploys run through the [Vercel MCP](https://vercel.com/docs/agent-resources/vercel-mcp) `deploy_to_vercel` tool from **Cursor Desktop** or a **Cloud Agent**.
+
+**One-time setup**
+
+1. Install the Vercel Cursor plugin (adds MCP `https://mcp.vercel.com`).
+2. Authenticate: Desktop → **Needs login** on Vercel MCP; Cloud Agents → [Integrations / MCP](https://cursor.com/dashboard/integrations) and complete OAuth for your Vercel account.
+3. Keep OAuth env vars on the **Vercel project** in the dashboard (see above). File deploy reuses the existing project; it does not re-send secrets.
+
+**Project constants (this repo)**
+
+| Field | Value |
+| --- | --- |
+| Vercel team | `simonrices-projects` (`team_XXlWeivI3Pyn10sWjseYdyQx`) |
+| Project name | `freeagent-mcp-vercel` |
+| Production URL | `https://freeagent-mcp-vercel-simonrices-projects.vercel.app` |
+
+**Agent workflow**
+
+1. Sync to the commit you want: `git fetch origin master && git checkout master && git pull origin master`.
+2. List deploy paths: `node scripts/list-vercel-mcp-deploy-files.mjs` (must include **`bun.lock`**).
+3. Call MCP **`deploy_to_vercel`** with:
+   - `target`: `"production"` (or `"preview"` for a non-prod URL)
+   - `name`: `"freeagent-mcp-vercel"`
+   - `teamId`: `"team_XXlWeivI3Pyn10sWjseYdyQx"`
+   - `files`: each path with UTF-8 `data` (source only; Vercel runs `bun install` and build remotely)
+   - `projectSettings`: `{ "framework": null, "installCommand": "bun install", "buildCommand": "bun install && bun run build" }` (matches `vercel.json`)
+4. Poll **`get_deployment`** / **`get_deployment_build_logs`** until `READY`.
+5. Verify: `curl https://freeagent-mcp-vercel-simonrices-projects.vercel.app/health`
+
+**Do not** use `create_git_project` to “reconnect” this project name if the project already exists unlinked—you will get a 409. Use file deploy on Hobby, or connect Git manually in the dashboard when you move to Origin auto-deploy on a paid team.
+
 ### 5. Test Your Deployment
 
 Once deployed, Vercel will provide you with a URL like `https://your-project.vercel.app`

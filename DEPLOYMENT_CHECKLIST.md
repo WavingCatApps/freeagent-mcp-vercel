@@ -27,6 +27,17 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
 
 ## 🚀 Deployment Steps
 
+### Cloud Agent / Vercel MCP (Hobby, no Git on Vercel)
+
+- [ ] Vercel MCP OAuth completed ([Cursor Integrations](https://cursor.com/dashboard/integrations))
+- [ ] `master` synced locally (`git pull origin master`)
+- [ ] Agent runs `node scripts/list-vercel-mcp-deploy-files.mjs` and **`deploy_to_vercel`** with `target: production`, project `freeagent-mcp-vercel`, team `team_XXlWeivI3Pyn10sWjseYdyQx`, full file tree including **`bun.lock`**
+- [ ] Deployment `READY`; `/health` returns `"status":"ok"`
+
+See [VERCEL_DEPLOYMENT.md — Option C](./VERCEL_DEPLOYMENT.md#option-c-deploy-via-vercel-mcp-hobby-no-git-link).
+
+### CLI (local)
+
 1. **Deploy to Vercel**
    ```bash
    vercel --prod
