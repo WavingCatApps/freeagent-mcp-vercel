@@ -1,7 +1,8 @@
 import { FreeAgentApiClient } from "../services/api-client.js";
 import { ResponseFormat } from "../constants.js";
 import type { FreeAgentTask } from "../types.js";
-import type { ListTasksInput, GetTaskInput, CreateTaskInput } from "../schemas/index.js";
+import type { ListTasksInput, GetTaskInput, CreateTaskInput, UpdateTaskInput, DeleteTaskInput } from "../schemas/index.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 /**
  * List all tasks in FreeAgent
@@ -115,4 +116,27 @@ export async function createTask(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export async function updateTask(
+  apiClient: FreeAgentApiClient,
+  params: UpdateTaskInput
+): Promise<string> {
+  const { task_id, ...fields } = params;
+  const path = resourcePath(task_id, "tasks");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await apiClient.put<{ task: FreeAgentTask }>(path, { task: body });
+  const task = response.data.task;
+  return `✅ Task updated: ${task.name} (${task.url})`;
+}
+
+export async function deleteTask(
+  apiClient: FreeAgentApiClient,
+  params: DeleteTaskInput
+): Promise<string> {
+  await apiClient.delete(resourcePath(params.task_id, "tasks"));
+  return `✅ Task deleted: ${params.task_id}`;
 }

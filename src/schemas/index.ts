@@ -1056,3 +1056,6 @@ export type GetPriceListItemInput = z.infer<typeof GetPriceListItemInputSchema>;
 export type CreatePriceListItemInput = z.infer<typeof CreatePriceListItemInputSchema>;
 export type SearchToolsInput = z.infer<typeof SearchToolsInputSchema>;
 export type CallToolInput = z.infer<typeof CallToolInputSchema>;
+
+// Gap-coverage schemas
+export * from "./gaps.js";

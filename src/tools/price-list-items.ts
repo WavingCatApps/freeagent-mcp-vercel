@@ -10,12 +10,11 @@ import type {
   ListPriceListItemsInput,
   GetPriceListItemInput,
   CreatePriceListItemInput,
+  UpdatePriceListItemInput,
+  DeletePriceListItemInput,
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  extractIdFromUrl,
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 
 export async function listPriceListItems(
   client: FreeAgentApiClient,
@@ -122,4 +121,27 @@ export async function createPriceListItem(
     `**Price**: ${item.price}\n` +
     `**URL**: ${item.url}`
   );
+}
+
+export async function updatePriceListItem(
+  client: FreeAgentApiClient,
+  params: UpdatePriceListItemInput
+): Promise<string> {
+  const { price_list_item_id, ...fields } = params;
+  const path = resourcePath(price_list_item_id, "price_list_items");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await client.put<{ price_list_item: FreeAgentPriceListItem }>(path, { price_list_item: body });
+  const item = response.data.price_list_item;
+  return `✅ Price list item updated: ${item.description} (${item.url})`;
+}
+
+export async function deletePriceListItem(
+  client: FreeAgentApiClient,
+  params: DeletePriceListItemInput
+): Promise<string> {
+  await client.delete(resourcePath(params.price_list_item_id, "price_list_items"));
+  return `✅ Price list item deleted: ${params.price_list_item_id}`;
 }

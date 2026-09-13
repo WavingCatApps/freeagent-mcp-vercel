@@ -6,7 +6,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 ## Features
 
-- **Broad FreeAgent coverage**: contacts, invoices (incl. transitions and discounts), estimates (incl. transitions), bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts, bank transaction explanations, categories, company info, and users
+- **Broad FreeAgent coverage**: contacts, invoices (incl. transitions, email, duplicate, direct debit), estimates, bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts/feeds/statements (JSON lines), credit notes + reconciliations, notes, attachments (metadata), journals, capital assets, accounting reports (P&amp;L, balance sheet, trial balance, cashflow, ledger), VAT/corp tax/income tax/final accounts, payroll, properties/stock/hire purchases, CIS, sales tax periods, account locks, categories, company info, and users
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
 - **Optional tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): collapses the tool catalog behind two meta-tools (`freeagent_search_tools`, `freeagent_call_tool`) so clients only pay the tool-definition token cost for tools they actually use
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
@@ -174,6 +174,14 @@ See [TOOLS.md](./TOOLS.md) for per-tool parameters and examples. Summary:
 | `freeagent_get_category` | Get category by nominal code | Yes |
 | `freeagent_get_company` | Get company information | Yes |
 | `freeagent_list_users` | List all users | Yes |
+
+
+## Intentional omissions
+
+- **Timeslip timers** — start/stop timer endpoints are not exposed (poor MCP fit).
+- **Binary PDF download tools** — invoice/estimate/credit-note PDF bytes are not returned (no efficient agentic binary channel yet).
+- **File-based bank statement upload** — use `freeagent_upload_bank_statement` with JSON lines instead. Nested base64 attachments on expenses/explanations remain supported.
+- **Accountancy Practice API** — practice/client endpoints are out of scope for this company-facing server.
 
 ## Development
 

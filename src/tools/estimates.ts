@@ -12,14 +12,13 @@ import type {
   GetEstimateInput,
   CreateEstimateInput,
   TransitionEstimateInput,
+  UpdateEstimateInput,
+  DeleteEstimateInput,
+  DuplicateEstimateInput,
+  SendEstimateEmailInput,
 } from "../schemas/index.js";
-import {
-  formatResponse,
-  createPaginationMetadata,
-  computeDiscountAmount,
-  formatCurrency,
-  extractIdFromUrl,
-} from "../services/formatter.js";
+import { formatResponse, createPaginationMetadata, computeDiscountAmount, formatCurrency, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath, resourceId } from "../utils/resource-path.js";
 
 export async function listEstimates(
   client: FreeAgentApiClient,
@@ -189,4 +188,51 @@ export async function transitionEstimate(
     (est.total_value ? `**Total**: ${est.currency ?? "GBP"} ${est.total_value}\n` : "") +
     `**URL**: ${est.url}`
   );
+}
+
+
+export async function updateEstimate(
+  client: FreeAgentApiClient,
+  params: UpdateEstimateInput
+): Promise<string> {
+  const { estimate_id, ...fields } = params;
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined) body[k] = v;
+  const response = await client.put<{ estimate: FreeAgentEstimate }>(
+    resourcePath(estimate_id, "estimates"),
+    { estimate: body }
+  );
+  return `✅ Estimate updated ${extractIdFromUrl(response.data.estimate.url)}\n**URL**: ${response.data.estimate.url}`;
+}
+
+export async function deleteEstimate(
+  client: FreeAgentApiClient,
+  params: DeleteEstimateInput
+): Promise<string> {
+  await client.delete(resourcePath(params.estimate_id, "estimates"));
+  return `✅ Estimate deleted: ${params.estimate_id}`;
+}
+
+export async function duplicateEstimate(
+  client: FreeAgentApiClient,
+  params: DuplicateEstimateInput
+): Promise<string> {
+  const id = resourceId(params.estimate_id);
+  const response = await client.post<{ estimate: FreeAgentEstimate }>(`/estimates/${id}/duplicate`);
+  return `✅ Estimate duplicated → ${extractIdFromUrl(response.data.estimate.url)}\n**URL**: ${response.data.estimate.url}`;
+}
+
+export async function sendEstimateEmail(
+  client: FreeAgentApiClient,
+  params: SendEstimateEmailInput
+): Promise<string> {
+  const id = resourceId(params.estimate_id);
+  const email: Record<string, unknown> = {};
+  if (params.to) email.to = params.to;
+  if (params.cc) email.cc = params.cc;
+  if (params.subject) email.subject = params.subject;
+  if (params.body) email.body = params.body;
+  if (params.from) email.from = params.from;
+  await client.post(`/estimates/${id}/emails`, { estimate: { email } });
+  return `✅ Estimate email sent for ${params.estimate_id}`;
 }

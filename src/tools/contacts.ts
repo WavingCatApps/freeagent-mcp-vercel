@@ -4,18 +4,14 @@
 
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { FreeAgentContact } from "../types.js";
-import {
-  formatDate,
-  formatContactName,
-  formatResponse,
-  truncateIfNeeded,
-  createPaginationMetadata,
-  extractIdFromUrl
-} from "../services/formatter.js";
+import { formatDate, formatContactName, formatResponse, truncateIfNeeded, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { resourcePath } from "../utils/resource-path.js";
 import type {
   ListContactsInput,
   GetContactInput,
-  CreateContactInput
+  CreateContactInput,
+  UpdateContactInput,
+  DeleteContactInput
 } from "../schemas/index.js";
 
 /**
@@ -221,4 +217,29 @@ export async function createContact(
   const name = formatContactName(contact);
 
   return `✅ Contact created successfully: ${name} (ID: ${extractIdFromUrl(contact.url)})\n\nURL: ${contact.url}`;
+}
+
+
+export async function updateContact(
+  client: FreeAgentApiClient,
+  params: UpdateContactInput
+): Promise<string> {
+  const { contact_id, ...fields } = params;
+  const path = resourcePath(contact_id, "contacts");
+  const body: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v !== undefined) body[k] = v;
+  }
+  const response = await client.put<{ contact: FreeAgentContact }>(path, { contact: body });
+  const contact = response.data.contact;
+  return `✅ Contact updated: ${formatContactName(contact)} (ID: ${extractIdFromUrl(contact.url)})\n\nURL: ${contact.url}`;
+}
+
+export async function deleteContact(
+  client: FreeAgentApiClient,
+  params: DeleteContactInput
+): Promise<string> {
+  const path = resourcePath(params.contact_id, "contacts");
+  await client.delete(path);
+  return `✅ Contact deleted: ${params.contact_id}`;
 }
