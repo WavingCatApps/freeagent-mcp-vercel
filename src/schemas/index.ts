@@ -44,6 +44,8 @@ export const CallToolInputSchema = z.object({
   name: z.string()
     .min(1)
     .describe("Exact name of a FreeAgent tool from the catalog (e.g. 'freeagent_list_invoices'). Discover names with freeagent_search_tools first."),
+  // Free-form bag of JSON values. JSON Schema normalizes the Zod catchall to
+  // additionalProperties: true (not {}), which picky MCP clients require.
   arguments: z.record(z.string(), z.unknown())
     .default({})
     .describe("Arguments object matching the target tool's input schema. Use freeagent_search_tools to fetch the schema if unknown."),

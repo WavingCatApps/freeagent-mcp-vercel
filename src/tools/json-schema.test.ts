@@ -36,6 +36,18 @@ describe("shapeToInputJsonSchema", () => {
     expect(shapeToInputJsonSchema(null).type).toBe("object");
     expect(shapeToInputJsonSchema(42).type).toBe("object");
   });
+
+  it("rewrites empty additionalProperties {} to boolean true for free-form records", () => {
+    const shape = z
+      .object({
+        arguments: z.record(z.string(), z.unknown()).default({}),
+      })
+      .strict().shape;
+    const json = shapeToInputJsonSchema(shape);
+    const args = (json.properties as Record<string, Record<string, unknown>>).arguments;
+    expect(args.type).toBe("object");
+    expect(args.additionalProperties).toBe(true);
+  });
 });
 
 describe("probeToolsListSchemas", () => {

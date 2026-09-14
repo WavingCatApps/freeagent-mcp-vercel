@@ -76,7 +76,7 @@ export function shapeToInputJsonSchema(shape: unknown): Record<string, unknown> 
 
 function normalizeJsonSchema(json: Record<string, unknown>): Record<string, unknown> {
   // Strip $schema — MCP tool inputSchema is a plain JSON Schema object.
-  const rest = { ...json };
+  const rest = rewriteEmptyAdditionalProperties({ ...json }) as Record<string, unknown>;
   delete rest.$schema;
   if (rest.type !== "object") {
     rest.type = "object";
@@ -89,6 +89,36 @@ function normalizeJsonSchema(json: Record<string, unknown>): Record<string, unkn
     rest.additionalProperties = false;
   }
   return rest;
+}
+
+/**
+ * Zod emits `additionalProperties: {}` for z.unknown()/z.any() catchalls. That
+ * empty object is the "accept anything" spelling of `true`, but some MCP
+ * clients warn or mishandle it. Rewrite to the boolean form clients expect.
+ */
+function rewriteEmptyAdditionalProperties(node: unknown): unknown {
+  if (Array.isArray(node)) {
+    return node.map(rewriteEmptyAdditionalProperties);
+  }
+  if (node == null || typeof node !== "object") {
+    return node;
+  }
+  const obj = node as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (
+      key === "additionalProperties" &&
+      value != null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value as object).length === 0
+    ) {
+      out[key] = true;
+      continue;
+    }
+    out[key] = rewriteEmptyAdditionalProperties(value);
+  }
+  return out;
 }
 
 /**
