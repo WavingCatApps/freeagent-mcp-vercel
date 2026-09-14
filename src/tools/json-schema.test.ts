@@ -59,15 +59,17 @@ describe("safe tools/list handler", () => {
 
       const server = new McpServer({ name: "t", version: "1" });
       registerAllTools(server, new FreeAgentApiClient("x", false));
-      const listHandler = (server.server as any)._requestHandlers.get("tools/list");
+      const listHandler = getRequestHandler(server, "tools/list");
       expect(listHandler).toBeTypeOf("function");
-      const result = await listHandler({ method: "tools/list", params: {} });
+      const result = (await listHandler!({ method: "tools/list", params: {} })) as {
+        tools: Array<{ name: string; inputSchema: { type?: string; properties?: unknown } }>;
+      };
       expect(result.tools).toHaveLength(2);
       for (const tool of result.tools) {
         expect(tool.inputSchema.type).toBe("object");
         expect(tool.inputSchema.properties).toBeTypeOf("object");
       }
-      const names = result.tools.map((t: { name: string }) => t.name).sort();
+      const names = result.tools.map((t) => t.name).sort();
       expect(names).toEqual(["freeagent_call_tool", "freeagent_search_tools"]);
     } finally {
       if (originalVercel === undefined) delete process.env.VERCEL;
@@ -83,15 +85,10 @@ describe("safe tools/list handler", () => {
       process.env.VERCEL = "1";
       const server = new McpServer({ name: "t", version: "1" });
       registerAllTools(server, new FreeAgentApiClient("x", false));
-      const handlers = (server.server as any)._requestHandlers;
-      const resources = await handlers.get("resources/list")({
-        method: "resources/list",
-        params: {},
-      });
-      const prompts = await handlers.get("prompts/list")({
-        method: "prompts/list",
-        params: {},
-      });
+      const resourcesHandler = getRequestHandler(server, "resources/list");
+      const promptsHandler = getRequestHandler(server, "prompts/list");
+      const resources = await resourcesHandler!({ method: "resources/list", params: {} });
+      const prompts = await promptsHandler!({ method: "prompts/list", params: {} });
       expect(resources).toEqual({ resources: [] });
       expect(prompts).toEqual({ prompts: [] });
     } finally {
@@ -100,3 +97,12 @@ describe("safe tools/list handler", () => {
     }
   });
 });
+
+type RequestHandler = (request: { method: string; params: Record<string, unknown> }) => Promise<unknown>;
+
+function getRequestHandler(server: McpServer, method: string): RequestHandler | undefined {
+  const handlers = (
+    server.server as unknown as { _requestHandlers: Map<string, RequestHandler> }
+  )._requestHandlers;
+  return handlers.get(method);
+}

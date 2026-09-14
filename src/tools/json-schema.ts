@@ -75,7 +75,9 @@ export function shapeToInputJsonSchema(shape: unknown): Record<string, unknown> 
 }
 
 function normalizeJsonSchema(json: Record<string, unknown>): Record<string, unknown> {
-  const { $schema: _schema, ...rest } = json;
+  // Strip $schema — MCP tool inputSchema is a plain JSON Schema object.
+  const rest = { ...json };
+  delete rest.$schema;
   if (rest.type !== "object") {
     rest.type = "object";
   }
