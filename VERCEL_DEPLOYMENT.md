@@ -52,7 +52,13 @@ vercel env add FREEAGENT_USE_SANDBOX
 
 ### 4. Deploy to Vercel
 
-#### Option A: Deploy via GitHub (Recommended)
+#### Option A: Deploy Button (fastest)
+
+Use the **Deploy with Vercel** button in the [README](./README.md). It clones this repo into your Git account, prompts for `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET`, and `FREEAGENT_USE_SANDBOX`, then deploys with the existing `vercel.json` build settings.
+
+After the first deploy, add `https://YOUR_PROJECT.vercel.app/oauth/callback` as a redirect URI on your FreeAgent OAuth app ([OAUTH_SETUP.md](./OAUTH_SETUP.md)).
+
+#### Option B: Deploy via GitHub
 
 1. Push your code to a GitHub repository
 2. Go to [Vercel Dashboard](https://vercel.com/dashboard)
@@ -60,7 +66,7 @@ vercel env add FREEAGENT_USE_SANDBOX
 4. Import your GitHub repository
 5. Vercel will auto-detect the configuration and deploy
 
-#### Option B: Deploy via Vercel CLI
+#### Option C: Deploy via Vercel CLI
 
 ```bash
 # Deploy to production
