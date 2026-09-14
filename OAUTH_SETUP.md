@@ -24,9 +24,9 @@ When deployed to the web (e.g., on Vercel), the MCP server uses OAuth 2.0 to aut
 4. Fill in the details:
    - **App Name**: `My FreeAgent MCP Server` (or your preferred name)
    - **Description**: `MCP server for Claude integration`
-   - **Redirect URIs**: Add your Vercel URL, e.g., `https://your-project.vercel.app`
-     - For sandbox testing: Use your preview/development URLs too
-     - For local testing: Add `http://localhost:3000`
+   - **Redirect URIs**: Add your Vercel callback URL, e.g., `https://your-project.vercel.app/oauth/callback`
+     - For sandbox testing: Use your preview/development callback URLs too
+     - For local testing: Add `http://localhost:3000/oauth/callback`
 
 5. Save your app and note:
    - **OAuth Client ID** (e.g., `abc123xyz...`)
