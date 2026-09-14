@@ -17,7 +17,7 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient } from "../src/services/api-client.js";
 import { getBaseUrl, getRequestBaseUrl } from "../src/constants.js";
-import { registerAllTools } from "../src/tools/register.js";
+import { registerAllTools, isToolSearchMode } from "../src/tools/register.js";
 
 // Configuration
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
@@ -223,14 +223,28 @@ for (const path of ["/mcp", "/"]) {
   app.delete(path, rejectUnsupportedMcpMethod);
 }
 
-// Health check
-app.get("/health", (req: any, res: any) => {
+// Health check (booleans only — never echo secret values)
+app.get("/health", (_req: any, res: any) => {
+  const toolSearchEnv = process.env.FREEAGENT_TOOL_SEARCH;
   res.json({
     status: "ok",
     service: "freeagent-mcp-server",
     version: "1.0.0",
     oauth_mode: "jwt-stateless",
     freeagent_environment: USE_SANDBOX ? "sandbox" : "production",
+    vercel: process.env.VERCEL === "1",
+    vercel_env: process.env.VERCEL_ENV ?? null,
+    tool_search_mode: isToolSearchMode(),
+    tool_search_env:
+      toolSearchEnv === undefined || toolSearchEnv === ""
+        ? null
+        : toolSearchEnv,
+    env_present: {
+      FREEAGENT_CLIENT_ID: Boolean(process.env.FREEAGENT_CLIENT_ID),
+      FREEAGENT_CLIENT_SECRET: Boolean(process.env.FREEAGENT_CLIENT_SECRET),
+      JWT_SECRET: Boolean(process.env.JWT_SECRET),
+      FREEAGENT_TOOL_SEARCH: toolSearchEnv !== undefined && toolSearchEnv !== "",
+    },
   });
 });
 
