@@ -1,7 +1,8 @@
 /**
  * Tool-search meta-tools for the FreeAgent MCP server.
  *
- * When FREEAGENT_TOOL_SEARCH=true the server exposes only `freeagent_search_tools`
+ * When tool-search mode is on (FREEAGENT_TOOL_SEARCH=true/1, or default on Vercel)
+ * the server exposes only `freeagent_search_tools`
  * and `freeagent_call_tool`. This reduces the tool-definition footprint of
  * tools/list from ~50 entries to 2, and lets clients pull in individual tool
  * schemas on demand — mirroring the deferred-loading pattern used by Claude

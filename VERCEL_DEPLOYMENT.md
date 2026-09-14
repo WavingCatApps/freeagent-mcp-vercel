@@ -109,7 +109,7 @@ npx @modelcontextprotocol/inspector https://your-project.vercel.app
 1. **Streamable HTTP Transport**: The server uses Streamable HTTP transport for MCP communication
 2. **Serverless Function**: Runs as a Vercel serverless function at `api/index.ts`
 3. **Endpoint Routes**:
-   - `/` and `/mcp` - Main MCP endpoints (POST for tool calls, GET for SSE streaming)
+   - `/` and `/mcp` - Main MCP endpoints (POST for tool calls; GET/DELETE return 405 — serverless is stateless, no standalone SSE)
    - `/health` - Health check endpoint
    - `/authorize`, `/token`, `/register` - OAuth 2.0 endpoints
    - `/oauth/callback` - FreeAgent OAuth callback

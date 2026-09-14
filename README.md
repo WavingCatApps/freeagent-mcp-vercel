@@ -8,7 +8,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 - **Broad FreeAgent coverage**: contacts, invoices (incl. transitions, email, duplicate, direct debit), estimates, bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts/feeds/statements (JSON lines), credit notes + reconciliations, notes, attachments (metadata), journals, capital assets, accounting reports (P&amp;L, balance sheet, trial balance, cashflow, ledger), VAT/corp tax/income tax/final accounts, payroll, properties/stock/hire purchases, CIS, sales tax periods, account locks, categories, company info, and users
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
-- **Optional tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): collapses the tool catalog behind two meta-tools (`freeagent_search_tools`, `freeagent_call_tool`) so clients only pay the tool-definition token cost for tools they actually use
+- **Tool-search mode** (`FREEAGENT_TOOL_SEARCH`): collapses the tool catalog behind two meta-tools (`freeagent_search_tools`, `freeagent_call_tool`) so clients only pay the tool-definition token cost for tools they actually use. **On by default on Vercel**; set `FREEAGENT_TOOL_SEARCH=false` to expose the full catalog there
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
@@ -57,17 +57,20 @@ See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key po
 
 - Uses `StreamableHTTPServerTransport` in stateless mode (no sessions)
 - OAuth 2.0 with PKCE via JWT-encoded tokens (no database needed)
-- Handles `POST` (tool calls), `GET` (SSE streaming), and `DELETE` (returns 405 - stateless)
+- Handles `POST` (JSON-RPC tool calls); `GET`/`DELETE` return 405 in this serverless/stateless deploy (no durable SSE sessions)
 - Set `PRODUCTION_URL` (or rely on `VERCEL_PROJECT_PRODUCTION_URL`) for stable production OAuth callback URLs. Preview OAuth uses the request host (or `VERCEL_URL`) so short per-deploy hosts match FreeAgent `*` wildcards.
 
 Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET` (stable secret required on Vercel so OAuth JWTs verify across serverless instances)
 
-## Tool-Search Mode (optional)
+## Tool-Search Mode
 
-By default the server registers every catalog tool directly, which makes all ~50 tool definitions part of the MCP client's `tools/list` response. For clients with many connected MCP servers — where tool-definition tokens add up quickly — set:
+Locally, the server registers every catalog tool directly (~165 definitions in `tools/list`). On Vercel this defaults to tool-search mode (because `VERCEL=1`), which collapses the catalog behind two meta-tools — important after the company-API expansion, where a full `tools/list` has been observed to leave cloud MCP clients connected with zero tools.
+
+Force either mode explicitly:
 
 ```bash
-export FREEAGENT_TOOL_SEARCH=true
+export FREEAGENT_TOOL_SEARCH=true   # always use meta-tools
+export FREEAGENT_TOOL_SEARCH=false  # always expose the full catalog
 ```
 
 In this mode the server exposes only two meta-tools:

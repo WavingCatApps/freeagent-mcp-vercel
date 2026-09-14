@@ -519,20 +519,27 @@ export const toolSearchMetaDefinitions: ToolDefinition[] = [
 /**
  * Whether tool-search mode is enabled. When true, only the two meta-tools are
  * registered over MCP; the full catalog is reached through freeagent_call_tool.
- * Controlled by the FREEAGENT_TOOL_SEARCH env var (accepts "true" or "1").
+ *
+ * `FREEAGENT_TOOL_SEARCH` accepts "true"/"1" (force on) or "false"/"0" (force
+ * off). When unset, defaults to on under Vercel (`VERCEL=1`): after the #86
+ * catalog expansion (~165 tools / ~50KB tools/list), exposing every tool on
+ * Hobby Streamable HTTP has been observed to leave clients connected with an
+ * empty tool list. Local stdio keeps the full catalog unless opted in.
  */
 export function isToolSearchMode(): boolean {
   const raw = process.env.FREEAGENT_TOOL_SEARCH;
-  return raw === "true" || raw === "1";
+  if (raw === "true" || raw === "1") return true;
+  if (raw === "false" || raw === "0") return false;
+  return process.env.VERCEL === "1";
 }
 
 /**
  * Register FreeAgent tools on an McpServer instance.
  *
  * In default mode, registers every catalog tool directly. In tool-search mode
- * (FREEAGENT_TOOL_SEARCH=true) registers only the two meta-tools
- * freeagent_search_tools and freeagent_call_tool, which dramatically reduces
- * the token footprint of tools/list for clients with many MCP servers.
+ * registers only the two meta-tools freeagent_search_tools and
+ * freeagent_call_tool, which dramatically reduces the token footprint of
+ * tools/list for clients with many MCP servers. On Vercel this is the default.
  *
  * @param server - The McpServer to register tools on
  * @param apiClient - The FreeAgent API client to use for API calls

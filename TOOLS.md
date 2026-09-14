@@ -4,7 +4,7 @@ This document provides a complete reference for all tools available in the FreeA
 
 ## Tool-Search Meta-Tools
 
-Registered only when `FREEAGENT_TOOL_SEARCH=true`. In this mode the rest of the catalog below is reached through `freeagent_call_tool` rather than being exposed directly in `tools/list`.
+Registered when tool-search mode is on (`FREEAGENT_TOOL_SEARCH=true`/`1`, or unset on Vercel where it defaults on). In this mode the rest of the catalog below is reached through `freeagent_call_tool` rather than being exposed directly in `tools/list`.
 
 ### freeagent_search_tools
 

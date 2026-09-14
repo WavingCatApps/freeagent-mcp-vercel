@@ -234,18 +234,28 @@ describe("tool-search mode wiring", () => {
 
   it("reads FREEAGENT_TOOL_SEARCH from the environment", () => {
     const original = process.env.FREEAGENT_TOOL_SEARCH;
+    const originalVercel = process.env.VERCEL;
     try {
+      delete process.env.VERCEL;
       process.env.FREEAGENT_TOOL_SEARCH = "true";
       expect(isToolSearchMode()).toBe(true);
       process.env.FREEAGENT_TOOL_SEARCH = "1";
       expect(isToolSearchMode()).toBe(true);
       process.env.FREEAGENT_TOOL_SEARCH = "false";
       expect(isToolSearchMode()).toBe(false);
+      process.env.FREEAGENT_TOOL_SEARCH = "0";
+      expect(isToolSearchMode()).toBe(false);
       delete process.env.FREEAGENT_TOOL_SEARCH;
+      expect(isToolSearchMode()).toBe(false);
+      process.env.VERCEL = "1";
+      expect(isToolSearchMode()).toBe(true);
+      process.env.FREEAGENT_TOOL_SEARCH = "false";
       expect(isToolSearchMode()).toBe(false);
     } finally {
       if (original === undefined) delete process.env.FREEAGENT_TOOL_SEARCH;
       else process.env.FREEAGENT_TOOL_SEARCH = original;
+      if (originalVercel === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = originalVercel;
     }
   });
 
