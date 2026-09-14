@@ -236,7 +236,6 @@ describe("tool-search mode wiring", () => {
     const original = process.env.FREEAGENT_TOOL_SEARCH;
     const originalVercel = process.env.VERCEL;
     try {
-      delete process.env.VERCEL;
       process.env.FREEAGENT_TOOL_SEARCH = "true";
       expect(isToolSearchMode()).toBe(true);
       process.env.FREEAGENT_TOOL_SEARCH = "1";
@@ -247,10 +246,11 @@ describe("tool-search mode wiring", () => {
       expect(isToolSearchMode()).toBe(false);
       delete process.env.FREEAGENT_TOOL_SEARCH;
       expect(isToolSearchMode()).toBe(false);
+      // Vercel no longer implies tool-search; must opt in explicitly.
       process.env.VERCEL = "1";
-      expect(isToolSearchMode()).toBe(true);
-      process.env.FREEAGENT_TOOL_SEARCH = "false";
       expect(isToolSearchMode()).toBe(false);
+      process.env.FREEAGENT_TOOL_SEARCH = "true";
+      expect(isToolSearchMode()).toBe(true);
     } finally {
       if (original === undefined) delete process.env.FREEAGENT_TOOL_SEARCH;
       else process.env.FREEAGENT_TOOL_SEARCH = original;

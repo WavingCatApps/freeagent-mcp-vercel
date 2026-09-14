@@ -10,7 +10,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 - **Broad FreeAgent coverage**: contacts, invoices (incl. transitions, email, duplicate, direct debit), estimates, bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts/feeds/statements (JSON lines), credit notes + reconciliations, notes, attachments (metadata), journals, capital assets, accounting reports (P&amp;L, balance sheet, trial balance, cashflow, ledger), VAT/corp tax/income tax/final accounts, payroll, properties/stock/hire purchases, CIS, sales tax periods, account locks, categories, company info, and users
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
-- **Tool-search mode** (`FREEAGENT_TOOL_SEARCH`): collapses the tool catalog behind two meta-tools (`freeagent_search_tools`, `freeagent_call_tool`) so clients only pay the tool-definition token cost for tools they actually use. **On by default on Vercel**; set `FREEAGENT_TOOL_SEARCH=false` to expose the full catalog there
+- **Tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): optional — collapses the catalog behind `freeagent_search_tools` / `freeagent_call_tool` for a smaller `tools/list`. Default is the full catalog (including on Vercel)
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
@@ -70,25 +70,24 @@ Key points:
 
 Required env vars: `FREEAGENT_CLIENT_ID`, `FREEAGENT_CLIENT_SECRET`, `JWT_SECRET` (stable secret required on Vercel so OAuth JWTs verify across serverless instances)
 
-## Tool-Search Mode
+## Tool-Search Mode (optional)
 
-Locally, the server registers every catalog tool directly (~165 definitions in `tools/list`). On Vercel this defaults to tool-search mode (because `VERCEL=1`), which collapses the catalog behind two meta-tools — important after the company-API expansion, where a full `tools/list` has been observed to leave cloud MCP clients connected with zero tools.
+By default the server registers every catalog tool directly (~165 definitions in `tools/list`), including on Vercel. That path is reliable again after the tools/list schema fixes.
 
-Force either mode explicitly:
+If you want a smaller `tools/list` (e.g. many MCP servers competing for context), opt in:
 
 ```bash
-export FREEAGENT_TOOL_SEARCH=true   # always use meta-tools
-export FREEAGENT_TOOL_SEARCH=false  # always expose the full catalog
+export FREEAGENT_TOOL_SEARCH=true   # only freeagent_search_tools + freeagent_call_tool
 ```
 
-In this mode the server exposes only two meta-tools:
+Unset it (or anything other than `true`/`1`) to keep the full catalog.
 
 | Tool | Purpose |
 |------|---------|
 | `freeagent_search_tools` | Search the catalog and return JSONSchema for matching tools. Query forms: `select:name1,name2` for direct lookup, `+required optional` for scored search with required keywords, or plain keywords for a ranked search. |
 | `freeagent_call_tool` | Invoke any catalog tool by name with validated arguments (`{ name, arguments }`). Pair with `search_tools` to discover schemas on demand. |
 
-The full catalog is still reachable — it's just loaded on demand. This mirrors the deferred-loading pattern used by Claude Code's internal `ToolSearch`.
+This mirrors the deferred-loading pattern used by Claude Code's internal `ToolSearch`.
 
 ## Available Tools
 

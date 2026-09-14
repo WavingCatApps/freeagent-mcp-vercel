@@ -61,13 +61,13 @@ describe("probeToolsListSchemas", () => {
 });
 
 describe("safe tools/list handler", () => {
-  it("returns meta-tools with object inputSchema under Vercel tool-search mode", async () => {
+  it("returns the full catalog with object inputSchema by default", async () => {
     const originalVercel = process.env.VERCEL;
     const originalSearch = process.env.FREEAGENT_TOOL_SEARCH;
     try {
       process.env.VERCEL = "1";
       delete process.env.FREEAGENT_TOOL_SEARCH;
-      expect(isToolSearchMode()).toBe(true);
+      expect(isToolSearchMode()).toBe(false);
 
       const server = new McpServer({ name: "t", version: "1" });
       registerAllTools(server, new FreeAgentApiClient("x", false));
@@ -76,16 +76,39 @@ describe("safe tools/list handler", () => {
       const result = (await listHandler!({ method: "tools/list", params: {} })) as {
         tools: Array<{ name: string; inputSchema: { type?: string; properties?: unknown } }>;
       };
-      expect(result.tools).toHaveLength(2);
-      for (const tool of result.tools) {
+      expect(result.tools.length).toBeGreaterThan(50);
+      for (const tool of result.tools.slice(0, 5)) {
         expect(tool.inputSchema.type).toBe("object");
         expect(tool.inputSchema.properties).toBeTypeOf("object");
       }
-      const names = result.tools.map((t) => t.name).sort();
-      expect(names).toEqual(["freeagent_call_tool", "freeagent_search_tools"]);
+      const names = result.tools.map((t) => t.name);
+      expect(names).toContain("freeagent_list_invoices");
+      expect(names).not.toContain("freeagent_search_tools");
+      expect(names).not.toContain("freeagent_call_tool");
     } finally {
       if (originalVercel === undefined) delete process.env.VERCEL;
       else process.env.VERCEL = originalVercel;
+      if (originalSearch === undefined) delete process.env.FREEAGENT_TOOL_SEARCH;
+      else process.env.FREEAGENT_TOOL_SEARCH = originalSearch;
+    }
+  });
+
+  it("returns meta-tools when FREEAGENT_TOOL_SEARCH is enabled", async () => {
+    const originalSearch = process.env.FREEAGENT_TOOL_SEARCH;
+    try {
+      process.env.FREEAGENT_TOOL_SEARCH = "true";
+      expect(isToolSearchMode()).toBe(true);
+
+      const server = new McpServer({ name: "t", version: "1" });
+      registerAllTools(server, new FreeAgentApiClient("x", false));
+      const listHandler = getRequestHandler(server, "tools/list");
+      const result = (await listHandler!({ method: "tools/list", params: {} })) as {
+        tools: Array<{ name: string; inputSchema: { type?: string } }>;
+      };
+      expect(result.tools).toHaveLength(2);
+      const names = result.tools.map((t) => t.name).sort();
+      expect(names).toEqual(["freeagent_call_tool", "freeagent_search_tools"]);
+    } finally {
       if (originalSearch === undefined) delete process.env.FREEAGENT_TOOL_SEARCH;
       else process.env.FREEAGENT_TOOL_SEARCH = originalSearch;
     }
