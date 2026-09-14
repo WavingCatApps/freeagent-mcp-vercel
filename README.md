@@ -55,7 +55,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key points:
 
-- Uses `StreamableHTTPServerTransport` in stateless mode (no sessions)
+- Uses `StreamableHTTPServerTransport` in stateless mode (no sessions) with `enableJsonResponse: true` (avoids empty SSE bodies on Vercel)
 - OAuth 2.0 with PKCE via JWT-encoded tokens (no database needed)
 - Handles `POST` (JSON-RPC tool calls); `GET`/`DELETE` return 405 in this serverless/stateless deploy (no durable SSE sessions)
 - Set `PRODUCTION_URL` (or rely on `VERCEL_PROJECT_PRODUCTION_URL`) for stable production OAuth callback URLs. Preview OAuth uses the request host (or `VERCEL_URL`) so short per-deploy hosts match FreeAgent `*` wildcards.

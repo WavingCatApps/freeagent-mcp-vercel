@@ -171,6 +171,10 @@ async function handleMcpRequest(req: any, res: any) {
     const server = createMcpServer(freeagentToken);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode - no sessions needed for serverless
+      // SSE response streams often finish with an empty body through Express on
+      // Vercel (tools/list returns headers, no JSON). JSON mode is the reliable
+      // request/response path for serverless.
+      enableJsonResponse: true,
     });
 
     await server.connect(transport);
