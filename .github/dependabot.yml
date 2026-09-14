@@ -30,9 +30,6 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
-      deployment:
-        patterns:
-          - "@vercel/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
