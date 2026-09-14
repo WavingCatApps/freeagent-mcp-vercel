@@ -2,6 +2,8 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the [FreeAgent](https://www.freeagent.com) accounting API. Enables LLMs to manage contacts, invoices, estimates, bills, expenses, timeslips, projects, tasks, bank accounts, and more.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FWavingCatApps%2Ffreeagent-mcp-vercel&project-name=freeagent-mcp&repository-name=freeagent-mcp&env=FREEAGENT_CLIENT_ID,FREEAGENT_CLIENT_SECRET,JWT_SECRET,FREEAGENT_USE_SANDBOX&envDefaults=%7B%22FREEAGENT_USE_SANDBOX%22%3A%22true%22%7D&envDescription=FreeAgent%20OAuth%20Client%20ID%2FSecret%20from%20https%3A%2F%2Fdev.freeagent.com.%20Set%20JWT_SECRET%20with%3A%20openssl%20rand%20-hex%2032.%20After%20deploy%2C%20add%20https%3A%2F%2FYOUR_PROJECT.vercel.app%2Foauth%2Fcallback%20as%20a%20FreeAgent%20redirect%20URI.&envLink=https%3A%2F%2Fgithub.com%2FWavingCatApps%2Ffreeagent-mcp-vercel%2Fblob%2Fmaster%2FOAUTH_SETUP.md)
+
 > By my own admission, most of this project is vibe coded.
 
 ## Features
@@ -53,7 +55,13 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 ### Vercel (Streamable HTTP) - for cloud access
 
-See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md) for full instructions. Key points:
+One-click deploy (clones this repo into your Git account and prompts for env vars):
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FWavingCatApps%2Ffreeagent-mcp-vercel&project-name=freeagent-mcp&repository-name=freeagent-mcp&env=FREEAGENT_CLIENT_ID,FREEAGENT_CLIENT_SECRET,JWT_SECRET,FREEAGENT_USE_SANDBOX&envDefaults=%7B%22FREEAGENT_USE_SANDBOX%22%3A%22true%22%7D&envDescription=FreeAgent%20OAuth%20Client%20ID%2FSecret%20from%20https%3A%2F%2Fdev.freeagent.com.%20Set%20JWT_SECRET%20with%3A%20openssl%20rand%20-hex%2032.%20After%20deploy%2C%20add%20https%3A%2F%2FYOUR_PROJECT.vercel.app%2Foauth%2Fcallback%20as%20a%20FreeAgent%20redirect%20URI.&envLink=https%3A%2F%2Fgithub.com%2FWavingCatApps%2Ffreeagent-mcp-vercel%2Fblob%2Fmaster%2FOAUTH_SETUP.md)
+
+After deploy, register `https://YOUR_PROJECT.vercel.app/oauth/callback` on your FreeAgent OAuth app (see [OAUTH_SETUP.md](./OAUTH_SETUP.md)). Full walkthrough: [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
+
+Key points:
 
 - Uses `StreamableHTTPServerTransport` in stateless mode (no sessions) with `enableJsonResponse: true` (avoids empty SSE bodies on Vercel)
 - OAuth 2.0 with PKCE via JWT-encoded tokens (no database needed)
