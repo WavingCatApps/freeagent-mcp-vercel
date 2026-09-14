@@ -1,7 +1,8 @@
 /**
  * Tool-search meta-tools for the FreeAgent MCP server.
  *
- * When FREEAGENT_TOOL_SEARCH=true the server exposes only `freeagent_search_tools`
+ * When tool-search mode is on (FREEAGENT_TOOL_SEARCH=true/1, or default on Vercel)
+ * the server exposes only `freeagent_search_tools`
  * and `freeagent_call_tool`. This reduces the tool-definition footprint of
  * tools/list from ~50 entries to 2, and lets clients pull in individual tool
  * schemas on demand — mirroring the deferred-loading pattern used by Claude
@@ -12,6 +13,7 @@ import { z } from "zod";
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { ToolContext, ToolDefinition } from "./register.js";
 import type { SearchToolsInput, CallToolInput } from "../schemas/index.js";
+import { shapeToInputJsonSchema } from "./json-schema.js";
 
 interface ToolMatch {
   tool: ToolDefinition;
@@ -145,8 +147,9 @@ function selectTools(catalog: ToolDefinition[], names: string[]): ToolDefinition
  * Code's ToolSearch, so agents can drop it directly into their tool list.
  */
 function renderToolBlock(tool: ToolDefinition): string {
-  const schema = z.object(tool.inputSchema);
-  const parameters = z.toJSONSchema(schema);
+  // Use the same conversion path as tools/list so search results stay
+  // consistent and never throw on a single bad catalog schema.
+  const parameters = shapeToInputJsonSchema(tool.inputSchema);
   const payload = {
     description: tool.description,
     name: tool.name,

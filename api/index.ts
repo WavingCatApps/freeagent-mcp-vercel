@@ -17,7 +17,13 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient } from "../src/services/api-client.js";
 import { getBaseUrl, getRequestBaseUrl } from "../src/constants.js";
-import { registerAllTools } from "../src/tools/register.js";
+import {
+  registerAllTools,
+  isToolSearchMode,
+  toolDefinitions,
+  toolSearchMetaDefinitions,
+} from "../src/tools/register.js";
+import { probeToolsListSchemas } from "../src/tools/json-schema.js";
 
 // Configuration
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
@@ -171,6 +177,10 @@ async function handleMcpRequest(req: any, res: any) {
     const server = createMcpServer(freeagentToken);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // Stateless mode - no sessions needed for serverless
+      // SSE response streams often finish with an empty body through Express on
+      // Vercel (tools/list returns headers, no JSON). JSON mode is the reliable
+      // request/response path for serverless.
+      enableJsonResponse: true,
     });
 
     await server.connect(transport);
@@ -183,7 +193,30 @@ async function handleMcpRequest(req: any, res: any) {
   }
 }
 
-// MCP endpoints - POST for tool calls, GET for SSE stream, DELETE returns 405 (stateless)
+/**
+ * Stateless serverless MCP is POST-only.
+ *
+ * Streamable HTTP clients may open GET for a standalone SSE notification
+ * stream. With `sessionIdGenerator: undefined` there is no durable session to
+ * push into, so the stream stays open until Vercel's maxDuration (60s) kills
+ * the function. On Hobby that exhausts concurrency and makes live tool calls
+ * hang/fail. Spec allows 405 when SSE is not offered; SDK stateless examples
+ * do the same.
+ */
+function rejectUnsupportedMcpMethod(_req: express.Request, res: express.Response) {
+  res.status(405)
+    .set("Allow", "POST")
+    .json({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: "Method not allowed. This serverless MCP server is stateless and only accepts POST.",
+      },
+      id: null,
+    });
+}
+
+// MCP endpoints - POST for tool calls; GET/DELETE return 405 (stateless, no SSE sessions)
 // Bearer auth is applied per-request so WWW-Authenticate resource_metadata uses request host.
 for (const path of ["/mcp", "/"]) {
   app.post(path, (req, res, next) => {
@@ -192,25 +225,40 @@ for (const path of ["/mcp", "/"]) {
       resourceMetadataUrl: `${publicOrigin(req)}/.well-known/oauth-protected-resource`,
     })(req, res, next);
   }, handleMcpRequest);
-  app.get(path, (req, res, next) => {
-    requireBearerAuth({
-      verifier: oauthProvider,
-      resourceMetadataUrl: `${publicOrigin(req)}/.well-known/oauth-protected-resource`,
-    })(req, res, next);
-  }, handleMcpRequest);
-  app.delete(path, (_req: any, res: any) => {
-    res.status(405).json({ error: "Method not allowed - server is stateless, no sessions to terminate" });
-  });
+  app.get(path, rejectUnsupportedMcpMethod);
+  app.delete(path, rejectUnsupportedMcpMethod);
 }
 
-// Health check
-app.get("/health", (req: any, res: any) => {
+// Health check (booleans only — never echo secret values)
+app.get("/health", (_req: any, res: any) => {
+  const toolSearchEnv = process.env.FREEAGENT_TOOL_SEARCH;
+  const listedTools = isToolSearchMode()
+    ? toolSearchMetaDefinitions
+    : toolDefinitions;
+  const toolsListProbe = probeToolsListSchemas(listedTools);
   res.json({
     status: "ok",
     service: "freeagent-mcp-server",
     version: "1.0.0",
     oauth_mode: "jwt-stateless",
     freeagent_environment: USE_SANDBOX ? "sandbox" : "production",
+    vercel: process.env.VERCEL === "1",
+    vercel_env: process.env.VERCEL_ENV ?? null,
+    tool_search_mode: isToolSearchMode(),
+    tool_search_env:
+      toolSearchEnv === undefined || toolSearchEnv === ""
+        ? null
+        : toolSearchEnv,
+    tools_list_ok: toolsListProbe.ok,
+    tools_list_count: toolsListProbe.count,
+    tools_list_error: toolsListProbe.error,
+    tools_list_names: toolsListProbe.tools,
+    env_present: {
+      FREEAGENT_CLIENT_ID: Boolean(process.env.FREEAGENT_CLIENT_ID),
+      FREEAGENT_CLIENT_SECRET: Boolean(process.env.FREEAGENT_CLIENT_SECRET),
+      JWT_SECRET: Boolean(process.env.JWT_SECRET),
+      FREEAGENT_TOOL_SEARCH: toolSearchEnv !== undefined && toolSearchEnv !== "",
+    },
   });
 });
 

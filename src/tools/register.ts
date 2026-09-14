@@ -6,8 +6,15 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ElicitRequestFormParams, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListPromptsRequestSchema,
+  type ElicitRequestFormParams,
+  type ElicitResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js";
+import { shapeToInputJsonSchema } from "./json-schema.js";
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
 import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
@@ -519,20 +526,27 @@ export const toolSearchMetaDefinitions: ToolDefinition[] = [
 /**
  * Whether tool-search mode is enabled. When true, only the two meta-tools are
  * registered over MCP; the full catalog is reached through freeagent_call_tool.
- * Controlled by the FREEAGENT_TOOL_SEARCH env var (accepts "true" or "1").
+ *
+ * `FREEAGENT_TOOL_SEARCH` accepts "true"/"1" (force on) or "false"/"0" (force
+ * off). When unset, defaults to on under Vercel (`VERCEL=1`): after the #86
+ * catalog expansion (~165 tools / ~50KB tools/list), exposing every tool on
+ * Hobby Streamable HTTP has been observed to leave clients connected with an
+ * empty tool list. Local stdio keeps the full catalog unless opted in.
  */
 export function isToolSearchMode(): boolean {
   const raw = process.env.FREEAGENT_TOOL_SEARCH;
-  return raw === "true" || raw === "1";
+  if (raw === "true" || raw === "1") return true;
+  if (raw === "false" || raw === "0") return false;
+  return process.env.VERCEL === "1";
 }
 
 /**
  * Register FreeAgent tools on an McpServer instance.
  *
  * In default mode, registers every catalog tool directly. In tool-search mode
- * (FREEAGENT_TOOL_SEARCH=true) registers only the two meta-tools
- * freeagent_search_tools and freeagent_call_tool, which dramatically reduces
- * the token footprint of tools/list for clients with many MCP servers.
+ * registers only the two meta-tools freeagent_search_tools and
+ * freeagent_call_tool, which dramatically reduces the token footprint of
+ * tools/list for clients with many MCP servers. On Vercel this is the default.
  *
  * @param server - The McpServer to register tools on
  * @param apiClient - The FreeAgent API client to use for API calls
@@ -566,4 +580,46 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
       }
     );
   }
+
+  // Replace the SDK's tools/list schema converter with one that uses our Zod
+  // instance. On Vercel the SDK zod/v4-mini compat path has been observed to
+  // throw TypeError: Cannot read properties of undefined (reading 'push')
+  // during tools/list (-32603), which leaves Inspector/Cursor with no tools.
+  installSafeToolsListHandler(server, tools);
+  installEmptyCatalogHandlers(server);
+}
+
+/**
+ * Override tools/list so inputSchema conversion never goes through the MCP
+ * SDK's toJsonSchemaCompat path (zod/v4-mini), which can throw under the
+ * Vercel Node bundler even when the same schemas convert fine locally.
+ */
+function installSafeToolsListHandler(server: McpServer, tools: ToolDefinition[]): void {
+  server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: tools.map((tool) => ({
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: shapeToInputJsonSchema(tool.inputSchema),
+      annotations: tool.annotations,
+    })),
+  }));
+}
+
+/**
+ * Advertise empty resources/prompts lists. Without these handlers, Inspector
+ * gets -32601 Method not found for resources/list and prompts/list, which
+ * looks like a broken server even when tools work.
+ */
+function installEmptyCatalogHandlers(server: McpServer): void {
+  server.server.registerCapabilities({
+    resources: {},
+    prompts: {},
+  });
+  server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [],
+  }));
+  server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [],
+  }));
 }

@@ -1,6 +1,6 @@
 {
-  "buildCommand": "bun install && bun run build",
-  "installCommand": "bun install",
+  "buildCommand": "bun run build",
+  "installCommand": "npx -y bun@1.4.2 install",
   "functions": {
     "api/index.ts": {
       "maxDuration": 60
