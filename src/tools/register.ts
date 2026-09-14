@@ -6,8 +6,15 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { ElicitRequestFormParams, ElicitResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListPromptsRequestSchema,
+  type ElicitRequestFormParams,
+  type ElicitResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { FreeAgentApiClient, formatErrorForLLM } from "../services/api-client.js";
+import { shapeToInputJsonSchema } from "./json-schema.js";
 import { listContacts, getContact, createContact } from "./contacts.js";
 import { listInvoices, getInvoice, createInvoice } from "./invoices.js";
 import { invoiceFromTimeslips } from "./invoice-from-timeslips.js";
@@ -573,4 +580,46 @@ export function registerAllTools(server: McpServer, apiClient: FreeAgentApiClien
       }
     );
   }
+
+  // Replace the SDK's tools/list schema converter with one that uses our Zod
+  // instance. On Vercel the SDK zod/v4-mini compat path has been observed to
+  // throw TypeError: Cannot read properties of undefined (reading 'push')
+  // during tools/list (-32603), which leaves Inspector/Cursor with no tools.
+  installSafeToolsListHandler(server, tools);
+  installEmptyCatalogHandlers(server);
+}
+
+/**
+ * Override tools/list so inputSchema conversion never goes through the MCP
+ * SDK's toJsonSchemaCompat path (zod/v4-mini), which can throw under the
+ * Vercel Node bundler even when the same schemas convert fine locally.
+ */
+function installSafeToolsListHandler(server: McpServer, tools: ToolDefinition[]): void {
+  server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: tools.map((tool) => ({
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: shapeToInputJsonSchema(tool.inputSchema),
+      annotations: tool.annotations,
+    })),
+  }));
+}
+
+/**
+ * Advertise empty resources/prompts lists. Without these handlers, Inspector
+ * gets -32601 Method not found for resources/list and prompts/list, which
+ * looks like a broken server even when tools work.
+ */
+function installEmptyCatalogHandlers(server: McpServer): void {
+  server.server.registerCapabilities({
+    resources: {},
+    prompts: {},
+  });
+  server.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [],
+  }));
+  server.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [],
+  }));
 }

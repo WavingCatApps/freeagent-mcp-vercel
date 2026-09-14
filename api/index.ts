@@ -17,7 +17,13 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import { createFreeAgentJWTOAuthProvider, getFreeAgentTokenFromJWT } from "../src/services/oauth-jwt.js";
 import { FreeAgentApiClient } from "../src/services/api-client.js";
 import { getBaseUrl, getRequestBaseUrl } from "../src/constants.js";
-import { registerAllTools, isToolSearchMode } from "../src/tools/register.js";
+import {
+  registerAllTools,
+  isToolSearchMode,
+  toolDefinitions,
+  toolSearchMetaDefinitions,
+} from "../src/tools/register.js";
+import { probeToolsListSchemas } from "../src/tools/json-schema.js";
 
 // Configuration
 const USE_SANDBOX = process.env.FREEAGENT_USE_SANDBOX === "true";
@@ -226,6 +232,10 @@ for (const path of ["/mcp", "/"]) {
 // Health check (booleans only — never echo secret values)
 app.get("/health", (_req: any, res: any) => {
   const toolSearchEnv = process.env.FREEAGENT_TOOL_SEARCH;
+  const listedTools = isToolSearchMode()
+    ? toolSearchMetaDefinitions
+    : toolDefinitions;
+  const toolsListProbe = probeToolsListSchemas(listedTools);
   res.json({
     status: "ok",
     service: "freeagent-mcp-server",
@@ -239,6 +249,10 @@ app.get("/health", (_req: any, res: any) => {
       toolSearchEnv === undefined || toolSearchEnv === ""
         ? null
         : toolSearchEnv,
+    tools_list_ok: toolsListProbe.ok,
+    tools_list_count: toolsListProbe.count,
+    tools_list_error: toolsListProbe.error,
+    tools_list_names: toolsListProbe.tools,
     env_present: {
       FREEAGENT_CLIENT_ID: Boolean(process.env.FREEAGENT_CLIENT_ID),
       FREEAGENT_CLIENT_SECRET: Boolean(process.env.FREEAGENT_CLIENT_SECRET),
