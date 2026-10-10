@@ -2,9 +2,10 @@
  * FreeAgent API Client Service
  */
 
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import { API_BASE_URL, SANDBOX_API_BASE_URL, API_VERSION } from "../constants.js";
 import type { FreeAgentApiError, FreeAgentApiErrorItem } from "../types.js";
+import type { TokenRefresher } from "./token-refresher.js";
 
 export interface ApiResponse<T> {
   data: T;
@@ -16,7 +17,7 @@ export class FreeAgentApiClient {
   private accessToken: string;
   private useSandbox: boolean;
 
-  constructor(accessToken: string, useSandbox: boolean = false) {
+  constructor(accessToken: string, useSandbox: boolean = false, tokenRefresher?: TokenRefresher) {
     this.accessToken = accessToken;
     this.useSandbox = useSandbox;
 
@@ -32,6 +33,21 @@ export class FreeAgentApiClient {
       },
       timeout: 30000
     });
+
+    // On a 401, refresh the access token once and retry the request
+    if (tokenRefresher) {
+      this.axiosInstance.interceptors.response.use(undefined, async (error) => {
+        const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+        if (!axios.isAxiosError(error) || error.response?.status !== 401 || !config || config._retried) {
+          throw error;
+        }
+        config._retried = true;
+        this.accessToken = await tokenRefresher.refresh();
+        this.axiosInstance.defaults.headers["Authorization"] = `Bearer ${this.accessToken}`;
+        config.headers["Authorization"] = `Bearer ${this.accessToken}`;
+        return this.axiosInstance.request(config);
+      });
+    }
   }
 
   /**

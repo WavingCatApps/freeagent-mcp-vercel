@@ -9,6 +9,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { FreeAgentApiClient } from "./services/api-client.js";
+import { TokenRefresher, DEFAULT_TOKEN_CACHE, readTokenCache } from "./services/token-refresher.js";
+import { API_BASE_URL, SANDBOX_API_BASE_URL } from "./constants.js";
 import { registerAllTools } from "./tools/register.js";
 
 // Get configuration from environment
@@ -54,7 +56,30 @@ async function main() {
     version: "1.0.0"
   });
 
-  const apiClient = new FreeAgentApiClient(ACCESS_TOKEN, USE_SANDBOX);
+  // Refresh expired access tokens automatically when OAuth client details are set
+  const REFRESH_TOKEN = process.env.FREEAGENT_REFRESH_TOKEN;
+  const CLIENT_ID = process.env.FREEAGENT_CLIENT_ID;
+  const CLIENT_SECRET = process.env.FREEAGENT_CLIENT_SECRET;
+  const TOKEN_CACHE = process.env.FREEAGENT_TOKEN_CACHE || DEFAULT_TOKEN_CACHE;
+
+  let accessToken = ACCESS_TOKEN;
+  let tokenRefresher: TokenRefresher | undefined;
+  if (REFRESH_TOKEN && CLIENT_ID && CLIENT_SECRET) {
+    const cached = await readTokenCache(TOKEN_CACHE);
+    if (cached) {
+      accessToken = cached.access_token;
+    }
+    tokenRefresher = new TokenRefresher({
+      baseURL: USE_SANDBOX ? SANDBOX_API_BASE_URL : API_BASE_URL,
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      refreshToken: REFRESH_TOKEN,
+      cachePath: TOKEN_CACHE,
+    }, cached?.refresh_token);
+    log("info", "Automatic token refresh enabled", { tokenCache: TOKEN_CACHE, usingCachedToken: Boolean(cached) });
+  }
+
+  const apiClient = new FreeAgentApiClient(accessToken, USE_SANDBOX, tokenRefresher);
   registerAllTools(server, apiClient);
 
   // Create transport
@@ -141,9 +166,9 @@ async function main() {
     });
 
     // Warning: Log token expiration concern (tokens typically expire after 1 hour)
-    log("warn", "Note: FreeAgent access tokens typically expire after 1 hour. If you experience disconnects, check token expiration.", {
+    if (!tokenRefresher) log("warn", "Note: FreeAgent access tokens typically expire after 1 hour. If you experience disconnects, check token expiration.", {
       tokenLength: ACCESS_TOKEN.length,
-      suggestion: "Consider implementing OAuth refresh tokens for long-running connections",
+      suggestion: "Set FREEAGENT_REFRESH_TOKEN, FREEAGENT_CLIENT_ID and FREEAGENT_CLIENT_SECRET to refresh expired tokens automatically",
     });
   } catch (error) {
     log("error", "Failed to connect server to transport", {
