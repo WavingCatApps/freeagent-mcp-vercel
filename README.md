@@ -35,7 +35,15 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
    ```bash
    export FREEAGENT_ACCESS_TOKEN="your_access_token"
    export FREEAGENT_USE_SANDBOX="true"  # optional
+
+   # optional: refresh the access token automatically when it expires
+   export FREEAGENT_REFRESH_TOKEN="your_refresh_token"
+   export FREEAGENT_CLIENT_ID="your_client_id"
+   export FREEAGENT_CLIENT_SECRET="your_client_secret"
+   export FREEAGENT_TOKEN_CACHE="$HOME/.config/freeagent-mcp/tokens.json"  # optional, this is the default
    ```
+
+   With the refresh variables set, a 401 triggers a token refresh and one retry. The newest tokens are saved to the cache file (mode 600) and used on the next start, so you only need to repeat the OAuth flow if the refresh token itself is revoked.
 
 3. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
    ```json
