@@ -206,7 +206,7 @@ See [TOOLS.md](./TOOLS.md) for per-tool parameters and examples. Summary:
 ### Prerequisites
 
 - [Bun](https://bun.sh) (used for package management and running scripts)
-- Node.js 22.x
+- Node.js 24.x
 
 ### Setup
 
