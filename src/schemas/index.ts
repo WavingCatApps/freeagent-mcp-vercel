@@ -284,6 +284,9 @@ export const UpdateExpenseInputSchema = z.object({
   receipt_reference: z.string()
     .optional()
     .describe("Receipt reference identifier"),
+  attachment: AttachmentSchema
+    .optional()
+    .describe("File attachment (receipt) for the expense"),
   project: z.string()
     .optional()
     .describe("Project URL or ID to associate with expense"),
@@ -675,7 +678,11 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
   // Transfer information
   transfer_bank_account: z.string()
     .optional()
-    .describe("Destination bank account URL or ID for transfers")
+    .describe("Destination bank account URL or ID for transfers"),
+  // Attachment
+  attachment: AttachmentSchema
+    .optional()
+    .describe("Optional file attachment (receipt) for the explanation")
 }).strict();
 
 export const UpdateTimeslipInputSchema = z.object({

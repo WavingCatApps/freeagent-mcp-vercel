@@ -19,6 +19,40 @@ import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../s
 import { resourcePath } from "../utils/resource-path.js";
 
 /**
+ * Normalise an attachment input into the payload FreeAgent expects,
+ * decompressing gzipped Base64 data when the caller flags it.
+ */
+function buildAttachmentPayload(attachment: {
+  data: string;
+  is_gzipped?: boolean;
+  file_name: string;
+  content_type: string;
+  description?: string;
+}): Record<string, string> {
+  let attachmentData = attachment.data;
+
+  if (attachment.is_gzipped) {
+    try {
+      const compressedBuffer = Buffer.from(attachmentData, 'base64');
+      const decompressedBuffer = gunzipSync(compressedBuffer);
+      attachmentData = decompressedBuffer.toString('base64');
+    } catch (error) {
+      throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  const payload: Record<string, string> = {
+    data: attachmentData,
+    file_name: attachment.file_name,
+    content_type: attachment.content_type
+  };
+  if (attachment.description) {
+    payload.description = attachment.description;
+  }
+  return payload;
+}
+
+/**
  * List bank transaction explanations with optional filtering and pagination
  */
 export async function listBankTransactionExplanations(
@@ -60,7 +94,19 @@ export async function listBankTransactionExplanations(
         paid_invoice: exp.paid_invoice,
         paid_bill: exp.paid_bill,
         paid_user: exp.paid_user,
-        transfer_bank_account: exp.transfer_bank_account
+        transfer_bank_account: exp.transfer_bank_account,
+        // Receipt status. Deliberately omits content_src: FreeAgent returns
+        // short-lived pre-signed S3 URLs that bloat the response and expire
+        // within seconds, so they are useless to a list consumer.
+        has_attachment: Boolean(exp.attachment),
+        attachment: exp.attachment
+          ? {
+              url: exp.attachment.url,
+              file_name: exp.attachment.file_name,
+              file_size: exp.attachment.file_size,
+              content_type: exp.attachment.content_type
+            }
+          : undefined
       })),
       pagination: {
         page,
@@ -240,31 +286,7 @@ export async function createBankTransactionExplanation(
 
   // Add attachment if provided
   if (params.attachment) {
-    let attachmentData = params.attachment.data;
-
-    // If attachment is gzipped, decompress it before sending to FreeAgent
-    if (params.attachment.is_gzipped) {
-      try {
-        // Decode Base64 to Buffer
-        const compressedBuffer = Buffer.from(attachmentData, 'base64');
-        // Decompress using gunzip
-        const decompressedBuffer = gunzipSync(compressedBuffer);
-        // Re-encode to Base64
-        attachmentData = decompressedBuffer.toString('base64');
-      } catch (error) {
-        throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    const attachmentPayload: Record<string, string> = {
-      data: attachmentData,
-      file_name: params.attachment.file_name,
-      content_type: params.attachment.content_type
-    };
-    if (params.attachment.description) {
-      attachmentPayload.description = params.attachment.description;
-    }
-    explanationPayload.attachment = attachmentPayload;
+    explanationPayload.attachment = buildAttachmentPayload(params.attachment);
   }
 
   const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
@@ -333,6 +355,11 @@ export async function updateBankTransactionExplanation(
   // Transfer information
   if (updateFields.transfer_bank_account !== undefined) {
     explanationPayload.transfer_bank_account = updateFields.transfer_bank_account;
+  }
+
+  // Attachment (receipt)
+  if (updateFields.attachment !== undefined) {
+    explanationPayload.attachment = buildAttachmentPayload(updateFields.attachment);
   }
 
   const response = await client.put<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(

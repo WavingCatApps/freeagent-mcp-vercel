@@ -95,8 +95,15 @@ export async function getCategory(
   params: GetCategoryInput
 ): Promise<string> {
   const nominalCode = params.nominal_code.replace(/^.*\/categories\//, "");
-  const response = await apiClient.get<{ category: FreeAgentCategory }>(`/categories/${nominalCode}`);
-  const category = response.data.category;
+  const response = await apiClient.get<Record<string, FreeAgentCategory>>(`/categories/${nominalCode}`);
+  // FreeAgent nests a single category under its group key (e.g.
+  // admin_expenses_category), not always under "category" - mirror the
+  // unwrapping already used by createCategory/updateCategory.
+  const category = (response.data.category ?? Object.values(response.data)[0]) as FreeAgentCategory | undefined;
+
+  if (!category) {
+    return `No category found for nominal code ${nominalCode}.`;
+  }
 
   if (params.response_format === ResponseFormat.JSON) {
     return JSON.stringify(category, null, 2);
