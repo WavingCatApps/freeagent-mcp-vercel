@@ -128,8 +128,8 @@ export async function getCategory(
     details.push(`  Tax Reporting Name: ${category.tax_reporting_name}`);
   }
 
-  if (category.auto_sales_tax_rate !== undefined) {
-    details.push(`  Auto Sales Tax Rate: ${(category.auto_sales_tax_rate * 100).toFixed(1)}%`);
+  if (category.auto_sales_tax_rate !== undefined && Number.isFinite(Number(category.auto_sales_tax_rate))) {
+    details.push(`  Auto Sales Tax Rate: ${(Number(category.auto_sales_tax_rate) * 100).toFixed(1)}%`);
   }
 
   if (category.bank_account) {
@@ -144,8 +144,9 @@ export async function getCategory(
     details.push(`  User: ${category.user}`);
   }
 
-  details.push(`  Created: ${category.created_at}`);
-  details.push(`  Updated: ${category.updated_at}`);
+  // FreeAgent omits timestamps when fetching a single category
+  if (category.created_at) details.push(`  Created: ${category.created_at}`);
+  if (category.updated_at) details.push(`  Updated: ${category.updated_at}`);
 
   return details.join("\n");
 }
