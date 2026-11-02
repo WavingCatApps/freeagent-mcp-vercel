@@ -255,7 +255,7 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_update_expense",
     title: "Update FreeAgent Expense",
-    description: "Update an existing expense in FreeAgent. Only provide the fields you want to change.",
+    description: "Update an existing expense in FreeAgent. Only provide the fields you want to change. Accepts an `attachment` to add a receipt to an existing expense.",
     inputSchema: UpdateExpenseInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
@@ -368,7 +368,7 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_list_bank_transaction_explanations",
     title: "List FreeAgent Bank Transaction Explanations",
-    description: "List bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers.",
+    description: "List bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers. Each row reports `has_attachment` plus the attachment's file name, size and type, so a single call shows which transactions still need a receipt without fetching each one.",
     inputSchema: ListBankTransactionExplanationsInputSchema.shape,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: listBankTransactionExplanations,
@@ -392,7 +392,7 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_update_bank_transaction_explanation",
     title: "Update FreeAgent Bank Transaction Explanation",
-    description: "Update an existing bank transaction explanation. Only provide the fields you want to change.",
+    description: "Update an existing bank transaction explanation. Only provide the fields you want to change. Accepts an `attachment` to add a receipt to an already-explained transaction, which is the usual case for bank-feed transactions that arrive pre-explained by guess rules.",
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateBankTransactionExplanation,

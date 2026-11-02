@@ -95,8 +95,15 @@ export async function getCategory(
   params: GetCategoryInput
 ): Promise<string> {
   const nominalCode = params.nominal_code.replace(/^.*\/categories\//, "");
-  const response = await apiClient.get<{ category: FreeAgentCategory }>(`/categories/${nominalCode}`);
-  const category = response.data.category;
+  const response = await apiClient.get<Record<string, FreeAgentCategory>>(`/categories/${nominalCode}`);
+  // FreeAgent nests a single category under its group key (e.g.
+  // admin_expenses_category), not always under "category" - mirror the
+  // unwrapping already used by createCategory/updateCategory.
+  const category = (response.data.category ?? Object.values(response.data)[0]) as FreeAgentCategory | undefined;
+
+  if (!category) {
+    return `No category found for nominal code ${nominalCode}.`;
+  }
 
   if (params.response_format === ResponseFormat.JSON) {
     return JSON.stringify(category, null, 2);
@@ -121,8 +128,8 @@ export async function getCategory(
     details.push(`  Tax Reporting Name: ${category.tax_reporting_name}`);
   }
 
-  if (category.auto_sales_tax_rate !== undefined) {
-    details.push(`  Auto Sales Tax Rate: ${(category.auto_sales_tax_rate * 100).toFixed(1)}%`);
+  if (category.auto_sales_tax_rate !== undefined && Number.isFinite(Number(category.auto_sales_tax_rate))) {
+    details.push(`  Auto Sales Tax Rate: ${(Number(category.auto_sales_tax_rate) * 100).toFixed(1)}%`);
   }
 
   if (category.bank_account) {
@@ -137,8 +144,9 @@ export async function getCategory(
     details.push(`  User: ${category.user}`);
   }
 
-  details.push(`  Created: ${category.created_at}`);
-  details.push(`  Updated: ${category.updated_at}`);
+  // FreeAgent omits timestamps when fetching a single category
+  if (category.created_at) details.push(`  Created: ${category.created_at}`);
+  if (category.updated_at) details.push(`  Updated: ${category.updated_at}`);
 
   return details.join("\n");
 }

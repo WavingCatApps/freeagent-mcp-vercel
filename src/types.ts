@@ -219,6 +219,13 @@ export interface FreeAgentTimeslip {
   updated_at?: string;
 }
 
+export interface FreeAgentAttachmentSummary {
+  url?: string;
+  content_type?: string;
+  file_name?: string;
+  file_size?: number;
+}
+
 export interface FreeAgentBankTransactionExplanation {
   url: string;
   bank_transaction: string;
@@ -237,6 +244,7 @@ export interface FreeAgentBankTransactionExplanation {
   sales_tax_rate?: string;
   sales_tax_value?: string;
   attachment_count?: number;
+  attachment?: FreeAgentAttachmentSummary;
   created_at?: string;
   updated_at?: string;
 }

@@ -524,7 +524,9 @@ Updates an existing expense in FreeAgent. Only provide the fields you want to ch
 **Parameters:**
 - `expense_id` (string, required): The FreeAgent expense ID or full URL
 
-All other parameters from `freeagent_create_expense` are accepted as optional overrides (e.g., `description`, `gross_value`, `category`, `dated_on`, `currency`, `ec_status`, `project`, mileage fields, recurring fields).
+All other parameters from `freeagent_create_expense` are accepted as optional overrides: `user`, `description`, `gross_value`, `category`, `dated_on`, `currency`, `ec_status`, `receipt_reference`, `project`, `attachment`, plus the mileage and recurring fields.
+
+**Attaching a receipt:** pass `attachment` (same object format as `create`).
 
 **Example usage:**
 ```
@@ -625,11 +627,8 @@ Creates a new time tracking entry with optional file attachment.
 
 **Optional:**
 - `comment` (string): Description of work performed
-- `attachment` (object):
-  - `data` (string): Base64 encoded file content
-  - `file_name` (string): Original filename
-  - `content_type` (string): MIME type
-  - `description` (string, optional): Attachment description
+
+**Note:** timeslips do not currently accept an `attachment` through this server.
 
 **Example usage:**
 ```
@@ -779,7 +778,7 @@ List explanations for account 123
 Show explanations from January
 ```
 
-**Returns:** List of explanations with dates, amounts, descriptions, categorization details, and review status.
+**Returns:** List of explanations with dates, amounts, descriptions, categorization details, and review status. Each row also reports `has_attachment`, and for rows that have one, the attachment's `url`, `file_name`, `file_size` and `content_type`. The short-lived pre-signed `content_src` download URL is deliberately omitted: it is large and expires within seconds, so fetch it with `freeagent_get_bank_transaction_explanation` when you actually need the file. This means **one** list call tells you which transactions still need a receipt, rather than one `get` per transaction.
 
 ---
 
@@ -852,7 +851,9 @@ Updates an existing bank transaction explanation. Only provide the fields you wa
 **Parameters:**
 - `bank_transaction_explanation_id` (string, required): The FreeAgent explanation ID or full URL
 
-All other parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides (e.g., `dated_on`, `description`, `gross_value`, `category`, `paid_invoice`, `paid_bill`, `sales_tax_rate`, `transfer_bank_account`).
+These parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides: `dated_on`, `description`, `gross_value`, `category`, `ec_status`, `marked_for_review`, `receipt_reference`, `paid_invoice`, `paid_bill`, `paid_user`, `project`, `sales_tax_rate`, `sales_tax_value`, `transfer_bank_account`, `attachment`.
+
+**Attaching a receipt:** pass `attachment` (same object format as `create`). This is the normal route for bank-feed transactions, which arrive already created and are usually auto-explained by FreeAgent's guess rules, so `create` has already happened by the time you want to add the receipt. Note the API replaces the existing attachment rather than adding to it; use `freeagent_delete_attachment` to remove one.
 
 **Example usage:**
 ```
@@ -898,7 +899,11 @@ Explain transaction 789 as paying bill SUP-99
 
 ### Overview
 
-Expenses, timeslips, and bank transaction explanations support file attachments for receipts, invoices, and supporting documents.
+Expenses and bank transaction explanations support file attachments for receipts, invoices, and supporting documents, on both **create** and **update**. Timeslips do not.
+
+To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` and read `has_attachment` on each row, then add the file with `freeagent_update_bank_transaction_explanation`. Remove one with `freeagent_delete_attachment`.
+
+> **Changing on 1 December 2026:** FreeAgent are moving to multiple attachments per explanation (up to 50), after which the singular `attachment` attribute is no longer returned by default and attachments must be managed through the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01). You can opt in early with the `X-Api-Version: 2026-09-01` header. This server does not implement that yet.
 
 ### Supported Formats
 
