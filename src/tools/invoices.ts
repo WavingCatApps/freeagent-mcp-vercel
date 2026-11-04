@@ -369,6 +369,14 @@ export async function createInvoice(
     invoiceData.discount_percent = params.discount_percent;
   }
 
+  if (params.ec_status) {
+    invoiceData.ec_status = params.ec_status;
+  }
+
+  if (params.place_of_supply) {
+    invoiceData.place_of_supply = params.place_of_supply;
+  }
+
   const response = await client.post<{ invoice: FreeAgentInvoice }>(
     "/invoices",
     { invoice: invoiceData }

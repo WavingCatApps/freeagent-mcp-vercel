@@ -164,6 +164,53 @@ describe("createInvoice elicitation", () => {
     });
   });
 
+  it("passes ec_status, place_of_supply and item sales_tax_rate through for an OSS sale", async () => {
+    const elicit = vi.fn();
+    const ctx: ToolContext = { clientSupportsElicitation: true, elicit };
+    const { client, calls } = makeClient({
+      post: () => baseInvoiceResponse,
+    });
+
+    await createInvoice(
+      client,
+      {
+        ...baseParams,
+        contact: "1",
+        currency: "USD",
+        ec_status: "EC VAT MOSS",
+        place_of_supply: "Germany",
+        invoice_items: [
+          { item_type: "Products", description: "Intagrate - Bronze", price: "55.00", quantity: "1", sales_tax_rate: "19.0" },
+        ],
+      },
+      ctx
+    );
+
+    const post = calls.find((c) => c.method === "post");
+    expect(post?.body).toMatchObject({
+      invoice: {
+        ec_status: "EC VAT MOSS",
+        place_of_supply: "Germany",
+        invoice_items: [{ sales_tax_rate: "19.0" }],
+      },
+    });
+  });
+
+  it("leaves ec_status and place_of_supply out of the payload when not given", async () => {
+    const elicit = vi.fn();
+    const ctx: ToolContext = { clientSupportsElicitation: true, elicit };
+    const { client, calls } = makeClient({
+      post: () => baseInvoiceResponse,
+    });
+
+    await createInvoice(client, { ...baseParams, contact: "1" }, ctx);
+
+    const post = calls.find((c) => c.method === "post");
+    const invoice = (post?.body as { invoice: Record<string, unknown> }).invoice;
+    expect(invoice).not.toHaveProperty("ec_status");
+    expect(invoice).not.toHaveProperty("place_of_supply");
+  });
+
   it("accepts the 'Other' choice and uses the pasted URL", async () => {
     const elicit = vi.fn(async () => ({
       action: "accept" as const,

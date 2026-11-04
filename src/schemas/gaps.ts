@@ -39,6 +39,7 @@ export const UpdateContactInputSchema = z.object({
   region: z.string().optional(),
   postcode: z.string().optional(),
   country: z.string().optional(),
+  sales_tax_registration_number: z.string().optional(),
   charge_sales_tax: z.enum(["Auto", "Always", "Never"]).optional(),
   payment_terms_in_days: z.number().int().optional(),
 }).strict();
@@ -191,6 +192,8 @@ export const DeleteUserInputSchema = z.object({ user_id: IdOrUrl("User") }).stri
 export const GetCompanyBusinessTypesInputSchema = z.object({ response_format: ResponseFormatSchema }).strict();
 export const GetCompanyTaxTimelineInputSchema = z.object({ response_format: ResponseFormatSchema }).strict();
 
+export const InvoiceEcStatusSchema = z.enum(["UK/Non-EC", "EC Goods", "EC Services", "Reverse Charge", "EC VAT MOSS"])
+  .describe("VAT treatment for a VAT-registered company. 'Reverse Charge' for EU business customers with a VAT number; 'EC VAT MOSS' for EU consumers charged their country's VAT under OSS (set place_of_supply too). Omit for UK/Non-EC.");
 export const UpdateInvoiceInputSchema = z.object({
   invoice_id: IdOrUrl("Invoice"),
   contact: z.string().optional(),
@@ -201,6 +204,8 @@ export const UpdateInvoiceInputSchema = z.object({
   comments: z.string().optional(),
   payment_terms_in_days: z.number().int().optional(),
   discount_percent: z.string().optional(),
+  ec_status: InvoiceEcStatusSchema.optional(),
+  place_of_supply: z.string().optional(),
   invoice_items: z.array(z.object({
     item_type: z.string(), description: z.string(), price: z.string(), quantity: z.string(),
     sales_tax_rate: z.string().optional(),
