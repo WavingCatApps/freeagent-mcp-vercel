@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { ResponseFormat, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "../constants.js";
+import { InvoiceEcStatusSchema } from "./gaps.js";
 
 // Base pagination schema
 export const PaginationSchema = z.object({
@@ -76,9 +77,13 @@ export const CreateContactInputSchema = z.object({
   phone_number: z.string().optional().describe("Phone number"),
   mobile: z.string().optional().describe("Mobile number"),
   address1: z.string().optional().describe("Address line 1"),
+  address2: z.string().optional().describe("Address line 2"),
   town: z.string().optional().describe("Town/City"),
+  region: z.string().optional().describe("Region/County/State"),
   postcode: z.string().optional().describe("Postal code"),
-  country: z.string().optional().describe("Country code (e.g., GB, US)")
+  country: z.string().optional().describe("Country name as FreeAgent spells it (e.g., 'United Kingdom', 'Germany')"),
+  sales_tax_registration_number: z.string().optional().describe("Contact's VAT/sales tax registration number (e.g., 'DE123456789')"),
+  charge_sales_tax: z.enum(["Auto", "Always", "Never"]).optional().describe("Whether invoices to this contact charge sales tax")
 }).strict();
 
 // Invoice schemas
@@ -124,11 +129,16 @@ export const CreateInvoiceInputSchema = z.object({
   discount_percent: z.string()
     .optional()
     .describe("Discount to apply, as a decimal string (e.g., '20' for 20%)."),
+  ec_status: InvoiceEcStatusSchema.optional(),
+  place_of_supply: z.string()
+    .optional()
+    .describe("Customer's country name, required by FreeAgent when ec_status is 'EC VAT MOSS' (e.g., 'Germany')"),
   invoice_items: z.array(z.object({
     item_type: z.string().describe("Item type (e.g., 'Hours', 'Days', 'Products')"),
     description: z.string().describe("Item description"),
     price: z.string().describe("Price per unit"),
-    quantity: z.string().describe("Quantity")
+    quantity: z.string().describe("Quantity"),
+    sales_tax_rate: z.string().optional().describe("VAT rate as a percentage string (e.g., '20.0', or '19.0' for German OSS). Omit to use FreeAgent's default.")
   })).min(1).describe("Array of invoice line items")
 }).strict();
 
