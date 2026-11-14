@@ -114,7 +114,7 @@ export async function sendCreditNoteEmail(client: FreeAgentApiClient, params: Se
   if (params.subject) email.subject = params.subject;
   if (params.body) email.body = params.body;
   if (params.from) email.from = params.from;
-  await client.post(`/credit_notes/${id}/emails`, { credit_note: { email } });
+  await client.post(`/credit_notes/${id}/send_email`, { credit_note: { email } });
   return `✅ Credit note email sent for ${params.credit_note_id}`;
 }
 

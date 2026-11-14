@@ -233,6 +233,6 @@ export async function sendEstimateEmail(
   if (params.subject) email.subject = params.subject;
   if (params.body) email.body = params.body;
   if (params.from) email.from = params.from;
-  await client.post(`/estimates/${id}/emails`, { estimate: { email } });
+  await client.post(`/estimates/${id}/send_email`, { estimate: { email } });
   return `✅ Estimate email sent for ${params.estimate_id}`;
 }

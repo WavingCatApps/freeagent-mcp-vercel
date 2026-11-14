@@ -440,7 +440,7 @@ export async function sendInvoiceEmail(
   if (params.subject) email.subject = params.subject;
   if (params.body) email.body = params.body;
   if (params.from) email.from = params.from;
-  await client.post(`/invoices/${id}/emails`, { invoice: { email } });
+  await client.post(`/invoices/${id}/send_email`, { invoice: { email } });
   return `✅ Invoice email sent for ${params.invoice_id}`;
 }
 
