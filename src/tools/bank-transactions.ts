@@ -5,7 +5,6 @@
  * expenses, and other accounting entries.
  */
 
-import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { FreeAgentBankTransactionExplanation } from "../types.js";
 import type {
@@ -16,41 +15,8 @@ import type {
   DeleteBankTransactionExplanationInput
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { buildAttachmentPayload } from "../services/attachment-payload.js";
 import { resourcePath } from "../utils/resource-path.js";
-
-/**
- * Normalise an attachment input into the payload FreeAgent expects,
- * decompressing gzipped Base64 data when the caller flags it.
- */
-function buildAttachmentPayload(attachment: {
-  data: string;
-  is_gzipped?: boolean;
-  file_name: string;
-  content_type: string;
-  description?: string;
-}): Record<string, string> {
-  let attachmentData = attachment.data;
-
-  if (attachment.is_gzipped) {
-    try {
-      const compressedBuffer = Buffer.from(attachmentData, 'base64');
-      const decompressedBuffer = gunzipSync(compressedBuffer);
-      attachmentData = decompressedBuffer.toString('base64');
-    } catch (error) {
-      throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  const payload: Record<string, string> = {
-    data: attachmentData,
-    file_name: attachment.file_name,
-    content_type: attachment.content_type
-  };
-  if (attachment.description) {
-    payload.description = attachment.description;
-  }
-  return payload;
-}
 
 /**
  * List bank transaction explanations with optional filtering and pagination
@@ -284,9 +250,9 @@ export async function createBankTransactionExplanation(
     explanationPayload.transfer_bank_account = params.transfer_bank_account;
   }
 
-  // Add attachment if provided
+  // Add attachment if provided (inline base64 or staged upload_id)
   if (params.attachment) {
-    explanationPayload.attachment = buildAttachmentPayload(params.attachment);
+    explanationPayload.attachment = await buildAttachmentPayload(params.attachment);
   }
 
   const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
@@ -357,9 +323,9 @@ export async function updateBankTransactionExplanation(
     explanationPayload.transfer_bank_account = updateFields.transfer_bank_account;
   }
 
-  // Attachment (receipt)
+  // Attachment (receipt) — inline base64 or staged upload_id
   if (updateFields.attachment !== undefined) {
-    explanationPayload.attachment = buildAttachmentPayload(updateFields.attachment);
+    explanationPayload.attachment = await buildAttachmentPayload(updateFields.attachment);
   }
 
   const response = await client.put<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(

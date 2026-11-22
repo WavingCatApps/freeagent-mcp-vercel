@@ -6,6 +6,8 @@ import {
   CreateContactInputSchema,
   CreateInvoiceInputSchema,
   ListExpensesInputSchema,
+  AttachmentSchema,
+  PrepareAttachmentUploadInputSchema,
 } from "./index.js";
 
 describe("PaginationSchema", () => {
@@ -156,6 +158,49 @@ describe("ListExpensesInputSchema", () => {
   it("rejects invalid date format", () => {
     expect(() =>
       ListExpensesInputSchema.parse({ from_date: "01-01-2024" })
+    ).toThrow();
+  });
+});
+
+describe("AttachmentSchema", () => {
+  it("accepts inline data", () => {
+    const result = AttachmentSchema.parse({
+      data: "abc123",
+      file_name: "r.pdf",
+      content_type: "application/pdf",
+    });
+    expect(result.data).toBe("abc123");
+    expect(result.upload_id).toBeUndefined();
+  });
+
+  it("accepts upload_id without data", () => {
+    const result = AttachmentSchema.parse({
+      upload_id: "jwt-token",
+      file_name: "r.pdf",
+      content_type: "application/pdf",
+    });
+    expect(result.upload_id).toBe("jwt-token");
+  });
+});
+
+describe("PrepareAttachmentUploadInputSchema", () => {
+  it("accepts a valid prepare request", () => {
+    const result = PrepareAttachmentUploadInputSchema.parse({
+      file_name: "receipt.png",
+      content_type: "image/png",
+      size: 1024,
+    });
+    expect(result.size).toBe(1024);
+    expect(result.response_format).toBe("markdown");
+  });
+
+  it("rejects sizes over 5MB", () => {
+    expect(() =>
+      PrepareAttachmentUploadInputSchema.parse({
+        file_name: "big.pdf",
+        content_type: "application/pdf",
+        size: 5 * 1024 * 1024 + 1,
+      })
     ).toThrow();
   });
 });

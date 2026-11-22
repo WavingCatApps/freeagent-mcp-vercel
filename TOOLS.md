@@ -496,7 +496,9 @@ Creates a new expense or mileage claim with optional receipt attachment.
 
 **For Attachments:**
 - `attachment` (object, optional):
-  - `data` (string): Base64 encoded file content
+  - `upload_id` (string, preferred on remote MCP): from `freeagent_prepare_attachment_upload` after the host PUT the file
+  - `data` (string, optional): Base64 encoded file content (inline fallback; omit when using `upload_id`)
+  - `is_gzipped` (boolean, optional): inline `data` was gzipped before Base64
   - `file_name` (string): Original filename
   - `content_type` (string): `application/pdf`, `image/png`, `image/jpeg`, `image/gif`
   - `description` (string, optional): Attachment description
@@ -509,7 +511,8 @@ Add receipt for taxi expense with attachment
 ```
 
 **Tips:**
-- Use the `file-to-base64` Claude Code skill to prepare receipt attachments
+- On remote MCP, call `freeagent_prepare_attachment_upload` then PUT bytes and pass `upload_id`
+- Locally, the `file-to-base64` Claude Code skill can still prepare inline `data`
 - For mileage, FreeAgent auto-calculates amounts based on HMRC rates
 - Supported attachment formats: PDF, PNG, JPEG, GIF (max 5MB)
 
@@ -914,7 +917,17 @@ To find what is missing a receipt, use `freeagent_list_bank_transaction_explanat
 
 **Maximum file size**: 5MB per attachment
 
-### Using the file-to-base64 Skill
+### Preferred on remote MCP: out-of-band upload
+
+Emitting a full base64 string in a tool call is slow on remote MCP hosts (the model often streams every character). When S3-compatible staging is configured, use:
+
+1. `freeagent_prepare_attachment_upload` with `file_name`, `content_type`, and exact `size`
+2. **PUT** the raw file bytes to the returned URL (host/skill — not the model)
+3. Pass `attachment: { upload_id, file_name, content_type }` on create/update expense or bank transaction explanation — **omit** `data`
+
+Staging is optional and vendor-agnostic (Cloudflare R2, MinIO, Backblaze, AWS S3, …). See `VERCEL_DEPLOYMENT.md` for env vars. `upload_id` is a signed JWT (same idea as OAuth); bytes are deleted after FreeAgent accepts them.
+
+### Using the file-to-base64 Skill (local / inline fallback)
 
 Claude Code includes a `file-to-base64` skill in `.claude/skills/file-to-base64/` that helps prepare attachments by:
 
@@ -923,7 +936,7 @@ Claude Code includes a `file-to-base64` skill in `.claude/skills/file-to-base64/
 - Detecting MIME types automatically
 - Checking file permissions
 
-Simply provide the file path when creating expenses, timeslips, or explanations, and Claude will use the skill to prepare the attachment.
+Simply provide the file path when creating expenses or explanations, and Claude will use the skill to prepare the attachment. Prefer `upload_id` on remote deployments when staging is configured.
 
 ### Manual Preparation (if needed)
 
@@ -938,11 +951,12 @@ stat -c%s /path/to/file.pdf  # Linux
 
 ### Best Practices
 
-1. **Compress large images** before uploading
-2. **Use descriptive filenames** for easy identification
-3. **Add descriptions** to explain what the attachment shows
-4. **Check file size** - must be under 5MB
-5. **Use appropriate formats** - PDF for documents, PNG/JPEG for photos
+1. **Prefer `upload_id` on remote MCP** so the model never emits base64
+2. **Compress large images** before uploading
+3. **Use descriptive filenames** for easy identification
+4. **Add descriptions** to explain what the attachment shows
+5. **Check file size** - must be under 5MB
+6. **Use appropriate formats** - PDF for documents, PNG/JPEG for photos
 
 ---
 

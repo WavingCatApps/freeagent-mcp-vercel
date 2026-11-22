@@ -24,6 +24,7 @@ import { listRecurringInvoices, getRecurringInvoice } from "./recurring-invoices
 import { listPriceListItems, getPriceListItem, createPriceListItem } from "./price-list-items.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
+import { prepareAttachmentUploadTool } from "./prepare-attachment-upload.js";
 import { listBills, getBill, createBill } from "./bills.js";
 import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
@@ -40,6 +41,7 @@ import {
   ListRecurringInvoicesInputSchema, GetRecurringInvoiceInputSchema,
   ListPriceListItemsInputSchema, GetPriceListItemInputSchema, CreatePriceListItemInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
+  PrepareAttachmentUploadInputSchema,
   ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema, UpdateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
@@ -259,6 +261,15 @@ export const toolDefinitions: ToolDefinition[] = [
     inputSchema: UpdateExpenseInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
+  },
+  {
+    name: "freeagent_prepare_attachment_upload",
+    title: "Prepare FreeAgent Attachment Upload",
+    description:
+      "Start an out-of-band receipt upload for remote MCP. Returns a short-lived HTTPS PUT URL and upload_id. The host should PUT the raw file bytes (not base64), then pass upload_id on create/update expense or bank transaction explanation instead of attachment.data. Requires S3-compatible staging env vars; otherwise use inline base64.",
+    inputSchema: PrepareAttachmentUploadInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: prepareAttachmentUploadTool,
   },
   // Bill Management
   {

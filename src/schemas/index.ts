@@ -167,18 +167,46 @@ export const GetExpenseInputSchema = z.object({
   response_format: ResponseFormatSchema
 }).strict();
 
-// Attachment schema for expenses and bank transaction explanations
-// PERFORMANCE NOTE: For large files, use gzip compression before Base64 encoding to significantly reduce size
-// and speed up LLM processing (which processes character-by-character). The server will automatically decompress.
-const AttachmentSchema = z.object({
-  data: z.string().describe("Base64 encoded file content. For large files, gzip compress first then Base64 encode, and set is_gzipped=true"),
+// Attachment schema for expenses and bank transaction explanations.
+// Prefer upload_id (out-of-band S3-compatible staging) on remote MCP so the model
+// never emits base64 character-by-character. Inline data remains supported.
+export const AttachmentContentTypeSchema = z.enum([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+]);
+
+export const AttachmentSchema = z.object({
+  data: z.string()
+    .optional()
+    .describe(
+      "Base64 encoded file content. Prefer upload_id on remote MCP. For large inline files, gzip first then Base64 encode and set is_gzipped=true."
+    ),
+  upload_id: z.string()
+    .optional()
+    .describe(
+      "Opaque token from freeagent_prepare_attachment_upload after the host PUT the file to the returned URL. Prefer this over data so the model never emits base64."
+    ),
   is_gzipped: z.boolean()
     .optional()
-    .describe("Set to true if the data is gzip-compressed before Base64 encoding (default: false). Server will automatically decompress before uploading to FreeAgent."),
+    .describe(
+      "Set to true if inline data is gzip-compressed before Base64 encoding (default: false). Not used with upload_id."
+    ),
   file_name: z.string().describe("Original filename"),
-  content_type: z.enum(["application/pdf", "image/png", "image/jpeg", "image/gif"])
-    .describe("MIME type of the file"),
-  description: z.string().optional().describe("Optional description of the attachment")
+  content_type: AttachmentContentTypeSchema.describe("MIME type of the file"),
+  description: z.string().optional().describe("Optional description of the attachment"),
+}).strict();
+
+export const PrepareAttachmentUploadInputSchema = z.object({
+  file_name: z.string().min(1).describe("Original filename (e.g. receipt.pdf)"),
+  content_type: AttachmentContentTypeSchema.describe("MIME type of the file to upload"),
+  size: z.number()
+    .int()
+    .positive()
+    .max(5 * 1024 * 1024)
+    .describe("Exact file size in bytes (max 5242880 / 5MB). Must match the PUT body."),
+  response_format: ResponseFormatSchema,
 }).strict();
 
 export const CreateExpenseInputSchema = z.object({
@@ -1075,6 +1103,8 @@ export type GetPriceListItemInput = z.infer<typeof GetPriceListItemInputSchema>;
 export type CreatePriceListItemInput = z.infer<typeof CreatePriceListItemInputSchema>;
 export type SearchToolsInput = z.infer<typeof SearchToolsInputSchema>;
 export type CallToolInput = z.infer<typeof CallToolInputSchema>;
+export type PrepareAttachmentUploadInput = z.infer<typeof PrepareAttachmentUploadInputSchema>;
+export type AttachmentInput = z.infer<typeof AttachmentSchema>;
 
 // Gap-coverage schemas
 export * from "./gaps.js";

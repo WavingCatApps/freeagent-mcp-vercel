@@ -14,6 +14,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
+- **Out-of-band receipt uploads** (optional): S3-compatible staging + signed `upload_id` so remote MCP hosts need not stream base64 through the model
 - **Tool annotations**: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` on every tool
 - **Zod validation**: strict input schemas with `.describe()` on all fields
 - **Dual response formats**: Markdown (human-readable) or JSON (structured)
