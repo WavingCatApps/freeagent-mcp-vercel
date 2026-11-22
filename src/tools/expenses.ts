@@ -257,7 +257,9 @@ export async function createExpense(
   const expenseId = extractIdFromUrl(expense.url);
 
   const type = isMileage ? "mileage expense" : "expense";
-  const attachmentInfo = params.attachment ? ` with attachment (${params.attachment.file_name})` : '';
+  const attachmentInfo = params.attachment
+    ? ` with attachment (${params.attachment.file_name ?? params.attachment.path ?? params.attachment.upload_id ?? "file"})`
+    : "";
 
   return `✅ Successfully created ${type}${attachmentInfo}\n\n` +
     `**Expense ID**: ${expenseId}\n` +
@@ -334,7 +336,7 @@ export async function updateExpense(
   const isMileage = expense.miles !== null && expense.miles !== undefined;
   const type = isMileage ? "mileage expense" : "expense";
   const attachmentInfo = updateFields.attachment
-    ? ` with attachment (${updateFields.attachment.file_name})`
+    ? ` with attachment (${updateFields.attachment.file_name ?? updateFields.attachment.path ?? updateFields.attachment.upload_id ?? "file"})`
     : "";
 
   return `✅ Successfully updated ${type}${attachmentInfo}\n\n` +

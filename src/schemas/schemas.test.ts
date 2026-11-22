@@ -173,13 +173,18 @@ describe("AttachmentSchema", () => {
     expect(result.upload_id).toBeUndefined();
   });
 
-  it("accepts upload_id without data", () => {
+  it("accepts upload_id without data or file metadata", () => {
     const result = AttachmentSchema.parse({
       upload_id: "jwt-token",
-      file_name: "r.pdf",
-      content_type: "application/pdf",
     });
     expect(result.upload_id).toBe("jwt-token");
+  });
+
+  it("accepts a local path without file metadata", () => {
+    const result = AttachmentSchema.parse({
+      path: "/tmp/receipts/taxi.pdf",
+    });
+    expect(result.path).toContain("taxi.pdf");
   });
 });
 

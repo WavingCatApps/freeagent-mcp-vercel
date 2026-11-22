@@ -168,8 +168,7 @@ export const GetExpenseInputSchema = z.object({
 }).strict();
 
 // Attachment schema for expenses and bank transaction explanations.
-// Prefer upload_id (out-of-band S3-compatible staging) on remote MCP so the model
-// never emits base64 character-by-character. Inline data remains supported.
+// Exactly one source: path (local), upload_id (S3 staging), or data (inline base64).
 export const AttachmentContentTypeSchema = z.enum([
   "application/pdf",
   "image/png",
@@ -178,23 +177,36 @@ export const AttachmentContentTypeSchema = z.enum([
 ]);
 
 export const AttachmentSchema = z.object({
+  path: z.string()
+    .optional()
+    .describe(
+      "Local file path under FREEAGENT_ATTACHMENTS_DIR. Best for stdio/local MCP — the server reads and encodes the file so the model never emits base64. Not usable on remote hosts that cannot see your disk."
+    ),
   data: z.string()
     .optional()
     .describe(
-      "Base64 encoded file content. Prefer upload_id on remote MCP. For large inline files, gzip first then Base64 encode and set is_gzipped=true."
+      "Base64 encoded file content (fallback). Prefer path locally or upload_id on remote MCP. For large inline files, gzip first then Base64 encode and set is_gzipped=true."
     ),
   upload_id: z.string()
     .optional()
     .describe(
-      "Opaque token from freeagent_prepare_attachment_upload after the host PUT the file to the returned URL. Prefer this over data so the model never emits base64."
+      "Opaque token from freeagent_prepare_attachment_upload after the host PUT the file to the returned URL. Prefer this on remote MCP."
     ),
   is_gzipped: z.boolean()
     .optional()
     .describe(
-      "Set to true if inline data is gzip-compressed before Base64 encoding (default: false). Not used with upload_id."
+      "Set to true if inline data is gzip-compressed before Base64 encoding (default: false). Only valid with data."
     ),
-  file_name: z.string().describe("Original filename"),
-  content_type: AttachmentContentTypeSchema.describe("MIME type of the file"),
+  file_name: z.string()
+    .optional()
+    .describe(
+      "Original filename. Required with data; optional with path/upload_id (inferred from the file or staging token)."
+    ),
+  content_type: AttachmentContentTypeSchema
+    .optional()
+    .describe(
+      "MIME type. Required with data; optional with path/upload_id (inferred from extension or staging token)."
+    ),
   description: z.string().optional().describe("Optional description of the attachment"),
 }).strict();
 

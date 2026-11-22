@@ -25,7 +25,8 @@ export async function prepareAttachmentUploadTool(
       "- `UPLOAD_S3_SECRET_ACCESS_KEY`\n" +
       "- `UPLOAD_S3_ENDPOINT` (required for R2/MinIO; omit for AWS)\n" +
       "- `UPLOAD_S3_REGION` (default `auto`)\n\n" +
-      "Until then, pass `attachment.data` as base64 (optionally gzip + `is_gzipped=true`)."
+      "Until then, on local/stdio set `FREEAGENT_ATTACHMENTS_DIR` and pass `attachment.path`, " +
+        "or pass `attachment.data` as base64 (optionally gzip + `is_gzipped=true`)."
     );
   }
 

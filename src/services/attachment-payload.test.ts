@@ -1,22 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { gzipSync } from "zlib";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { buildAttachmentPayload } from "./attachment-payload.js";
 
-vi.mock("./attachment-staging.js", () => ({
-  fetchStagedAttachmentBytes: vi.fn(),
-}));
+vi.mock("./attachment-staging.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./attachment-staging.js")>();
+  return {
+    ...actual,
+    fetchStagedAttachmentBytes: vi.fn(),
+  };
+});
 
 import { fetchStagedAttachmentBytes } from "./attachment-staging.js";
 
 const fetchStaged = vi.mocked(fetchStagedAttachmentBytes);
 
 describe("buildAttachmentPayload", () => {
-  beforeEach(() => {
+  const originalEnv = { ...process.env };
+  let root: string;
+
+  beforeEach(async () => {
     fetchStaged.mockReset();
+    process.env = { ...originalEnv };
+    root = await mkdtemp(path.join(tmpdir(), "fa-payload-"));
+    process.env.FREEAGENT_ATTACHMENTS_DIR = root;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    process.env = { ...originalEnv };
     vi.clearAllMocks();
+    await rm(root, { recursive: true, force: true });
   });
 
   it("accepts inline base64 data", async () => {
@@ -62,8 +77,6 @@ describe("buildAttachmentPayload", () => {
 
     const payload = await buildAttachmentPayload({
       upload_id: "signed-token",
-      file_name: "ignored.pdf",
-      content_type: "image/png",
     });
 
     expect(fetchStaged).toHaveBeenCalledWith("signed-token");
@@ -72,7 +85,18 @@ describe("buildAttachmentPayload", () => {
     expect(payload.content_type).toBe("application/pdf");
   });
 
-  it("rejects both data and upload_id", async () => {
+  it("reads a local path under FREEAGENT_ATTACHMENTS_DIR", async () => {
+    const file = path.join(root, "local.pdf");
+    const raw = Buffer.from("%PDF-1.4 local");
+    await writeFile(file, raw);
+
+    const payload = await buildAttachmentPayload({ path: file });
+    expect(payload.data).toBe(raw.toString("base64"));
+    expect(payload.file_name).toBe("local.pdf");
+    expect(payload.content_type).toBe("application/pdf");
+  });
+
+  it("rejects multiple sources", async () => {
     await expect(
       buildAttachmentPayload({
         data: "abc",
@@ -80,16 +104,16 @@ describe("buildAttachmentPayload", () => {
         file_name: "a.pdf",
         content_type: "application/pdf",
       })
-    ).rejects.toThrow(/not both/);
+    ).rejects.toThrow(/exactly one/);
   });
 
-  it("rejects neither data nor upload_id", async () => {
+  it("rejects neither source", async () => {
     await expect(
       buildAttachmentPayload({
         file_name: "a.pdf",
         content_type: "application/pdf",
       })
-    ).rejects.toThrow(/requires either data/);
+    ).rejects.toThrow(/requires one of/);
   });
 
   it("rejects is_gzipped with upload_id", async () => {
@@ -97,8 +121,17 @@ describe("buildAttachmentPayload", () => {
       buildAttachmentPayload({
         upload_id: "tok",
         is_gzipped: true,
-        file_name: "a.pdf",
-        content_type: "application/pdf",
+      })
+    ).rejects.toThrow(/is_gzipped/);
+  });
+
+  it("rejects is_gzipped with path", async () => {
+    const file = path.join(root, "x.pdf");
+    await writeFile(file, Buffer.from("%PDF"));
+    await expect(
+      buildAttachmentPayload({
+        path: file,
+        is_gzipped: true,
       })
     ).rejects.toThrow(/is_gzipped/);
   });

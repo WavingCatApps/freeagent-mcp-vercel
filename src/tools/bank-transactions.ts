@@ -270,7 +270,9 @@ export async function createBankTransactionExplanation(
   else if (params.paid_user) explanationType = "user payment";
   else if (params.transfer_bank_account) explanationType = "bank transfer";
 
-  const attachmentInfo = params.attachment ? ` with attachment (${params.attachment.file_name})` : '';
+  const attachmentInfo = params.attachment
+    ? ` with attachment (${params.attachment.file_name ?? params.attachment.path ?? params.attachment.upload_id ?? "file"})`
+    : "";
 
   return `✅ Successfully explained bank transaction as ${explanationType}${attachmentInfo}\n\n` +
     `**Explanation ID**: ${explanationId}\n` +

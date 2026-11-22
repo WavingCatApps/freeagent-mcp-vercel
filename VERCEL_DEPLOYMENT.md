@@ -56,6 +56,8 @@ Remote MCP hosts are slow when the model emits base64 for receipts. Configure an
 
 Uses the same `JWT_SECRET` as OAuth to sign short-lived `upload_id` tokens — no Redis/KV. Cloudflare R2’s free tier is enough for personal/small-team use. If these vars are unset, inline `attachment.data` still works.
 
+`FREEAGENT_ATTACHMENTS_DIR` / `attachment.path` is for **local stdio** only — a Vercel function cannot read files on the user’s laptop.
+
 #### Via Vercel CLI
 
 ```bash

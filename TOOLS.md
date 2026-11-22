@@ -494,13 +494,13 @@ Creates a new expense or mileage claim with optional receipt attachment.
 - `initial_mileage` (string, optional): Starting odometer reading
 - `mileage_type` (string, optional): 'Business' or 'Personal'
 
-**For Attachments:**
+**For Attachments** (exactly one source):
 - `attachment` (object, optional):
+  - `path` (string, preferred on local/stdio): file under `FREEAGENT_ATTACHMENTS_DIR` — server reads it
   - `upload_id` (string, preferred on remote MCP): from `freeagent_prepare_attachment_upload` after the host PUT the file
-  - `data` (string, optional): Base64 encoded file content (inline fallback; omit when using `upload_id`)
+  - `data` (string, optional): Base64 encoded file content (fallback)
   - `is_gzipped` (boolean, optional): inline `data` was gzipped before Base64
-  - `file_name` (string): Original filename
-  - `content_type` (string): `application/pdf`, `image/png`, `image/jpeg`, `image/gif`
+  - `file_name` / `content_type`: required with `data`; optional with `path` / `upload_id` (inferred)
   - `description` (string, optional): Attachment description
 
 **Example usage:**
@@ -511,8 +511,9 @@ Add receipt for taxi expense with attachment
 ```
 
 **Tips:**
-- On remote MCP, call `freeagent_prepare_attachment_upload` then PUT bytes and pass `upload_id`
-- Locally, the `file-to-base64` Claude Code skill can still prepare inline `data`
+- Locally: set `FREEAGENT_ATTACHMENTS_DIR` and pass `attachment.path`
+- On remote MCP: call `freeagent_prepare_attachment_upload` then PUT bytes and pass `upload_id`
+- Inline `data` remains a fallback (optionally via the `file-to-base64` skill)
 - For mileage, FreeAgent auto-calculates amounts based on HMRC rates
 - Supported attachment formats: PDF, PNG, JPEG, GIF (max 5MB)
 
@@ -917,26 +918,15 @@ To find what is missing a receipt, use `freeagent_list_bank_transaction_explanat
 
 **Maximum file size**: 5MB per attachment
 
-### Preferred on remote MCP: out-of-band upload
+### Attachment modes (pick one)
 
-Emitting a full base64 string in a tool call is slow on remote MCP hosts (the model often streams every character). When S3-compatible staging is configured, use:
+1. **Local path (stdio)** — set `FREEAGENT_ATTACHMENTS_DIR` to a dedicated receipts folder and pass `attachment.path`. The server reads the file; the model never emits base64. Paths outside that directory are refused (symlink-safe).
+2. **Remote staging** — configure S3-compatible env vars, call `freeagent_prepare_attachment_upload`, **PUT** raw bytes to the URL, then pass `attachment.upload_id`. See `VERCEL_DEPLOYMENT.md`.
+3. **Inline base64** — `attachment.data` (+ optional `is_gzipped`). Slow on remote hosts when the model streams every character; fine for tiny files.
 
-1. `freeagent_prepare_attachment_upload` with `file_name`, `content_type`, and exact `size`
-2. **PUT** the raw file bytes to the returned URL (host/skill — not the model)
-3. Pass `attachment: { upload_id, file_name, content_type }` on create/update expense or bank transaction explanation — **omit** `data`
+### Using the file-to-base64 Skill (inline fallback)
 
-Staging is optional and vendor-agnostic (Cloudflare R2, MinIO, Backblaze, AWS S3, …). See `VERCEL_DEPLOYMENT.md` for env vars. `upload_id` is a signed JWT (same idea as OAuth); bytes are deleted after FreeAgent accepts them.
-
-### Using the file-to-base64 Skill (local / inline fallback)
-
-Claude Code includes a `file-to-base64` skill in `.claude/skills/file-to-base64/` that helps prepare attachments by:
-
-- Validating file format and size
-- Converting files to Base64
-- Detecting MIME types automatically
-- Checking file permissions
-
-Simply provide the file path when creating expenses or explanations, and Claude will use the skill to prepare the attachment. Prefer `upload_id` on remote deployments when staging is configured.
+Claude Code includes a `file-to-base64` skill in `.claude/skills/file-to-base64/` for the inline `data` fallback. Prefer `attachment.path` locally when `FREEAGENT_ATTACHMENTS_DIR` is set.
 
 ### Manual Preparation (if needed)
 
