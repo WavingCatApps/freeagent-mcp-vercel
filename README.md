@@ -69,6 +69,23 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
    }
    ```
 
+### Docker / Apple Container (Streamable HTTP)
+
+Build and run the OAuth HTTP server in an OCI container (Docker Engine or [Apple Container](https://github.com/apple/container)):
+
+```bash
+docker build -t freeagent-mcp .
+docker run --rm -p 3000:3000 \
+  -e FREEAGENT_CLIENT_ID \
+  -e FREEAGENT_CLIENT_SECRET \
+  -e JWT_SECRET \
+  -e FREEAGENT_USE_SANDBOX=true \
+  -e BASE_URL=http://localhost:3000 \
+  freeagent-mcp
+```
+
+Health check: `curl http://localhost:3000/health`. For stdio inside the same image: `docker run -i --rm -e FREEAGENT_ACCESS_TOKEN … freeagent-mcp bun dist/index.js`.
+
 ### Vercel (Streamable HTTP) - for cloud access
 
 One-click deploy (clones this repo into your Git account and prompts for env vars):
