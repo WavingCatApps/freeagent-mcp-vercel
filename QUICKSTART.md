@@ -121,9 +121,9 @@ Expected response:
 
 ### Rate Limit Error
 
-FreeAgent allows 15 requests per 60 seconds (5 for sandbox):
-- Wait 60 seconds before retrying
-- The server will tell you exactly how long to wait
+FreeAgent allows 120 requests per minute / 3600 per hour (sandbox can be lowered to 5/min with `X-RateLimit-Test`):
+- Wait for the `Retry-After` duration in the error (defaults to 60 seconds)
+- The server surfaces that timing; it does not auto-retry
 
 ### Build errors
 

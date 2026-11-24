@@ -3,7 +3,14 @@
  */
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
-import { API_BASE_URL, SANDBOX_API_BASE_URL, API_VERSION } from "../constants.js";
+import {
+  API_BASE_URL,
+  API_VERSION,
+  RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS,
+  RATE_LIMIT_REQUESTS_PER_HOUR,
+  RATE_LIMIT_REQUESTS_PER_MINUTE,
+  SANDBOX_API_BASE_URL,
+} from "../constants.js";
 import type { FreeAgentApiError, FreeAgentApiErrorItem } from "../types.js";
 import type { TokenRefresher } from "./token-refresher.js";
 
@@ -110,12 +117,15 @@ export class FreeAgentApiClient {
         const status = axiosError.response.status;
         const data = axiosError.response.data;
 
-        // Rate limiting
+        // Rate limiting — surface Retry-After; do not sleep/retry here (serverless).
         if (status === 429) {
-          const retryAfter = axiosError.response.headers["retry-after"];
+          const retryAfter =
+            axiosError.response.headers["retry-after"] ||
+            RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS;
           return new Error(
-            `Rate limit exceeded. Please retry after ${retryAfter || 60} seconds. ` +
-            `FreeAgent allows 15 requests per 60 seconds.`
+            `Rate limit exceeded. Please retry after ${retryAfter} seconds. ` +
+            `FreeAgent allows ${RATE_LIMIT_REQUESTS_PER_MINUTE} requests per minute ` +
+            `(${RATE_LIMIT_REQUESTS_PER_HOUR} per hour) per user.`
           );
         }
 

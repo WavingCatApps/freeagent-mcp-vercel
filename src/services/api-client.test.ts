@@ -66,6 +66,57 @@ describe("FreeAgentApiClient", () => {
     });
   });
 
+  describe("error handling", () => {
+    async function rejectGet(status: number, data: unknown = {}, headers: Record<string, string> = {}) {
+      const mockAxios = await getMockAxios();
+      mockAxios.get.mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status, data, headers },
+      });
+      return client.get("/contacts");
+    }
+
+    it("surfaces HTTP 429 with Retry-After guidance", async () => {
+      await expect(rejectGet(429, {}, { "retry-after": "42" })).rejects.toThrow(
+        /Rate limit exceeded\. Please retry after 42 seconds\.[\s\S]*120 requests per minute/
+      );
+    });
+
+    it("defaults Retry-After to 60 seconds when the header is missing", async () => {
+      await expect(rejectGet(429)).rejects.toThrow(
+        /Rate limit exceeded\. Please retry after 60 seconds/
+      );
+    });
+
+    it("maps HTTP 401 to an authentication message", async () => {
+      await expect(rejectGet(401)).rejects.toThrow(/Authentication failed/);
+    });
+
+    it("maps HTTP 403 to a permissions message", async () => {
+      await expect(rejectGet(403)).rejects.toThrow(/Access forbidden/);
+    });
+
+    it("maps HTTP 404 to a not-found message", async () => {
+      await expect(rejectGet(404)).rejects.toThrow(/Resource not found/);
+    });
+
+    it("formats FreeAgent 422 validation errors from an errors array", async () => {
+      await expect(
+        rejectGet(422, { errors: [{ message: "category can't be blank" }] })
+      ).rejects.toThrow(/Validation error: category can't be blank/);
+    });
+
+    it("falls back to a generic status message for unmapped codes like 400", async () => {
+      await expect(rejectGet(400, { message: "Invalid nominal code" })).rejects.toThrow(
+        /API error: Invalid nominal code/
+      );
+    });
+
+    it("falls back to status-only messaging for 5xx without a body message", async () => {
+      await expect(rejectGet(503)).rejects.toThrow(/API request failed with status 503/);
+    });
+  });
+
   describe("parsePaginationHeaders", () => {
     it("parses x-total-count header", () => {
       const result = client.parsePaginationHeaders({ "x-total-count": "42" });

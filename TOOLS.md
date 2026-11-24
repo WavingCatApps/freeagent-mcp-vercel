@@ -394,7 +394,7 @@ All tools provide clear error messages:
 | 403 Forbidden | Insufficient permissions | Check account permission level |
 | 404 Not Found | Resource doesn't exist | Verify ID or URL is correct |
 | 422 Validation Error | Invalid input data | Check required fields and formats |
-| 429 Rate Limit | Too many requests | Wait 60 seconds before retrying |
+| 429 Rate Limit | Too many requests | Wait for the `Retry-After` seconds shown in the error |
 
 ---
 
@@ -411,10 +411,10 @@ All tools provide clear error messages:
 
 ## Rate Limits
 
-**Production API**: 15 requests per 60 seconds
-**Sandbox API**: 5 requests per 60 seconds
+**Production API**: 120 requests per minute, 3600 per hour (15 token refreshes per minute)
+**Sandbox test header** (`X-RateLimit-Test: true`): 5 requests per minute
 
-The server automatically handles rate limit errors and tells you when to retry.
+On HTTP 429 the server returns an error that includes FreeAgent's `Retry-After` timing so you know when to retry. It does not automatically back off and re-issue the request.
 
 ---
 
