@@ -306,11 +306,13 @@ FreeAgent does not publish a full catalogue of error codes ([forum](https://api-
 | Status | Handling |
 |--------|----------|
 | 401 | Auth failure message; stdio/OAuth can also refresh-and-retry once |
-| 403 | Permissions message (FreeAgent sometimes returns plain text / HTML here) |
+| 403 | Permissions message; prefers FreeAgent's plain-text / light-HTML body when present |
 | 404 | Not-found message |
+| 400 | Explicit bad-request message, including FreeAgent body detail when present |
 | 422 | Parses FreeAgent `errors` array/object into field guidance |
 | 429 | Surfaces `Retry-After` (no sleep/auto-retry in the serverless path) |
-| Other (e.g. 400, 5xx) | Uses `message` from the body when present, else a generic status error |
+| 5xx | Explicit FreeAgent server-error message (+ body detail when present) |
+| Other | Uses body detail when present, else a generic status error |
 
 ## Security
 

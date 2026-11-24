@@ -19,6 +19,45 @@ export interface ApiResponse<T> {
   headers: Record<string, string>;
 }
 
+/**
+ * Pull a short, LLM-usable detail from a FreeAgent error body.
+ * FreeAgent sometimes returns plain text (or lightly tagged HTML) for 403s,
+ * JSON `{ message }`, or nested `{ errors: { error: { message } } }`.
+ * Full HTML documents are ignored so we don't dump pages into tool errors.
+ */
+export function extractFreeAgentBodyDetail(data: unknown): string | undefined {
+  if (typeof data === "string") {
+    const trimmed = data.trim();
+    if (!trimmed) return undefined;
+    if (/^<!DOCTYPE|^<html/i.test(trimmed)) return undefined;
+    const withoutTags = trimmed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!withoutTags || withoutTags.length > 500) return undefined;
+    return withoutTags;
+  }
+
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.message === "string" && obj.message.trim()) {
+      return obj.message.trim();
+    }
+
+    const errors = obj.errors;
+    if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+      const nested = (errors as Record<string, unknown>).error;
+      if (nested && typeof nested === "object" && nested !== null) {
+        const msg = (nested as { message?: unknown }).message;
+        if (typeof msg === "string" && msg.trim()) return msg.trim();
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function isServerErrorStatus(status: number): boolean {
+  return status >= 500 && status <= 599;
+}
+
 export class FreeAgentApiClient {
   private axiosInstance: AxiosInstance;
   private accessToken: string;
@@ -137,8 +176,15 @@ export class FreeAgentApiClient {
           );
         }
 
-        // Authorization errors
+        // Authorization — FreeAgent often returns plain text / light HTML here.
         if (status === 403) {
+          const detail = extractFreeAgentBodyDetail(data);
+          if (detail) {
+            return new Error(
+              `Access forbidden: ${detail}. ` +
+              "Check your FreeAgent account permissions / access level."
+            );
+          }
           return new Error(
             "Access forbidden. Your account may not have permission to access this resource. " +
             "Check your FreeAgent account permissions."
@@ -152,8 +198,18 @@ export class FreeAgentApiClient {
           );
         }
 
+        // Bad request (e.g. invalid nominal code)
+        if (status === 400) {
+          const detail = extractFreeAgentBodyDetail(data);
+          return new Error(
+            detail
+              ? `Bad request (400): ${detail}`
+              : "Bad request (400). Check the request parameters and try again."
+          );
+        }
+
         // Validation errors
-        if (status === 422 && data && data.errors) {
+        if (status === 422 && data && typeof data === "object" && data.errors) {
           let errorMessages: string;
 
           // Check if errors is an array or object
@@ -194,9 +250,20 @@ export class FreeAgentApiClient {
           );
         }
 
+        // Upstream FreeAgent outages / gateway errors
+        if (isServerErrorStatus(status)) {
+          const detail = extractFreeAgentBodyDetail(data);
+          return new Error(
+            detail
+              ? `FreeAgent server error (${status}): ${detail}. Please try again shortly.`
+              : `FreeAgent server error (${status}). Please try again shortly.`
+          );
+        }
+
         // Generic error with message
-        if (data && data.message) {
-          return new Error(`API error: ${data.message}`);
+        const detail = extractFreeAgentBodyDetail(data);
+        if (detail) {
+          return new Error(`API error (${status}): ${detail}`);
         }
 
         return new Error(`API request failed with status ${status}`);
