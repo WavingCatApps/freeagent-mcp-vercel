@@ -782,7 +782,7 @@ List explanations for account 123
 Show explanations from January
 ```
 
-**Returns:** List of explanations with dates, amounts, descriptions, categorization details, and review status. Each row also reports `has_attachment`, and for rows that have one, the attachment's `url`, `file_name`, `file_size` and `content_type`. The short-lived pre-signed `content_src` download URL is deliberately omitted: it is large and expires within seconds, so fetch it with `freeagent_get_bank_transaction_explanation` when you actually need the file. This means **one** list call tells you which transactions still need a receipt, rather than one `get` per transaction.
+**Returns:** List of explanations with dates, amounts, descriptions, categorization details, and review status. Each row reports `has_attachment`, `attachment_count`, and an `attachments` array of `{ url }` refs. FreeAgent's `2026-09-01` API only embeds URLs on the explanation itself — use `freeagent_list_bank_transaction_explanation_attachments` or `freeagent_get_bank_transaction_explanation` for file name / size / type. **One** list call still tells you which transactions need a receipt.
 
 ---
 
@@ -800,7 +800,25 @@ Show details for explanation 456
 What category was assigned to this explanation?
 ```
 
-**Returns:** Complete explanation details including categorization, tax info, and linked entities (invoices, bills, transfers).
+**Returns:** Complete explanation details including categorization, tax info, linked entities (invoices, bills, transfers), and attachment metadata (file name, size, type). Short-lived `content_src` download URLs are omitted.
+
+---
+
+### freeagent_list_bank_transaction_explanation_attachments
+
+Lists all file attachments on one bank transaction explanation (up to 50), with file name, size, and content type.
+
+**Parameters:**
+- `bank_transaction_explanation_id` (string, required): The FreeAgent explanation ID or full URL
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+List attachments on explanation 456
+What receipts are on this bank explanation?
+```
+
+**Returns:** Attachment count plus metadata for each file (URL, file name, size, content type). Prefer this after list_explanations shows `has_attachment` when you need names without the full explanation payload.
 
 ---
 
@@ -857,7 +875,7 @@ Updates an existing bank transaction explanation. Only provide the fields you wa
 
 These parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides: `dated_on`, `description`, `gross_value`, `category`, `ec_status`, `marked_for_review`, `receipt_reference`, `paid_invoice`, `paid_bill`, `paid_user`, `project`, `sales_tax_rate`, `sales_tax_value`, `transfer_bank_account`, `attachment`.
 
-**Attaching a receipt:** pass `attachment` (same object format as `create`). This is the normal route for bank-feed transactions, which arrive already created and are usually auto-explained by FreeAgent's guess rules, so `create` has already happened by the time you want to add the receipt. Note the API replaces the existing attachment rather than adding to it; use `freeagent_delete_attachment` to remove one.
+**Attaching a receipt:** pass `attachment` (same object format as `create`). This is the normal route for bank-feed transactions, which arrive already created and are usually auto-explained by FreeAgent's guess rules, so `create` has already happened by the time you want to add the receipt. Attachments are **added** (explanations support up to 50); they are not replaced. Use `freeagent_delete_attachment` to remove one.
 
 **Example usage:**
 ```
@@ -905,9 +923,9 @@ Explain transaction 789 as paying bill SUP-99
 
 Expenses and bank transaction explanations support file attachments for receipts, invoices, and supporting documents, on both **create** and **update**. Timeslips do not.
 
-To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` and read `has_attachment` on each row, then add the file with `freeagent_update_bank_transaction_explanation`. Remove one with `freeagent_delete_attachment`.
+To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` and read `has_attachment` on each row, then add the file with `freeagent_update_bank_transaction_explanation`. For file names/sizes, call `freeagent_list_bank_transaction_explanation_attachments`. Remove one with `freeagent_delete_attachment`.
 
-> **Changing on 1 December 2026:** FreeAgent are moving to multiple attachments per explanation (up to 50), after which the singular `attachment` attribute is no longer returned by default and attachments must be managed through the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01). You can opt in early with the `X-Api-Version: 2026-09-01` header. This server does not implement that yet.
+This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01) for create/update writes. That becomes FreeAgent's default behaviour on **1 December 2026** (up to 50 attachments; singular `attachment` on explanations is no longer returned). Override the version only for debugging via `FREEAGENT_X_API_VERSION`.
 
 ### Supported Formats
 

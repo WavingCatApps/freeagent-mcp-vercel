@@ -12,10 +12,17 @@ import type {
   GetBankTransactionExplanationInput,
   CreateBankTransactionExplanationInput,
   UpdateBankTransactionExplanationInput,
-  DeleteBankTransactionExplanationInput
+  DeleteBankTransactionExplanationInput,
+  ListBankTransactionExplanationAttachmentsInput
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
 import { buildAttachmentPayload } from "../services/attachment-payload.js";
+import {
+  addExplanationAttachments,
+  listExplanationAttachments,
+  publicAttachmentMetadata,
+  summarizeExplanationAttachmentRefs
+} from "../services/explanation-attachments.js";
 import { resourcePath } from "../utils/resource-path.js";
 
 /**
@@ -47,33 +54,29 @@ export async function listBankTransactionExplanations(
   // Format response
   return formatResponse(
     {
-      explanations: explanations.map((exp: FreeAgentBankTransactionExplanation) => ({
-        url: exp.url,
-        dated_on: exp.dated_on,
-        description: exp.description,
-        gross_value: exp.gross_value,
-        bank_transaction: exp.bank_transaction,
-        category: exp.category,
-        ec_status: exp.ec_status,
-        receipt_reference: exp.receipt_reference,
-        marked_for_review: exp.marked_for_review,
-        paid_invoice: exp.paid_invoice,
-        paid_bill: exp.paid_bill,
-        paid_user: exp.paid_user,
-        transfer_bank_account: exp.transfer_bank_account,
-        // Receipt status. Deliberately omits content_src: FreeAgent returns
-        // short-lived pre-signed S3 URLs that bloat the response and expire
-        // within seconds, so they are useless to a list consumer.
-        has_attachment: Boolean(exp.attachment),
-        attachment: exp.attachment
-          ? {
-              url: exp.attachment.url,
-              file_name: exp.attachment.file_name,
-              file_size: exp.attachment.file_size,
-              content_type: exp.attachment.content_type
-            }
-          : undefined
-      })),
+      explanations: explanations.map((exp: FreeAgentBankTransactionExplanation) => {
+        // Under X-Api-Version 2026-09-01, explanations embed attachment URLs
+        // only (no file_name/size). Use list_…_attachments for metadata.
+        const attachmentSummary = summarizeExplanationAttachmentRefs(exp);
+        return {
+          url: exp.url,
+          dated_on: exp.dated_on,
+          description: exp.description,
+          gross_value: exp.gross_value,
+          bank_transaction: exp.bank_transaction,
+          category: exp.category,
+          ec_status: exp.ec_status,
+          receipt_reference: exp.receipt_reference,
+          marked_for_review: exp.marked_for_review,
+          paid_invoice: exp.paid_invoice,
+          paid_bill: exp.paid_bill,
+          paid_user: exp.paid_user,
+          transfer_bank_account: exp.transfer_bank_account,
+          has_attachment: attachmentSummary.has_attachment,
+          attachment_count: attachmentSummary.attachment_count,
+          attachments: attachmentSummary.attachments
+        };
+      }),
       pagination: {
         page,
         per_page,
@@ -111,8 +114,13 @@ export async function listBankTransactionExplanations(
         const desc = exp.description || 'No description';
         const reviewStatus = exp.marked_for_review ? ' ⚠️ NEEDS REVIEW' : '';
 
+        const attachmentSummary = summarizeExplanationAttachmentRefs(exp);
+        const receiptNote = attachmentSummary.has_attachment
+          ? ` [${attachmentSummary.attachment_count} attachment(s)]`
+          : " [no receipt]";
+
         lines.push(`## ${exp.dated_on} - ${amountStr}${reviewStatus} (ID: ${id})`);
-        lines.push(`${desc}`);
+        lines.push(`${desc}${receiptNote}`);
         if (exp.category) lines.push(`Category: ${exp.category}`);
         if (exp.paid_invoice) lines.push(`Paid Invoice: ${exp.paid_invoice}`);
         if (exp.paid_bill) lines.push(`Paid Bill: ${exp.paid_bill}`);
@@ -139,10 +147,21 @@ export async function getBankTransactionExplanation(
 
   const response = await client.get<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(explanationUrl);
   const exp = response.data.bank_transaction_explanation;
+  const attachmentSummary = summarizeExplanationAttachmentRefs(exp);
+  const attachmentDetails = attachmentSummary.has_attachment
+    ? (await listExplanationAttachments(client, explanationUrl)).map(publicAttachmentMetadata)
+    : [];
+
+  const payload = {
+    ...exp,
+    has_attachment: attachmentSummary.has_attachment,
+    attachment_count: attachmentSummary.attachment_count || attachmentDetails.length,
+    attachments: attachmentDetails.length > 0 ? attachmentDetails : attachmentSummary.attachments
+  };
 
   // Format response
   return formatResponse(
-    exp,
+    payload,
     response_format,
     () => {
       const lines: string[] = ["# Bank Transaction Explanation Details", ""];
@@ -194,8 +213,15 @@ export async function getBankTransactionExplanation(
         lines.push(`- **Sales Tax Value**: ${exp.sales_tax_value}`);
       }
 
-      if (exp.attachment_count && exp.attachment_count > 0) {
-        lines.push(`- **Attachments**: ${exp.attachment_count} file(s)`);
+      if (attachmentDetails.length > 0) {
+        lines.push(`- **Attachments**: ${attachmentDetails.length} file(s)`);
+        for (const a of attachmentDetails) {
+          lines.push(
+            `  - ${a.file_name ?? "file"} (${a.content_type ?? "?"}, ${a.file_size ?? "?"} bytes) — ${a.url ?? ""}`
+          );
+        }
+      } else {
+        lines.push(`- **Attachments**: none`);
       }
 
       lines.push("");
@@ -250,11 +276,8 @@ export async function createBankTransactionExplanation(
     explanationPayload.transfer_bank_account = params.transfer_bank_account;
   }
 
-  // Add attachment if provided (inline base64 or staged upload_id)
-  if (params.attachment) {
-    explanationPayload.attachment = await buildAttachmentPayload(params.attachment);
-  }
-
+  // Attachments are added via the Explanation Attachments API after create
+  // (nested `attachment` is not accepted under X-Api-Version 2026-09-01).
   const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
     "/bank_transaction_explanations",
     { bank_transaction_explanation: explanationPayload }
@@ -262,6 +285,18 @@ export async function createBankTransactionExplanation(
 
   const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
+
+  if (params.attachment) {
+    const payload = await buildAttachmentPayload(params.attachment);
+    await addExplanationAttachments(client, explanation.url, [
+      {
+        data: payload.data,
+        file_name: payload.file_name,
+        content_type: payload.content_type,
+        description: payload.description
+      }
+    ]);
+  }
 
   // Determine explanation type
   let explanationType = "general transaction";
@@ -325,17 +360,41 @@ export async function updateBankTransactionExplanation(
     explanationPayload.transfer_bank_account = updateFields.transfer_bank_account;
   }
 
-  // Attachment (receipt) — inline base64 or staged upload_id
-  if (updateFields.attachment !== undefined) {
-    explanationPayload.attachment = await buildAttachmentPayload(updateFields.attachment);
+  const hasFieldUpdates = Object.keys(explanationPayload).length > 0;
+  let explanation: FreeAgentBankTransactionExplanation;
+
+  if (hasFieldUpdates) {
+    const response = await client.put<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
+      explanationUrl,
+      { bank_transaction_explanation: explanationPayload }
+    );
+    explanation = response.data.bank_transaction_explanation;
+  } else {
+    const response = await client.get<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
+      explanationUrl
+    );
+    explanation = response.data.bank_transaction_explanation;
   }
 
-  const response = await client.put<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
-    explanationUrl,
-    { bank_transaction_explanation: explanationPayload }
-  );
+  // Attachment adds via the Attachments API (does not replace existing files;
+  // explanations support up to 50). Nested `attachment` on PUT is rejected
+  // under X-Api-Version 2026-09-01.
+  let attachmentNote = "";
+  if (updateFields.attachment !== undefined) {
+    const payload = await buildAttachmentPayload(updateFields.attachment);
+    const attachments = await addExplanationAttachments(client, explanation.url, [
+      {
+        data: payload.data,
+        file_name: payload.file_name,
+        content_type: payload.content_type,
+        description: payload.description
+      }
+    ]);
+    attachmentNote =
+      `\n**Attachments now**: ${attachments.length} file(s)` +
+      (payload.file_name ? ` (added ${payload.file_name})` : "");
+  }
 
-  const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
   // Determine explanation type
@@ -351,7 +410,8 @@ export async function updateBankTransactionExplanation(
     `**Amount**: ${explanation.gross_value}\n` +
     (explanation.description ? `**Description**: ${explanation.description}\n` : '') +
     (explanation.category ? `**Category**: ${explanation.category}\n` : '') +
-    `**URL**: ${explanation.url}`;
+    `**URL**: ${explanation.url}` +
+    attachmentNote;
 }
 
 
@@ -361,4 +421,46 @@ export async function deleteBankTransactionExplanation(
 ): Promise<string> {
   await client.delete(resourcePath(params.bank_transaction_explanation_id, "bank_transaction_explanations"));
   return `✅ Bank transaction explanation deleted: ${params.bank_transaction_explanation_id}`;
+}
+
+/**
+ * List full attachment metadata for one explanation (file names, sizes, types).
+ * Prefer this after list_explanations shows has_attachment — explanation list
+ * rows only include attachment URLs under API version 2026-09-01.
+ */
+export async function listBankTransactionExplanationAttachments(
+  client: FreeAgentApiClient,
+  params: ListBankTransactionExplanationAttachmentsInput
+): Promise<string> {
+  const { bank_transaction_explanation_id, response_format } = params;
+  const attachments = (
+    await listExplanationAttachments(client, bank_transaction_explanation_id)
+  ).map(publicAttachmentMetadata);
+
+  return formatResponse(
+    {
+      bank_transaction_explanation_id,
+      attachment_count: attachments.length,
+      attachments
+    },
+    response_format,
+    () => {
+      const lines: string[] = [
+        `# Attachments for explanation ${bank_transaction_explanation_id}`,
+        ""
+      ];
+      if (attachments.length === 0) {
+        lines.push("No attachments.");
+        return lines.join("\n");
+      }
+      for (const a of attachments) {
+        lines.push(
+          `- **${a.file_name ?? "file"}** — ${a.content_type ?? "?"}, ${a.file_size ?? "?"} bytes`
+        );
+        if (a.url) lines.push(`  - URL: ${a.url}`);
+        if (a.description) lines.push(`  - ${a.description}`);
+      }
+      return lines.join("\n");
+    }
+  );
 }

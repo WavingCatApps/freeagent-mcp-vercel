@@ -3,7 +3,12 @@
  */
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
-import { API_BASE_URL, SANDBOX_API_BASE_URL, API_VERSION } from "../constants.js";
+import {
+  API_BASE_URL,
+  SANDBOX_API_BASE_URL,
+  API_VERSION,
+  FREEAGENT_X_API_VERSION
+} from "../constants.js";
 import type { FreeAgentApiError, FreeAgentApiErrorItem } from "../types.js";
 import type { TokenRefresher } from "./token-refresher.js";
 
@@ -29,7 +34,9 @@ export class FreeAgentApiClient {
         "Authorization": `Bearer ${accessToken}`,
         "User-Agent": "FreeAgent-MCP-Server/1.0.0",
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        // Multi-attachment bank explanation API (platform default from 1 Dec 2026)
+        "X-Api-Version": FREEAGENT_X_API_VERSION
       },
       timeout: 30000
     });

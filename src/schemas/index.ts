@@ -625,6 +625,13 @@ export const GetBankTransactionExplanationInputSchema = z.object({
   response_format: ResponseFormatSchema
 }).strict();
 
+export const ListBankTransactionExplanationAttachmentsInputSchema = z.object({
+  bank_transaction_explanation_id: z.string()
+    .min(1)
+    .describe("The FreeAgent bank transaction explanation ID (numeric) or full URL"),
+  response_format: ResponseFormatSchema
+}).strict();
+
 export const CreateBankTransactionExplanationInputSchema = z.object({
   bank_transaction: z.string()
     .min(1)
@@ -673,10 +680,12 @@ export const CreateBankTransactionExplanationInputSchema = z.object({
   transfer_bank_account: z.string()
     .optional()
     .describe("Destination bank account URL or ID for transfers"),
-  // Attachment
+  // Attachment — posted via Explanation Attachments API after create
   attachment: AttachmentSchema
     .optional()
-    .describe("Optional file attachment for the explanation")
+    .describe(
+      "Optional receipt to attach after creating the explanation (Attachments API; up to 50 per explanation)"
+    )
 }).strict();
 
 export const UpdateBankTransactionExplanationInputSchema = z.object({
@@ -729,10 +738,12 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
   transfer_bank_account: z.string()
     .optional()
     .describe("Destination bank account URL or ID for transfers"),
-  // Attachment
+  // Attachment — ADDS via Attachments API (does not replace existing files)
   attachment: AttachmentSchema
     .optional()
-    .describe("Optional file attachment (receipt) for the explanation")
+    .describe(
+      "Receipt to ADD to this explanation (does not replace existing attachments; max 50 total). Same path/upload_id/data modes as expenses."
+    )
 }).strict();
 
 export const UpdateTimeslipInputSchema = z.object({
@@ -1093,6 +1104,9 @@ export type CreateTimeslipInput = z.infer<typeof CreateTimeslipInputSchema>;
 export type UpdateTimeslipInput = z.infer<typeof UpdateTimeslipInputSchema>;
 export type ListBankTransactionExplanationsInput = z.infer<typeof ListBankTransactionExplanationsInputSchema>;
 export type GetBankTransactionExplanationInput = z.infer<typeof GetBankTransactionExplanationInputSchema>;
+export type ListBankTransactionExplanationAttachmentsInput = z.infer<
+  typeof ListBankTransactionExplanationAttachmentsInputSchema
+>;
 export type CreateBankTransactionExplanationInput = z.infer<typeof CreateBankTransactionExplanationInputSchema>;
 export type UpdateBankTransactionExplanationInput = z.infer<typeof UpdateBankTransactionExplanationInputSchema>;
 export type GetCompanyInput = z.infer<typeof GetCompanyInputSchema>;

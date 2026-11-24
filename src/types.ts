@@ -221,9 +221,17 @@ export interface FreeAgentTimeslip {
 
 export interface FreeAgentAttachmentSummary {
   url?: string;
+  content_src?: string;
   content_type?: string;
   file_name?: string;
   file_size?: number;
+  description?: string;
+  expires_at?: string;
+}
+
+/** URL-only attachment ref as returned on explanations under X-Api-Version 2026-09-01. */
+export interface FreeAgentAttachmentRef {
+  url: string;
 }
 
 export interface FreeAgentBankTransactionExplanation {
@@ -244,7 +252,13 @@ export interface FreeAgentBankTransactionExplanation {
   sales_tax_rate?: string;
   sales_tax_value?: string;
   attachment_count?: number;
+  /**
+   * Prefer `attachments` (X-Api-Version 2026-09-01+). Singular `attachment`
+   * is omitted once that version is the platform default (1 Dec 2026).
+   */
   attachment?: FreeAgentAttachmentSummary;
+  /** Under 2026-09-01, list/get explanations return `{ url }` only per item. */
+  attachments?: FreeAgentAttachmentRef[];
   created_at?: string;
   updated_at?: string;
 }

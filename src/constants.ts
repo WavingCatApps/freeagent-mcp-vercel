@@ -9,6 +9,15 @@ export const API_BASE_URL = "https://api.freeagent.com";
 export const SANDBOX_API_BASE_URL = "https://api.sandbox.freeagent.com";
 export const API_VERSION = "v2";
 
+/**
+ * FreeAgent `X-Api-Version` header. Pinned to `2026-09-01` so bank transaction
+ * explanations use the multi-attachment Attachments API (default from
+ * 1 December 2026). Override with FREEAGENT_X_API_VERSION only for debugging.
+ */
+export const FREEAGENT_X_API_VERSION =
+  (typeof process !== "undefined" && process.env.FREEAGENT_X_API_VERSION?.trim()) ||
+  "2026-09-01";
+
 // Character limit for response truncation
 export const CHARACTER_LIMIT = 25000;
 
