@@ -414,7 +414,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: "freeagent_create_bank_transaction_explanation",
     title: "Explain FreeAgent Bank Transaction",
     description:
-      "Create an explanation for a bank transaction by linking it to invoices, bills, or categories. Optional `attachment` is uploaded via the Explanation Attachments API after create.",
+      "Create an explanation for a bank transaction by linking it to invoices, bills, or categories. Optional `attachment` or `attachments` (up to 10) are uploaded via the Explanation Attachments API after create.",
     inputSchema: CreateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createBankTransactionExplanation,
@@ -423,7 +423,7 @@ export const toolDefinitions: ToolDefinition[] = [
     name: "freeagent_update_bank_transaction_explanation",
     title: "Update FreeAgent Bank Transaction Explanation",
     description:
-      "Update an existing bank transaction explanation. Only provide the fields you want to change. Pass `attachment` to ADD a receipt (does not replace existing ones; max 50). Usual path for bank-feed transactions that arrive pre-explained by guess rules.",
+      "Update an existing bank transaction explanation. Only provide the fields you want to change. Pass `attachment` or `attachments` (up to 10) to ADD receipts (does not replace existing ones; max 50). Usual path for bank-feed transactions that arrive pre-explained by guess rules.",
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateBankTransactionExplanation,

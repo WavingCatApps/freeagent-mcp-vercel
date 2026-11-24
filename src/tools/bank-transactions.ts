@@ -8,6 +8,7 @@
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { FreeAgentBankTransactionExplanation } from "../types.js";
 import type {
+  AttachmentInput,
   ListBankTransactionExplanationsInput,
   GetBankTransactionExplanationInput,
   CreateBankTransactionExplanationInput,
@@ -16,15 +17,35 @@ import type {
   ListBankTransactionExplanationAttachmentsInput
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
-import { buildAttachmentPayload } from "../services/attachment-payload.js";
 import { cleanupStagedAttachment } from "../services/attachment-staging.js";
 import {
   addExplanationAttachments,
   listExplanationAttachments,
   publicAttachmentMetadata,
+  resolveExplanationAttachmentWrites,
   summarizeExplanationAttachmentRefs
 } from "../services/explanation-attachments.js";
 import { resourcePath } from "../utils/resource-path.js";
+
+function stagedUploadIds(params: {
+  attachment?: AttachmentInput;
+  attachments?: AttachmentInput[];
+}): string[] {
+  const inputs = [...(params.attachments ?? [])];
+  if (params.attachment) inputs.push(params.attachment);
+  return inputs
+    .map((a) => a.upload_id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
+async function cleanupStagedUploads(params: {
+  attachment?: AttachmentInput;
+  attachments?: AttachmentInput[];
+}): Promise<void> {
+  for (const uploadId of stagedUploadIds(params)) {
+    await cleanupStagedAttachment(uploadId);
+  }
+}
 
 /**
  * List bank transaction explanations with optional filtering and pagination
@@ -280,9 +301,10 @@ export async function createBankTransactionExplanation(
   // Attachments are added via the Explanation Attachments API after create
   // (nested `attachment` is not accepted under X-Api-Version 2026-09-01).
   // Resolve before creating a record so an invalid/missing upload makes no write.
-  const attachmentPayload = params.attachment
-    ? await buildAttachmentPayload(params.attachment)
-    : undefined;
+  const writePayloads = await resolveExplanationAttachmentWrites({
+    attachment: params.attachment,
+    attachments: params.attachments
+  });
   const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
     "/bank_transaction_explanations",
     { bank_transaction_explanation: explanationPayload }
@@ -291,27 +313,20 @@ export async function createBankTransactionExplanation(
   const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
-  if (attachmentPayload) {
-    const payload = attachmentPayload;
+  if (writePayloads.length > 0) {
     try {
-      await addExplanationAttachments(client, explanation.url, [
-        {
-          data: payload.data,
-          file_name: payload.file_name,
-          content_type: payload.content_type,
-          description: payload.description
-        }
-      ]);
+      await addExplanationAttachments(client, explanation.url, writePayloads);
     } catch (error) {
+      const retained = stagedUploadIds(params).length > 0;
       throw new Error(
         `Explanation ${explanationId} was created, but its attachment was not confirmed saved. ` +
         `Do not create the explanation again. Check its attachments, then retry with ` +
         `freeagent_update_bank_transaction_explanation and bank_transaction_explanation_id=${explanationId}. ` +
-        (params.attachment?.upload_id ? `The staged upload is retained until expiry. ` : "") +
+        (retained ? `The staged upload(s) are retained until expiry. ` : "") +
         `(${error instanceof Error ? error.message : "unknown error"})`
       );
     }
-    await cleanupStagedAttachment(params.attachment?.upload_id);
+    await cleanupStagedUploads(params);
   }
 
   // Determine explanation type
@@ -321,9 +336,12 @@ export async function createBankTransactionExplanation(
   else if (params.paid_user) explanationType = "user payment";
   else if (params.transfer_bank_account) explanationType = "bank transfer";
 
-  const attachmentInfo = params.attachment
-    ? ` with attachment (${params.attachment.file_name ?? params.attachment.path ?? params.attachment.upload_id ?? "file"})`
-    : "";
+  const attachmentInfo =
+    writePayloads.length === 1
+      ? ` with attachment (${writePayloads[0]?.file_name ?? "file"})`
+      : writePayloads.length > 1
+        ? ` with ${writePayloads.length} attachments`
+        : "";
 
   return `✅ Successfully explained bank transaction as ${explanationType}${attachmentInfo}\n\n` +
     `**Explanation ID**: ${explanationId}\n` +
@@ -396,20 +414,25 @@ export async function updateBankTransactionExplanation(
   // explanations support up to 50). Nested `attachment` on PUT is rejected
   // under X-Api-Version 2026-09-01.
   let attachmentNote = "";
-  if (updateFields.attachment !== undefined) {
-    const payload = await buildAttachmentPayload(updateFields.attachment);
-    const attachments = await addExplanationAttachments(client, explanation.url, [
-      {
-        data: payload.data,
-        file_name: payload.file_name,
-        content_type: payload.content_type,
-        description: payload.description
-      }
-    ]);
-    await cleanupStagedAttachment(updateFields.attachment.upload_id);
+  const writePayloads = await resolveExplanationAttachmentWrites({
+    attachment: updateFields.attachment,
+    attachments: updateFields.attachments
+  });
+  if (writePayloads.length > 0) {
+    const attachments = await addExplanationAttachments(
+      client,
+      explanation.url,
+      writePayloads
+    );
+    await cleanupStagedUploads({
+      attachment: updateFields.attachment,
+      attachments: updateFields.attachments
+    });
     attachmentNote =
       `\n**Attachments now**: ${attachments.length} file(s)` +
-      (payload.file_name ? ` (added ${payload.file_name})` : "");
+      (writePayloads.length === 1 && writePayloads[0]?.file_name
+        ? ` (added ${writePayloads[0].file_name})`
+        : ` (added ${writePayloads.length})`);
   }
 
   const explanationId = extractIdFromUrl(explanation.url);

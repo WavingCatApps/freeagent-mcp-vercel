@@ -341,7 +341,19 @@ export const GetAttachmentInputSchema = z.object({
   attachment_id: IdOrUrl("Attachment"),
   response_format: ResponseFormatSchema,
 }).strict();
-export const DeleteAttachmentInputSchema = z.object({ attachment_id: IdOrUrl("Attachment") }).strict();
+export const DeleteAttachmentInputSchema = z.object({
+  attachment_id: IdOrUrl("Attachment"),
+  bank_transaction_explanation_id: z
+    .string()
+    .optional()
+    .describe(
+      "When deleting a bank transaction explanation receipt, pass the explanation ID or URL. Uses the Explanation Attachments API (PUT with _destroy) required under X-Api-Version 2026-09-01. Omit for expense (and other) attachments, which still use DELETE /attachments/:id."
+    ),
+}).strict();
+
+export const DeleteAllBankTransactionExplanationAttachmentsInputSchema = z.object({
+  bank_transaction_explanation_id: IdOrUrl("Bank transaction explanation"),
+}).strict();
 
 // ---------- Reports ----------
 
@@ -580,6 +592,9 @@ export type UpdateNoteInput = z.infer<typeof UpdateNoteInputSchema>;
 export type DeleteNoteInput = z.infer<typeof DeleteNoteInputSchema>;
 export type GetAttachmentInput = z.infer<typeof GetAttachmentInputSchema>;
 export type DeleteAttachmentInput = z.infer<typeof DeleteAttachmentInputSchema>;
+export type DeleteAllBankTransactionExplanationAttachmentsInput = z.infer<
+  typeof DeleteAllBankTransactionExplanationAttachmentsInputSchema
+>;
 export type GetProfitAndLossInput = z.infer<typeof GetProfitAndLossInputSchema>;
 export type GetBalanceSheetInput = z.infer<typeof GetBalanceSheetInputSchema>;
 export type GetTrialBalanceInput = z.infer<typeof GetTrialBalanceInputSchema>;

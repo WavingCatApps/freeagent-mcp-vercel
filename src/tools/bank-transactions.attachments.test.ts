@@ -82,6 +82,48 @@ describe("bank transaction explanation attachments (2026-09-01)", () => {
     expect(result).toContain("with attachment");
   });
 
+  it("create posts multiple attachments in one Attachments API call", async () => {
+    post
+      .mockResolvedValueOnce({
+        data: {
+          bank_transaction_explanation: {
+            url: "https://api.freeagent.com/v2/bank_transaction_explanations/11",
+            dated_on: "2026-11-01",
+            gross_value: "-8.00"
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          attachments: [
+            { url: "https://api.freeagent.com/v2/attachments/1", file_name: "receipt.png" },
+            { url: "https://api.freeagent.com/v2/attachments/2", file_name: "receipt.png" }
+          ]
+        }
+      });
+
+    const result = await createBankTransactionExplanation(client, {
+      bank_transaction: "https://api.freeagent.com/v2/bank_transactions/1",
+      dated_on: "2026-11-01",
+      gross_value: "-8.00",
+      attachments: [
+        {
+          data: "YmFzZTY0",
+          file_name: "a.png",
+          content_type: "image/png"
+        },
+        {
+          data: "YmFzZTY0",
+          file_name: "b.png",
+          content_type: "image/png"
+        }
+      ]
+    });
+
+    expect(post.mock.calls[1][1].attachments).toHaveLength(2);
+    expect(result).toContain("with 2 attachments");
+  });
+
   it("update with only attachment skips PUT body fields and POSTs to /attachments", async () => {
     get.mockResolvedValueOnce({
       data: {
