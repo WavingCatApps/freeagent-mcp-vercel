@@ -55,7 +55,7 @@ export function extractFreeAgentBodyDetail(data: unknown): string | undefined {
 }
 
 function isServerErrorStatus(status: number): boolean {
-  return Math.floor(status / 100) === 5;
+  return status >= 500 && status <= 599;
 }
 
 export class FreeAgentApiClient {
