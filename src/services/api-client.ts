@@ -5,9 +5,12 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import {
   API_BASE_URL,
-  SANDBOX_API_BASE_URL,
   API_VERSION,
-  FREEAGENT_X_API_VERSION
+  FREEAGENT_X_API_VERSION,
+  RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS,
+  RATE_LIMIT_REQUESTS_PER_HOUR,
+  RATE_LIMIT_REQUESTS_PER_MINUTE,
+  SANDBOX_API_BASE_URL,
 } from "../constants.js";
 import type { FreeAgentApiError, FreeAgentApiErrorItem } from "../types.js";
 import type { TokenRefresher } from "./token-refresher.js";
@@ -15,6 +18,45 @@ import type { TokenRefresher } from "./token-refresher.js";
 export interface ApiResponse<T> {
   data: T;
   headers: Record<string, string>;
+}
+
+/**
+ * Pull a short, LLM-usable detail from a FreeAgent error body.
+ * FreeAgent sometimes returns plain text (or lightly tagged HTML) for 403s,
+ * JSON `{ message }`, or nested `{ errors: { error: { message } } }`.
+ * Full HTML documents are ignored so we don't dump pages into tool errors.
+ */
+export function extractFreeAgentBodyDetail(data: unknown): string | undefined {
+  if (typeof data === "string") {
+    const trimmed = data.trim();
+    if (!trimmed) return undefined;
+    if (/^<!DOCTYPE|^<html/i.test(trimmed)) return undefined;
+    const withoutTags = trimmed.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!withoutTags || withoutTags.length > 500) return undefined;
+    return withoutTags;
+  }
+
+  if (data && typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.message === "string" && obj.message.trim()) {
+      return obj.message.trim();
+    }
+
+    const errors = obj.errors;
+    if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+      const nested = (errors as Record<string, unknown>).error;
+      if (nested && typeof nested === "object" && nested !== null) {
+        const msg = (nested as { message?: unknown }).message;
+        if (typeof msg === "string" && msg.trim()) return msg.trim();
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function isServerErrorStatus(status: number): boolean {
+  return status >= 500 && status <= 599;
 }
 
 export class FreeAgentApiClient {
@@ -117,12 +159,15 @@ export class FreeAgentApiClient {
         const status = axiosError.response.status;
         const data = axiosError.response.data;
 
-        // Rate limiting
+        // Rate limiting — surface Retry-After; do not sleep/retry here (serverless).
         if (status === 429) {
-          const retryAfter = axiosError.response.headers["retry-after"];
+          const retryAfter =
+            axiosError.response.headers["retry-after"] ||
+            RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS;
           return new Error(
-            `Rate limit exceeded. Please retry after ${retryAfter || 60} seconds. ` +
-            `FreeAgent allows 15 requests per 60 seconds.`
+            `Rate limit exceeded. Please retry after ${retryAfter} seconds. ` +
+            `FreeAgent allows ${RATE_LIMIT_REQUESTS_PER_MINUTE} requests per minute ` +
+            `(${RATE_LIMIT_REQUESTS_PER_HOUR} per hour) per user.`
           );
         }
 
@@ -134,8 +179,15 @@ export class FreeAgentApiClient {
           );
         }
 
-        // Authorization errors
+        // Authorization — FreeAgent often returns plain text / light HTML here.
         if (status === 403) {
+          const detail = extractFreeAgentBodyDetail(data);
+          if (detail) {
+            return new Error(
+              `Access forbidden: ${detail}. ` +
+              "Check your FreeAgent account permissions / access level."
+            );
+          }
           return new Error(
             "Access forbidden. Your account may not have permission to access this resource. " +
             "Check your FreeAgent account permissions."
@@ -149,8 +201,18 @@ export class FreeAgentApiClient {
           );
         }
 
+        // Bad request (e.g. invalid nominal code)
+        if (status === 400) {
+          const detail = extractFreeAgentBodyDetail(data);
+          return new Error(
+            detail
+              ? `Bad request (400): ${detail}`
+              : "Bad request (400). Check the request parameters and try again."
+          );
+        }
+
         // Validation errors
-        if (status === 422 && data && data.errors) {
+        if (status === 422 && data && typeof data === "object" && data.errors) {
           let errorMessages: string;
 
           // Check if errors is an array or object
@@ -191,9 +253,20 @@ export class FreeAgentApiClient {
           );
         }
 
+        // Upstream FreeAgent outages / gateway errors
+        if (isServerErrorStatus(status)) {
+          const detail = extractFreeAgentBodyDetail(data);
+          return new Error(
+            detail
+              ? `FreeAgent server error (${status}): ${detail}. Please try again shortly.`
+              : `FreeAgent server error (${status}). Please try again shortly.`
+          );
+        }
+
         // Generic error with message
-        if (data && data.message) {
-          return new Error(`API error: ${data.message}`);
+        const detail = extractFreeAgentBodyDetail(data);
+        if (detail) {
+          return new Error(`API error (${status}): ${detail}`);
         }
 
         return new Error(`API request failed with status ${status}`);

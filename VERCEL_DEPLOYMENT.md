@@ -249,9 +249,10 @@ See [Vercel Pricing](https://vercel.com/pricing) for current details.
 
 ### FreeAgent API Limits
 
-Remember FreeAgent API rate limits:
-- **Production**: 15 requests per 60 seconds
-- **Sandbox**: 5 requests per 60 seconds
+Remember FreeAgent API rate limits (per user):
+- **Requests**: 120 per minute, 3600 per hour
+- **Token refreshes**: 15 per minute
+- **Sandbox test** (`X-RateLimit-Test: true`): 5 per minute
 
 ## Updating Your Deployment
 

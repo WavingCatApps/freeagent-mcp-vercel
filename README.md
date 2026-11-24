@@ -294,24 +294,32 @@ GitHub Actions runs on every push to `main` and on pull requests:
 
 ## Rate Limiting
 
-| Environment | Limit |
-|-------------|-------|
-| Production | 15 requests / 60 seconds |
-| Sandbox | 5 requests / 60 seconds |
+FreeAgent enforces these limits per user ([docs](https://dev.freeagent.com/docs/introduction)):
 
-The server returns clear error messages with retry-after timing when rate limited.
+| Limit | Value |
+|-------|-------|
+| Requests | 120 / minute, 3600 / hour |
+| Token refreshes | 15 / minute |
+| Sandbox test (`X-RateLimit-Test: true`) | 5 / minute |
+
+On HTTP 429 the API client returns a clear error that includes FreeAgent's `Retry-After` value (defaulting to 60 seconds if omitted). It does not automatically sleep and retry — that is left to the MCP client / LLM so serverless invocations are not held open.
 
 ## Error Handling
 
-All tool handlers return structured errors via `{ isError: true, content: [...] }` (never thrown exceptions). Error messages are designed for LLM consumption with actionable guidance:
+All tool handlers return structured errors via `{ isError: true, content: [...] }` (never thrown exceptions). Error messages are designed for LLM consumption with actionable guidance.
 
-| Status | Meaning |
-|--------|---------|
-| 401 | Token expired - refresh OAuth token |
-| 403 | Insufficient permissions |
-| 404 | Resource not found or deleted |
-| 422 | Validation error with field-level details |
-| 429 | Rate limited - retry after N seconds |
+FreeAgent does not publish a full catalogue of error codes ([forum](https://api-discuss.freeagent.com/t/list-of-api-error-responses/2809)); they use standard HTTP statuses plus a response body. This client maps the common ones:
+
+| Status | Handling |
+|--------|----------|
+| 401 | Auth failure message; stdio/OAuth can also refresh-and-retry once |
+| 403 | Permissions message; prefers FreeAgent's plain-text / light-HTML body when present |
+| 404 | Not-found message |
+| 400 | Explicit bad-request message, including FreeAgent body detail when present |
+| 422 | Parses FreeAgent `errors` array/object into field guidance |
+| 429 | Surfaces `Retry-After` (no sleep/auto-retry in the serverless path) |
+| 5xx | Explicit FreeAgent server-error message (+ body detail when present) |
+| Other | Uses body detail when present, else a generic status error |
 
 ## Security
 
