@@ -17,6 +17,7 @@ import type {
   UploadBankStatementInput
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { shapeNestedBankTransactionExplanation } from "../services/explanation-attachments.js";
 import { resourcePath } from "../utils/resource-path.js";
 
 /**
@@ -171,7 +172,9 @@ export async function listBankTransactions(
         unexplained_amount: txn.unexplained_amount,
         is_manual: txn.is_manual,
         bank_account: txn.bank_account,
-        bank_transaction_explanations: txn.bank_transaction_explanations || []
+        bank_transaction_explanations: (txn.bank_transaction_explanations || []).map(
+          shapeNestedBankTransactionExplanation
+        )
       })),
       pagination: {
         page,
@@ -213,14 +216,20 @@ export async function listBankTransactions(
         const manual = txn.is_manual ? ' [MANUAL]' : '';
         const explanations = txn.bank_transaction_explanations || [];
         const explanationCount = explanations.length > 0 ? ` (${explanations.length} explanation${explanations.length > 1 ? 's' : ''})` : '';
+        const shaped = explanations.map(shapeNestedBankTransactionExplanation);
+        const withReceipts = shaped.filter((e) => e.has_attachment).length;
 
         lines.push(`## ${txn.dated_on} - ${amountStr}${status}${explanationCount} (ID: ${id})`);
         lines.push(`${desc}${manual}`);
         if (unexplained !== 0) {
           lines.push(`*Unexplained amount: ${unexplained}*`);
         }
-        if (explanations.length > 0) {
-          lines.push(`Explanations: ${explanations.join(', ')}`);
+        if (shaped.length > 0) {
+          const urls = shaped.map((e) => String(e.url ?? "")).filter(Boolean);
+          lines.push(`Explanations: ${urls.join(', ')}`);
+          if (withReceipts > 0) {
+            lines.push(`Receipts: ${withReceipts} explanation(s) have attachment(s)`);
+          }
         }
         lines.push("");
       }
@@ -244,10 +253,16 @@ export async function getBankTransaction(
 
   const response = await client.get<{ bank_transaction: FreeAgentBankTransaction }>(transactionUrl);
   const txn = response.data.bank_transaction;
+  const shapedExplanations = (txn.bank_transaction_explanations || []).map(
+    shapeNestedBankTransactionExplanation
+  );
 
   // Format response
   return formatResponse(
-    txn,
+    {
+      ...txn,
+      bank_transaction_explanations: shapedExplanations
+    },
     response_format,
     () => {
       const lines: string[] = ["# Bank Transaction Details", ""];
@@ -273,14 +288,17 @@ export async function getBankTransaction(
         lines.push(`- **Uploaded**: ${txn.uploaded_at}`);
       }
 
-      // Show explanations if any exist
-      const explanations = txn.bank_transaction_explanations || [];
-      if (explanations.length > 0) {
+      if (shapedExplanations.length > 0) {
         lines.push("");
-        lines.push(`**Explanations (${explanations.length}):**`);
-        explanations.forEach((expUrl: string, index: number) => {
-          const expId = extractIdFromUrl(expUrl);
-          lines.push(`  ${index + 1}. ID: ${expId} - ${expUrl}`);
+        lines.push(`**Explanations (${shapedExplanations.length}):**`);
+        shapedExplanations.forEach((exp, index) => {
+          const url = String(exp.url ?? "");
+          const expId = url ? extractIdFromUrl(url) : "?";
+          const receipt =
+            exp.has_attachment
+              ? ` [${exp.attachment_count ?? "?"} attachment(s)]`
+              : " [no receipt]";
+          lines.push(`  ${index + 1}. ID: ${expId}${receipt} — ${url}`);
         });
       }
 

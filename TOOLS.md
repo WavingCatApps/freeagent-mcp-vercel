@@ -847,7 +847,8 @@ Explains (categorizes) a bank transaction by linking it to invoices, bills, or c
 - `sales_tax_value` (string): Tax amount
 
 **Attachment:**
-- `attachment` (object): Supporting document (same format as expenses)
+- `attachment` (object): Single supporting document (same format as expenses)
+- `attachments` (array, max 10): Multiple receipts in one call (can combine with `attachment`; max 50 total per explanation)
 
 **Example usage:**
 ```
@@ -873,9 +874,9 @@ Updates an existing bank transaction explanation. Only provide the fields you wa
 **Parameters:**
 - `bank_transaction_explanation_id` (string, required): The FreeAgent explanation ID or full URL
 
-These parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides: `dated_on`, `description`, `gross_value`, `category`, `ec_status`, `marked_for_review`, `receipt_reference`, `paid_invoice`, `paid_bill`, `paid_user`, `project`, `sales_tax_rate`, `sales_tax_value`, `transfer_bank_account`, `attachment`.
+These parameters from `freeagent_create_bank_transaction_explanation` are accepted as optional overrides: `dated_on`, `description`, `gross_value`, `category`, `ec_status`, `marked_for_review`, `receipt_reference`, `paid_invoice`, `paid_bill`, `paid_user`, `project`, `sales_tax_rate`, `sales_tax_value`, `transfer_bank_account`, `attachment`, `attachments`.
 
-**Attaching a receipt:** pass `attachment` (same object format as `create`). This is the normal route for bank-feed transactions, which arrive already created and are usually auto-explained by FreeAgent's guess rules, so `create` has already happened by the time you want to add the receipt. Attachments are **added** (explanations support up to 50); they are not replaced. Use `freeagent_delete_attachment` to remove one.
+**Attaching receipts:** pass `attachment` and/or `attachments` (up to 10 per call). This is the normal route for bank-feed transactions, which arrive already created and are usually auto-explained by FreeAgent's guess rules, so `create` has already happened by the time you want to add the receipt. Attachments are **added** (explanations support up to 50); they are not replaced. To remove one, call `freeagent_delete_attachment` with both `attachment_id` and `bank_transaction_explanation_id` (uses PUT `_destroy`). To clear all, use `freeagent_delete_all_bank_transaction_explanation_attachments`.
 
 **Example usage:**
 ```
@@ -923,9 +924,11 @@ Explain transaction 789 as paying bill SUP-99
 
 Expenses and bank transaction explanations support file attachments for receipts, invoices, and supporting documents, on both **create** and **update**. Timeslips do not.
 
-To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` and read `has_attachment` on each row, then add the file with `freeagent_update_bank_transaction_explanation`. For file names/sizes, call `freeagent_list_bank_transaction_explanation_attachments`. Remove one with `freeagent_delete_attachment`.
+To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` (or `freeagent_get_bank_transaction`, whose nested explanations also report `has_attachment` / attachment URLs) and read `has_attachment` on each row, then add files with `freeagent_update_bank_transaction_explanation`. For file names/sizes, call `freeagent_list_bank_transaction_explanation_attachments`.
 
-This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01) for create/update writes. That becomes FreeAgent's default behaviour on **1 December 2026** (up to 50 attachments; singular `attachment` on explanations is no longer returned). Override the version only for debugging via `FREEAGENT_X_API_VERSION`.
+**Removing receipts:** pass `bank_transaction_explanation_id` to `freeagent_delete_attachment` so the server uses the Explanation Attachments API (`_destroy`). Omit that field only for expense (and other non-explanation) attachments. Clear every file on an explanation with `freeagent_delete_all_bank_transaction_explanation_attachments`.
+
+This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01) for create/update/delete writes. That becomes FreeAgent's default behaviour on **1 December 2026** (up to 50 attachments; singular `attachment` on explanations is no longer returned). Override the version only for debugging via `FREEAGENT_X_API_VERSION`.
 
 ### Supported Formats
 

@@ -19,7 +19,11 @@ import { createBankAccount, updateBankAccount, deleteBankAccount, uploadBankStat
 import { deleteBankTransactionExplanation } from "./bank-transactions.js";
 import { listCreditNotes, getCreditNote, createCreditNote, updateCreditNote, deleteCreditNote, transitionCreditNote, sendCreditNoteEmail, listCreditNoteReconciliations, getCreditNoteReconciliation, createCreditNoteReconciliation, updateCreditNoteReconciliation, deleteCreditNoteReconciliation } from "./credit-notes.js";
 import { listNotes, getNote, createNote, updateNote, deleteNote } from "./notes.js";
-import { getAttachment, deleteAttachment } from "./attachments.js";
+import {
+  getAttachment,
+  deleteAttachment,
+  deleteAllBankTransactionExplanationAttachments
+} from "./attachments.js";
 import { getProfitAndLoss, getBalanceSheet, getTrialBalance, getCashflow, listAccountingTransactions, getAccountingTransaction } from "./reports.js";
 import { listJournalSets, getJournalSet, getOpeningBalances, createJournalSet, updateJournalSet, deleteJournalSet } from "./journals.js";
 import { listCapitalAssets, getCapitalAsset, listCapitalAssetTypes, getCapitalAssetType, createCapitalAssetType, updateCapitalAssetType, deleteCapitalAssetType } from "./capital-assets.js";
@@ -40,6 +44,7 @@ import {
   CreateUserInputSchema,
   DeleteAccountLockInputSchema,
   DeleteAttachmentInputSchema,
+  DeleteAllBankTransactionExplanationAttachmentsInputSchema,
   DeleteBankAccountInputSchema,
   DeleteBankTransactionExplanationInputSchema,
   DeleteBillInputSchema,
@@ -543,10 +548,20 @@ export const gapToolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_delete_attachment",
     title: "FreeAgent Delete Attachment",
-    description: "Delete an attachment.",
+    description:
+      "Delete an attachment. For bank transaction explanation receipts, pass bank_transaction_explanation_id so the server uses the Explanation Attachments API (PUT with _destroy). Expense attachments omit that field and use DELETE /attachments/:id.",
     inputSchema: DeleteAttachmentInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     handler: deleteAttachment,
+  },
+  {
+    name: "freeagent_delete_all_bank_transaction_explanation_attachments",
+    title: "Delete All FreeAgent Bank Transaction Explanation Attachments",
+    description:
+      "Delete every file attachment on a bank transaction explanation (DELETE …/attachments).",
+    inputSchema: DeleteAllBankTransactionExplanationAttachmentsInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    handler: deleteAllBankTransactionExplanationAttachments,
   },
   {
     name: "freeagent_get_profit_and_loss",

@@ -680,11 +680,19 @@ export const CreateBankTransactionExplanationInputSchema = z.object({
   transfer_bank_account: z.string()
     .optional()
     .describe("Destination bank account URL or ID for transfers"),
-  // Attachment — posted via Explanation Attachments API after create
+  // Attachments — posted via Explanation Attachments API after create
   attachment: AttachmentSchema
     .optional()
     .describe(
-      "Optional receipt to attach after creating the explanation (Attachments API; up to 50 per explanation)"
+      "Optional single receipt to attach after create. Prefer `attachments` to upload several (max 10 per call, 50 total)."
+    ),
+  attachments: z
+    .array(AttachmentSchema)
+    .min(1)
+    .max(10)
+    .optional()
+    .describe(
+      "Up to 10 receipts to attach after create (Attachments API; max 50 total per explanation). Can combine with singular `attachment`."
     )
 }).strict();
 
@@ -738,11 +746,19 @@ export const UpdateBankTransactionExplanationInputSchema = z.object({
   transfer_bank_account: z.string()
     .optional()
     .describe("Destination bank account URL or ID for transfers"),
-  // Attachment — ADDS via Attachments API (does not replace existing files)
+  // Attachments — ADD via Attachments API (does not replace existing files)
   attachment: AttachmentSchema
     .optional()
     .describe(
-      "Receipt to ADD to this explanation (does not replace existing attachments; max 50 total). Same path/upload_id/data modes as expenses."
+      "Single receipt to ADD (does not replace existing; max 50 total). Prefer `attachments` for several files."
+    ),
+  attachments: z
+    .array(AttachmentSchema)
+    .min(1)
+    .max(10)
+    .optional()
+    .describe(
+      "Up to 10 receipts to ADD in one call (does not replace existing; max 50 total). Same path/upload_id/data modes as expenses."
     )
 }).strict();
 

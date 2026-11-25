@@ -142,7 +142,11 @@ export interface FreeAgentBankTransaction {
   description?: string;
   unexplained_amount?: string;
   is_manual?: boolean;
-  bank_transaction_explanations?: string[];
+  /**
+   * Nested explanations may be URL strings (list) or full objects (get).
+   * Under X-Api-Version 2026-09-01, objects include `attachments: [{ url }]`.
+   */
+  bank_transaction_explanations?: Array<string | FreeAgentBankTransactionExplanation>;
   uploaded_at?: string;
   created_at?: string;
   updated_at?: string;

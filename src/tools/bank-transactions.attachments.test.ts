@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createBankTransactionExplanation,
+  getBankTransactionExplanation,
   updateBankTransactionExplanation,
   listBankTransactionExplanations,
   listBankTransactionExplanationAttachments
@@ -82,6 +83,48 @@ describe("bank transaction explanation attachments (2026-09-01)", () => {
     expect(result).toContain("with attachment");
   });
 
+  it("create posts multiple attachments in one Attachments API call", async () => {
+    post
+      .mockResolvedValueOnce({
+        data: {
+          bank_transaction_explanation: {
+            url: "https://api.freeagent.com/v2/bank_transaction_explanations/11",
+            dated_on: "2026-11-01",
+            gross_value: "-8.00"
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          attachments: [
+            { url: "https://api.freeagent.com/v2/attachments/1", file_name: "receipt.png" },
+            { url: "https://api.freeagent.com/v2/attachments/2", file_name: "receipt.png" }
+          ]
+        }
+      });
+
+    const result = await createBankTransactionExplanation(client, {
+      bank_transaction: "https://api.freeagent.com/v2/bank_transactions/1",
+      dated_on: "2026-11-01",
+      gross_value: "-8.00",
+      attachments: [
+        {
+          data: "YmFzZTY0",
+          file_name: "a.png",
+          content_type: "image/png"
+        },
+        {
+          data: "YmFzZTY0",
+          file_name: "b.png",
+          content_type: "image/png"
+        }
+      ]
+    });
+
+    expect(post.mock.calls[1][1].attachments).toHaveLength(2);
+    expect(result).toContain("with 2 attachments");
+  });
+
   it("update with only attachment skips PUT body fields and POSTs to /attachments", async () => {
     get.mockResolvedValueOnce({
       data: {
@@ -155,6 +198,39 @@ describe("bank transaction explanation attachments (2026-09-01)", () => {
     expect(parsed.explanations[0]?.has_attachment).toBe(true);
     expect(parsed.explanations[0]?.attachment_count).toBe(1);
     expect(parsed.explanations[1]?.has_attachment).toBe(false);
+  });
+
+  it("gets receipt metadata when an explanation is requested by numeric ID", async () => {
+    get
+      .mockResolvedValueOnce({
+        data: {
+          bank_transaction_explanation: {
+            url: "https://api.freeagent.com/v2/bank_transaction_explanations/3",
+            dated_on: "2026-11-25",
+            gross_value: "-5.00",
+            attachments: [{ url: "https://api.freeagent.com/v2/attachments/1" }]
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          attachments: [
+            {
+              url: "https://api.freeagent.com/v2/attachments/1",
+              file_name: "receipt.pdf"
+            }
+          ]
+        }
+      });
+    const result = JSON.parse(
+      await getBankTransactionExplanation(client, {
+        bank_transaction_explanation_id: "3",
+        response_format: ResponseFormat.JSON
+      })
+    ) as { attachments: Array<{ file_name?: string }> };
+    expect(get).toHaveBeenNthCalledWith(1, "/bank_transaction_explanations/3");
+    expect(get).toHaveBeenNthCalledWith(2, "/bank_transaction_explanations/3/attachments");
+    expect(result.attachments[0]?.file_name).toBe("receipt.pdf");
   });
 
   it("listBankTransactionExplanationAttachments returns metadata", async () => {
