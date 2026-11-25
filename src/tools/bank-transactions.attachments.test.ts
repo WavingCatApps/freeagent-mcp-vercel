@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createBankTransactionExplanation,
+  getBankTransactionExplanation,
   updateBankTransactionExplanation,
   listBankTransactionExplanations,
   listBankTransactionExplanationAttachments
@@ -155,6 +156,22 @@ describe("bank transaction explanation attachments (2026-09-01)", () => {
     expect(parsed.explanations[0]?.has_attachment).toBe(true);
     expect(parsed.explanations[0]?.attachment_count).toBe(1);
     expect(parsed.explanations[1]?.has_attachment).toBe(false);
+  });
+
+  it("gets receipt metadata when an explanation is requested by numeric ID", async () => {
+    get.mockResolvedValueOnce({ data: { bank_transaction_explanation: {
+      url: "https://api.freeagent.com/v2/bank_transaction_explanations/3",
+      dated_on: "2026-11-25", gross_value: "-5.00",
+      attachments: [{ url: "https://api.freeagent.com/v2/attachments/1" }],
+    } } }).mockResolvedValueOnce({ data: { attachments: [{
+      url: "https://api.freeagent.com/v2/attachments/1", file_name: "receipt.pdf",
+    }] } });
+    const result = JSON.parse(await getBankTransactionExplanation(client, {
+      bank_transaction_explanation_id: "3", response_format: ResponseFormat.JSON,
+    }));
+    expect(get).toHaveBeenNthCalledWith(1, "/bank_transaction_explanations/3");
+    expect(get).toHaveBeenNthCalledWith(2, "/bank_transaction_explanations/3/attachments");
+    expect(result.attachments[0].file_name).toBe("receipt.pdf");
   });
 
   it("listBankTransactionExplanationAttachments returns metadata", async () => {
