@@ -165,7 +165,7 @@ freeagent-mcp-vercel/
 │   ├── tools/             # Tool implementations
 │   └── schemas/           # Zod validation schemas
 ├── skills/
-│   └── file-to-base64/    # Claude Code skill for attachment preparation
+│   └── file-to-base64/    # Claude Code skill — inline attachment.data fallback only
 ├── vercel.json            # Vercel configuration
 └── package.json
 ```
