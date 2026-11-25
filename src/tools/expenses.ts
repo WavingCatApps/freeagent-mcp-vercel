@@ -5,7 +5,6 @@
  * with support for file attachments.
  */
 
-import { gunzipSync } from "zlib";
 import type { FreeAgentApiClient } from "../services/api-client.js";
 import type { FreeAgentExpense } from "../types.js";
 import type {
@@ -17,6 +16,8 @@ import type {
   GetMileageSettingsInput
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
+import { buildAttachmentPayload } from "../services/attachment-payload.js";
+import { cleanupStagedAttachment } from "../services/attachment-staging.js";
 import { resourcePath } from "../utils/resource-path.js";
 
 /**
@@ -247,41 +248,20 @@ export async function createExpense(
     }
   }
 
-  // Add attachment if provided
+  // Add attachment if provided (inline base64 or staged upload_id)
   if (params.attachment) {
-    let attachmentData = params.attachment.data;
-
-    // If attachment is gzipped, decompress it before sending to FreeAgent
-    if (params.attachment.is_gzipped) {
-      try {
-        // Decode Base64 to Buffer
-        const compressedBuffer = Buffer.from(attachmentData, 'base64');
-        // Decompress using gunzip
-        const decompressedBuffer = gunzipSync(compressedBuffer);
-        // Re-encode to Base64
-        attachmentData = decompressedBuffer.toString('base64');
-      } catch (error) {
-        throw new Error(`Failed to decompress gzipped attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    const attachmentPayload: Record<string, string> = {
-      data: attachmentData,
-      file_name: params.attachment.file_name,
-      content_type: params.attachment.content_type
-    };
-    if (params.attachment.description) {
-      attachmentPayload.description = params.attachment.description;
-    }
-    expensePayload.attachment = attachmentPayload;
+    expensePayload.attachment = await buildAttachmentPayload(params.attachment);
   }
 
   const response = await client.post<{ expense: FreeAgentExpense }>("/expenses", { expense: expensePayload });
+  await cleanupStagedAttachment(params.attachment?.upload_id);
   const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const type = isMileage ? "mileage expense" : "expense";
-  const attachmentInfo = params.attachment ? ` with attachment (${params.attachment.file_name})` : '';
+  const attachmentInfo = params.attachment
+    ? ` with attachment (${params.attachment.file_name ?? params.attachment.path ?? params.attachment.upload_id ?? "file"})`
+    : "";
 
   return `✅ Successfully created ${type}${attachmentInfo}\n\n` +
     `**Expense ID**: ${expenseId}\n` +
@@ -347,14 +327,22 @@ export async function updateExpense(
     expensePayload.reclaim_mileage = updateFields.reclaim_mileage;
   }
 
+  if (updateFields.attachment !== undefined) {
+    expensePayload.attachment = await buildAttachmentPayload(updateFields.attachment);
+  }
+
   const response = await client.put<{ expense: FreeAgentExpense }>(expenseUrl, { expense: expensePayload });
+  await cleanupStagedAttachment(updateFields.attachment?.upload_id);
   const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
   const isMileage = expense.miles !== null && expense.miles !== undefined;
   const type = isMileage ? "mileage expense" : "expense";
+  const attachmentInfo = updateFields.attachment
+    ? ` with attachment (${updateFields.attachment.file_name ?? updateFields.attachment.path ?? updateFields.attachment.upload_id ?? "file"})`
+    : "";
 
-  return `✅ Successfully updated ${type}\n\n` +
+  return `✅ Successfully updated ${type}${attachmentInfo}\n\n` +
     `**Expense ID**: ${expenseId}\n` +
     `**Date**: ${expense.dated_on}\n` +
     `**Amount**: ${expense.currency || 'GBP'} ${expense.gross_value}\n` +

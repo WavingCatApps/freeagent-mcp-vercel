@@ -6,6 +6,7 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequ
 import {
   API_BASE_URL,
   API_VERSION,
+  FREEAGENT_X_API_VERSION,
   RATE_LIMIT_DEFAULT_RETRY_AFTER_SECONDS,
   RATE_LIMIT_REQUESTS_PER_HOUR,
   RATE_LIMIT_REQUESTS_PER_MINUTE,
@@ -75,7 +76,9 @@ export class FreeAgentApiClient {
         "Authorization": `Bearer ${accessToken}`,
         "User-Agent": "FreeAgent-MCP-Server/1.0.0",
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        // Multi-attachment bank explanation API (platform default from 1 Dec 2026)
+        "X-Api-Version": FREEAGENT_X_API_VERSION
       },
       timeout: 30000
     });

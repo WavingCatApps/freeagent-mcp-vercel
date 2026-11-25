@@ -43,6 +43,17 @@ describe("FreeAgentApiClient", () => {
     client = new FreeAgentApiClient("test-token", true);
   });
 
+  it("sends X-Api-Version 2026-09-01 on the axios instance", async () => {
+    const axios = await import("axios");
+    expect(axios.default.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-Api-Version": "2026-09-01"
+        })
+      })
+    );
+  });
+
   describe("get", () => {
     it("returns data and headers from response", async () => {
       const mockAxios = await getMockAxios();

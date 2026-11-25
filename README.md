@@ -14,6 +14,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
 - **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
+- **Receipt attachments without model base64**: local `attachment.path` under `FREEAGENT_ATTACHMENTS_DIR`, remote S3-compatible `upload_id` staging, or inline `data` fallback
 - **Tool annotations**: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` on every tool
 - **Zod validation**: strict input schemas with `.describe()` on all fields
 - **Dual response formats**: Markdown (human-readable) or JSON (structured)
@@ -41,9 +42,15 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
    export FREEAGENT_CLIENT_ID="your_client_id"
    export FREEAGENT_CLIENT_SECRET="your_client_secret"
    export FREEAGENT_TOKEN_CACHE="$HOME/.config/freeagent-mcp/tokens.json"  # optional, this is the default
+
+   # optional: local receipt attachments via attachment.path (dedicated folder only)
+   export FREEAGENT_ATTACHMENTS_DIR="$HOME/.config/freeagent-mcp/receipts"
+   mkdir -p "$FREEAGENT_ATTACHMENTS_DIR"
    ```
 
    With the refresh variables set, a 401 triggers a token refresh and one retry. The newest tokens are saved to the cache file (mode 600) and used on the next start, so you only need to repeat the OAuth flow if the refresh token itself is revoked.
+
+   With `FREEAGENT_ATTACHMENTS_DIR` set, pass `attachment: { path: "/…/receipts/taxi.pdf" }` on create/update expense or bank explanation — the server reads the file. Do not point that env var at your home directory.
 
 3. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
    ```json

@@ -24,10 +24,17 @@ import { listRecurringInvoices, getRecurringInvoice } from "./recurring-invoices
 import { listPriceListItems, getPriceListItem, createPriceListItem } from "./price-list-items.js";
 import { listExpenses, getExpense, createExpense, updateExpense } from "./expenses.js";
 import { logExpense } from "./log-expense.js";
+import { prepareAttachmentUploadTool } from "./prepare-attachment-upload.js";
 import { listBills, getBill, createBill } from "./bills.js";
 import { listTimeslips, getTimeslip, createTimeslip, updateTimeslip } from "./timeslips.js";
 import { listBankAccounts, getBankAccount, listBankTransactions, getBankTransaction } from "./bank-accounts.js";
-import { listBankTransactionExplanations, getBankTransactionExplanation, createBankTransactionExplanation, updateBankTransactionExplanation } from "./bank-transactions.js";
+import {
+  listBankTransactionExplanations,
+  getBankTransactionExplanation,
+  createBankTransactionExplanation,
+  updateBankTransactionExplanation,
+  listBankTransactionExplanationAttachments
+} from "./bank-transactions.js";
 import { reconcileBankTransaction } from "./reconcile.js";
 import { listProjects, getProject, createProject } from "./projects.js";
 import { listTasks, getTask, createTask } from "./tasks.js";
@@ -40,10 +47,12 @@ import {
   ListRecurringInvoicesInputSchema, GetRecurringInvoiceInputSchema,
   ListPriceListItemsInputSchema, GetPriceListItemInputSchema, CreatePriceListItemInputSchema,
   ListExpensesInputSchema, GetExpenseInputSchema, CreateExpenseInputSchema, UpdateExpenseInputSchema, LogExpenseInputSchema,
+  PrepareAttachmentUploadInputSchema,
   ListBillsInputSchema, GetBillInputSchema, CreateBillInputSchema,
   ListTimeslipsInputSchema, GetTimeslipInputSchema, CreateTimeslipInputSchema, UpdateTimeslipInputSchema,
   ListBankAccountsInputSchema, GetBankAccountInputSchema, ListBankTransactionsInputSchema, GetBankTransactionInputSchema,
   ListBankTransactionExplanationsInputSchema, GetBankTransactionExplanationInputSchema,
+  ListBankTransactionExplanationAttachmentsInputSchema,
   CreateBankTransactionExplanationInputSchema, UpdateBankTransactionExplanationInputSchema,
   ReconcileBankTransactionInputSchema,
   ListProjectsInputSchema, GetProjectInputSchema, CreateProjectInputSchema,
@@ -260,6 +269,15 @@ export const toolDefinitions: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateExpense,
   },
+  {
+    name: "freeagent_prepare_attachment_upload",
+    title: "Prepare FreeAgent Attachment Upload",
+    description:
+      "Start an out-of-band receipt upload for remote MCP. Returns a short-lived HTTPS PUT URL and upload_id. The host should PUT the raw file bytes (not base64), then pass upload_id on create/update expense or bank transaction explanation instead of attachment.data. Requires S3-compatible staging env vars; otherwise use inline base64.",
+    inputSchema: PrepareAttachmentUploadInputSchema.shape,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    handler: prepareAttachmentUploadTool,
+  },
   // Bill Management
   {
     name: "freeagent_list_bills",
@@ -368,7 +386,8 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_list_bank_transaction_explanations",
     title: "List FreeAgent Bank Transaction Explanations",
-    description: "List bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers. Each row reports `has_attachment` plus the attachment's file name, size and type, so a single call shows which transactions still need a receipt without fetching each one.",
+    description:
+      "List bank transaction explanations showing how transactions were categorized or linked to invoices, bills, or transfers. Each row reports `has_attachment`, `attachment_count`, and attachment URLs so one call shows which transactions still need a receipt. For file names/sizes use freeagent_list_bank_transaction_explanation_attachments or freeagent_get_bank_transaction_explanation.",
     inputSchema: ListBankTransactionExplanationsInputSchema.shape,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: listBankTransactionExplanations,
@@ -376,15 +395,26 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_get_bank_transaction_explanation",
     title: "Get FreeAgent Bank Transaction Explanation",
-    description: "Get detailed information about a specific bank transaction explanation including categorization, tax info, and linked entities.",
+    description:
+      "Get detailed information about a specific bank transaction explanation including categorization, tax info, linked entities, and attachment metadata (file name, size, type).",
     inputSchema: GetBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: getBankTransactionExplanation,
   },
   {
+    name: "freeagent_list_bank_transaction_explanation_attachments",
+    title: "List FreeAgent Bank Transaction Explanation Attachments",
+    description:
+      "List all file attachments on a bank transaction explanation (up to 50), with file name, size, and content type. Use after list_explanations shows has_attachment when you need metadata without the full explanation.",
+    inputSchema: ListBankTransactionExplanationAttachmentsInputSchema.shape,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    handler: listBankTransactionExplanationAttachments,
+  },
+  {
     name: "freeagent_create_bank_transaction_explanation",
     title: "Explain FreeAgent Bank Transaction",
-    description: "Create an explanation for a bank transaction by linking it to invoices, bills, or categories.",
+    description:
+      "Create an explanation for a bank transaction by linking it to invoices, bills, or categories. Optional `attachment` is uploaded via the Explanation Attachments API after create.",
     inputSchema: CreateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: createBankTransactionExplanation,
@@ -392,7 +422,8 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "freeagent_update_bank_transaction_explanation",
     title: "Update FreeAgent Bank Transaction Explanation",
-    description: "Update an existing bank transaction explanation. Only provide the fields you want to change. Accepts an `attachment` to add a receipt to an already-explained transaction, which is the usual case for bank-feed transactions that arrive pre-explained by guess rules.",
+    description:
+      "Update an existing bank transaction explanation. Only provide the fields you want to change. Pass `attachment` to ADD a receipt (does not replace existing ones; max 50). Usual path for bank-feed transactions that arrive pre-explained by guess rules.",
     inputSchema: UpdateBankTransactionExplanationInputSchema.shape,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     handler: updateBankTransactionExplanation,

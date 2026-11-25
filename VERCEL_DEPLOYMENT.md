@@ -39,6 +39,38 @@ See [OAUTH_SETUP.md](./OAUTH_SETUP.md) for complete OAuth configuration instruct
    - `FREEAGENT_USE_SANDBOX`: Set to `true` for sandbox, `false` for production
    - `PRODUCTION_URL` (optional on production): Production hostname without scheme, e.g. `your-project.vercel.app`. Preview OAuth uses the request host / `VERCEL_URL` (short per-deploy URL).
 
+#### Optional: out-of-band receipt uploads (S3-compatible)
+
+Remote MCP hosts are slow when the model emits base64 for receipts. Configure any S3-compatible bucket so `freeagent_prepare_attachment_upload` can mint a presigned PUT URL; the host uploads raw bytes, then tools accept `attachment.upload_id` instead of `data`.
+
+| Variable | Description |
+|----------|-------------|
+| `UPLOAD_S3_BUCKET` | Bucket name |
+| `UPLOAD_S3_ACCESS_KEY_ID` | Access key |
+| `UPLOAD_S3_SECRET_ACCESS_KEY` | Secret key |
+| `UPLOAD_S3_ENDPOINT` | Required for R2/MinIO/B2 (e.g. `https://<accountid>.r2.cloudflarestorage.com`). Omit for AWS. |
+| `UPLOAD_S3_REGION` | Default `auto` (fine for R2) |
+| `UPLOAD_S3_FORCE_PATH_STYLE` | Set `true` if needed; defaults on when `UPLOAD_S3_ENDPOINT` is set |
+| `UPLOAD_S3_KEY_PREFIX` | Object key prefix (default `mcp-uploads`) |
+| `UPLOAD_STAGING_TTL_SECONDS` | Presigned URL / token lifetime (default `900`) |
+
+Uses the same `JWT_SECRET` as OAuth to sign short-lived `upload_id` tokens — no Redis/KV. Cloudflare R2’s free tier is enough for personal/small-team use. If these vars are unset, inline `attachment.data` still works.
+
+Staged receipts remain available if a FreeAgent write fails and are deleted only
+after FreeAgent confirms saving the attachment. Retry with the same `upload_id`
+before its expiry. If explanation creation succeeded but its attachment failed,
+use the explanation ID in the error with `freeagent_update_bank_transaction_explanation`
+rather than creating another explanation. After an ambiguous timeout, check the
+existing attachments before retrying to avoid adding the same receipt twice.
+
+Configure a bucket lifecycle rule to expire objects under `UPLOAD_S3_KEY_PREFIX`
+(default `mcp-uploads/`), for example after one day. Token expiry does not delete
+objects; the lifecycle rule removes abandoned uploads and any objects left after
+a cleanup failure. Cleanup failure never changes a successful FreeAgent save
+into an error.
+
+`FREEAGENT_ATTACHMENTS_DIR` / `attachment.path` is for **local stdio** only — a Vercel function cannot read files on the user’s laptop.
+
 #### Via Vercel CLI
 
 ```bash
