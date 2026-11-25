@@ -171,7 +171,7 @@ export async function getBankTransactionExplanation(
   const exp = response.data.bank_transaction_explanation;
   const attachmentSummary = summarizeExplanationAttachmentRefs(exp);
   const attachmentDetails = attachmentSummary.has_attachment
-    ? (await listExplanationAttachments(client, explanationUrl)).map(publicAttachmentMetadata)
+    ? (await listExplanationAttachments(client, exp.url)).map(publicAttachmentMetadata)
     : [];
 
   const payload = {
