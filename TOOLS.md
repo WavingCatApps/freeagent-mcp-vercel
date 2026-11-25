@@ -623,7 +623,7 @@ List my hours for project 123 in January
 Show timeslips for user 456
 ```
 
-**Returns:** List of timeslips with dates, hours, comments, billing indicators, and attachment counts.
+**Returns:** List of timeslips with dates, hours, comments, and billing indicators. (FreeAgent may report `attachment_count`; this server does not upload timeslip attachments.)
 
 ---
 
@@ -641,7 +641,7 @@ Get timeslip 12345 details
 Check if timeslip has been billed
 ```
 
-**Returns:** Complete timeslip details including hours, task, project, user, comment, billing status, and attachments.
+**Returns:** Complete timeslip details including hours, task, project, user, comment, and billing status.
 
 ---
 
@@ -763,8 +763,8 @@ Which transactions need explaining?
 **Bank Reconciliation Workflow:**
 1. List transactions with `view="unexplained"` to find items needing attention
 2. Review each unexplained transaction's description and amount
-3. Use `freeagent_create_bank_transaction_explanation` to categorize them
-4. Link transactions to invoices, bills, or expense categories as appropriate
+3. Categorize with `freeagent_create_bank_transaction_explanation` or `freeagent_reconcile_bank_transaction` (category / invoice / bill hint)
+4. For **already-explained** bank-feed transactions that need a receipt, use `freeagent_update_bank_transaction_explanation` with `attachment` / `attachments` (do not delete-and-recreate). Find gaps via `has_attachment` on the explanations list or nested explanations on `get_bank_transaction`.
 
 ---
 
@@ -782,7 +782,7 @@ Show details for transaction 12345
 Does this transaction need explaining?
 ```
 
-**Returns:** Complete bank transaction details including amount, description, and explanation status.
+**Returns:** Complete bank transaction details including amount, description, and explanation status. Nested explanations report `has_attachment`, `attachment_count`, and attachment URL refs (same shape as the explanations list) so you can see missing receipts without a separate list call.
 
 ---
 
@@ -940,6 +940,8 @@ Explain transaction 789 as paying bill SUP-99
 ```
 
 **Returns:** Success message with the new explanation ID, date, amount, and linked entity (category / paid invoice / paid bill).
+
+**Note:** this intent bundle does not accept receipt attachments. After reconcile, attach files with `freeagent_update_bank_transaction_explanation`.
 
 ---
 
