@@ -521,6 +521,33 @@ Add receipt for taxi expense with attachment
 
 ---
 
+### freeagent_prepare_attachment_upload
+
+Starts an out-of-band receipt upload for **remote MCP**. Returns a short-lived HTTPS PUT URL and `upload_id`. The MCP host (not the model) should PUT the raw file bytes, then pass `upload_id` on create/update expense or bank transaction explanation instead of `attachment.data`.
+
+Requires S3-compatible staging env vars (`UPLOAD_S3_*` — see [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)). When unset, the tool explains how to configure staging, or use `attachment.path` / inline `data` instead.
+
+**Parameters:**
+- `file_name` (string, required): Original filename (e.g. `receipt.pdf`)
+- `content_type` (string, required): `application/pdf`, `image/png`, `image/jpeg`, or `image/gif`
+- `size` (number, required): Exact file size in bytes (max 5 242 880 / 5MB). Must match the PUT body.
+- `response_format` (string, default: "markdown"): Output format
+
+**Example usage:**
+```
+Prepare an upload for taxi-receipt.pdf (image/jpeg, 48210 bytes)
+```
+
+**Workflow:**
+1. Call this tool → receive `upload_url` + `upload_id` + required headers
+2. **PUT** raw bytes to `upload_url` with the same `Content-Type` and `Content-Length`
+3. Call create/update with `attachment: { upload_id, file_name, content_type }` — do **not** pass `data`
+4. Staged bytes stay until FreeAgent confirms the save; retry the same `upload_id` before expiry if FreeAgent fails
+
+**Returns:** Upload method, URL, `upload_id`, expiry, file metadata, and required headers.
+
+---
+
 ### freeagent_update_expense
 
 Updates an existing expense in FreeAgent. Only provide the fields you want to change.
@@ -596,7 +623,7 @@ List my hours for project 123 in January
 Show timeslips for user 456
 ```
 
-**Returns:** List of timeslips with dates, hours, comments, billing indicators, and attachment counts.
+**Returns:** List of timeslips with dates, hours, comments, and billing indicators. (FreeAgent may report `attachment_count`; this server does not upload timeslip attachments.)
 
 ---
 
@@ -614,13 +641,13 @@ Get timeslip 12345 details
 Check if timeslip has been billed
 ```
 
-**Returns:** Complete timeslip details including hours, task, project, user, comment, billing status, and attachments.
+**Returns:** Complete timeslip details including hours, task, project, user, comment, and billing status.
 
 ---
 
 ### freeagent_create_timeslip
 
-Creates a new time tracking entry with optional file attachment.
+Creates a new time tracking entry.
 
 **Parameters (Required):**
 - `task` (string): Task URL or ID
@@ -632,19 +659,17 @@ Creates a new time tracking entry with optional file attachment.
 **Optional:**
 - `comment` (string): Description of work performed
 
-**Note:** timeslips do not currently accept an `attachment` through this server.
+**Note:** timeslips do not accept an `attachment` through this server. For receipt uploads, use expenses or bank transaction explanations.
 
 **Example usage:**
 ```
 Log 8 hours on project 123 task 456
-Track 3.5 hours of work with supporting document
-Record time worked today on development task
+Record 3.5 hours of work today on development task
 ```
 
 **Tips:**
-- Use the `file-to-base64` Claude Code skill to prepare attachments
 - Hours can be decimal values (7.5 = 7 hours 30 minutes)
-- Timeslips can be included on invoices later
+- Timeslips can be included on invoices later (see `freeagent_invoice_from_timeslips`)
 
 **Returns:** Success message with timeslip ID, date, hours, project, and URL.
 
@@ -738,8 +763,8 @@ Which transactions need explaining?
 **Bank Reconciliation Workflow:**
 1. List transactions with `view="unexplained"` to find items needing attention
 2. Review each unexplained transaction's description and amount
-3. Use `freeagent_create_bank_transaction_explanation` to categorize them
-4. Link transactions to invoices, bills, or expense categories as appropriate
+3. Categorize with `freeagent_create_bank_transaction_explanation` or `freeagent_reconcile_bank_transaction` (category / invoice / bill hint)
+4. For **already-explained** bank-feed transactions that need a receipt, use `freeagent_update_bank_transaction_explanation` with `attachment` / `attachments` (do not delete-and-recreate). Find gaps via `has_attachment` on the explanations list or nested explanations on `get_bank_transaction`.
 
 ---
 
@@ -757,7 +782,7 @@ Show details for transaction 12345
 Does this transaction need explaining?
 ```
 
-**Returns:** Complete bank transaction details including amount, description, and explanation status.
+**Returns:** Complete bank transaction details including amount, description, and explanation status. Nested explanations report `has_attachment`, `attachment_count`, and attachment URL refs (same shape as the explanations list) so you can see missing receipts without a separate list call.
 
 ---
 
@@ -916,6 +941,8 @@ Explain transaction 789 as paying bill SUP-99
 
 **Returns:** Success message with the new explanation ID, date, amount, and linked entity (category / paid invoice / paid bill).
 
+**Note:** this intent bundle does not accept receipt attachments. After reconcile, attach files with `freeagent_update_bank_transaction_explanation`.
+
 ---
 
 ## Working with Attachments
@@ -927,6 +954,26 @@ Expenses and bank transaction explanations support file attachments for receipts
 To find what is missing a receipt, use `freeagent_list_bank_transaction_explanations` (or `freeagent_get_bank_transaction`, whose nested explanations also report `has_attachment` / attachment URLs) and read `has_attachment` on each row, then add files with `freeagent_update_bank_transaction_explanation`. For file names/sizes, call `freeagent_list_bank_transaction_explanation_attachments`.
 
 **Removing receipts:** pass `bank_transaction_explanation_id` to `freeagent_delete_attachment` so the server uses the Explanation Attachments API (`_destroy`). Omit that field only for expense (and other non-explanation) attachments. Clear every file on an explanation with `freeagent_delete_all_bank_transaction_explanation_attachments`.
+
+### freeagent_get_attachment
+
+Returns attachment **metadata** (file name, size, content type, download URL). Binary bytes are never inlined.
+
+**Parameters:** `attachment_id` (required), `response_format` (optional).
+
+### freeagent_delete_attachment
+
+Deletes one attachment.
+
+**Parameters:**
+- `attachment_id` (string, required)
+- `bank_transaction_explanation_id` (string, optional): when set, uses Explanation Attachments PUT `_destroy` (required for bank explanation receipts under API version `2026-09-01`). Omit for expense attachments (`DELETE /attachments/:id`).
+
+### freeagent_delete_all_bank_transaction_explanation_attachments
+
+Deletes every file attachment on one bank transaction explanation.
+
+**Parameters:** `bank_transaction_explanation_id` (required).
 
 This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transaction Explanation Attachments API](https://dev.freeagent.com/docs/bank_transaction_explanation_attachments?version=2026-09-01) for create/update/delete writes. That becomes FreeAgent's default behaviour on **1 December 2026** (up to 50 attachments; singular `attachment` on explanations is no longer returned). Override the version only for debugging via `FREEAGENT_X_API_VERSION`.
 
@@ -947,7 +994,7 @@ This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transact
 
 ### Using the file-to-base64 Skill (inline fallback)
 
-Claude Code includes a `file-to-base64` skill in `.claude/skills/file-to-base64/` for the inline `data` fallback. Prefer `attachment.path` locally when `FREEAGENT_ATTACHMENTS_DIR` is set.
+Claude Code includes a `file-to-base64` skill in `skills/file-to-base64/` for the inline `data` fallback only. Prefer `attachment.path` locally when `FREEAGENT_ATTACHMENTS_DIR` is set, or `freeagent_prepare_attachment_upload` + `upload_id` on remote MCP.
 
 ### Manual Preparation (if needed)
 
@@ -1421,7 +1468,11 @@ Additional tools beyond the original core set. See tool descriptions in `tools/l
 
 ### Notes & attachments
 - Notes: list/get/create/update/delete (contact or project parent)
-- Attachments: get metadata / delete (no binary inline)
+- `freeagent_prepare_attachment_upload` — S3-compatible out-of-band receipt staging (`upload_id`)
+- `freeagent_list_bank_transaction_explanation_attachments` — file name/size/type on an explanation
+- Attachments: `freeagent_get_attachment` (metadata only; no binary inline)
+- `freeagent_delete_attachment` — expense DELETE, or explanation PUT `_destroy` when `bank_transaction_explanation_id` is set
+- `freeagent_delete_all_bank_transaction_explanation_attachments` — clear every receipt on an explanation
 
 ### Accounting reports
 - Profit & loss, balance sheet, trial balance, cashflow

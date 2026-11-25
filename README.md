@@ -8,7 +8,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 ## Features
 
-- **Broad FreeAgent coverage**: contacts, invoices (incl. transitions, email, duplicate, direct debit), estimates, bills, recurring invoices, price list items, expenses, timeslips, projects, tasks, bank accounts/feeds/statements (JSON lines), credit notes + reconciliations, notes, attachments (metadata), journals, capital assets, accounting reports (P&amp;L, balance sheet, trial balance, cashflow, ledger), VAT/corp tax/income tax/final accounts, payroll, properties/stock/hire purchases, CIS, sales tax periods, account locks, categories, company info, and users
+- **Broad FreeAgent coverage**: contacts, invoices (incl. transitions, email, duplicate, direct debit), estimates, bills, recurring invoices, price list items, expenses (with receipts), timeslips, projects, tasks, bank accounts/feeds/statements (JSON lines), bank explanation receipts (multi-file), credit notes + reconciliations, notes, attachment metadata, journals, capital assets, accounting reports (P&amp;L, balance sheet, trial balance, cashflow, ledger), VAT/corp tax/income tax/final accounts, payroll, properties/stock/hire purchases, CIS, sales tax periods, account locks, categories, company info, and users
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
 - **Tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): optional — collapses the catalog behind `freeagent_search_tools` / `freeagent_call_tool` for a smaller `tools/list`. Default is the full catalog (including on Vercel)
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
@@ -61,7 +61,8 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
          "args": ["/path/to/freeagent-mcp-server/dist/index.js"],
          "env": {
            "FREEAGENT_ACCESS_TOKEN": "your_token",
-           "FREEAGENT_USE_SANDBOX": "true"
+           "FREEAGENT_USE_SANDBOX": "true",
+           "FREEAGENT_ATTACHMENTS_DIR": "/path/to/freeagent-mcp-server/receipts"
          }
        }
      }
@@ -152,14 +153,17 @@ See [TOOLS.md](./TOOLS.md) for per-tool parameters and examples. Summary:
 | `freeagent_get_price_list_item` | Get catalog item details | Yes |
 | `freeagent_create_price_list_item` | Add a catalog item | No |
 
-### Expenses
+### Expenses & receipt uploads
 | Tool | Description | Read-only |
 |------|-------------|-----------|
 | `freeagent_list_expenses` | List expenses with date/view filters | Yes |
 | `freeagent_get_expense` | Get expense details (inc. mileage info) | Yes |
-| `freeagent_create_expense` | Create expense or mileage claim (with attachments) | No |
-| `freeagent_update_expense` | Update an existing expense | No |
+| `freeagent_create_expense` | Create expense or mileage claim (with receipt attachment) | No |
+| `freeagent_update_expense` | Update an expense (can add a receipt) | No |
 | `freeagent_log_expense` | **Intent bundle**: log a regular expense with a positive `amount` + `kind` enum | No |
+| `freeagent_prepare_attachment_upload` | Mint a short-lived PUT URL + `upload_id` for remote receipt staging | No |
+
+Receipts accept exactly one of `attachment.path` (local `FREEAGENT_ATTACHMENTS_DIR`), `attachment.upload_id` (after prepare + PUT), or inline `attachment.data` (base64 fallback). See [TOOLS.md — Working with Attachments](./TOOLS.md#working-with-attachments).
 
 ### Timeslips
 | Tool | Description | Read-only |
@@ -175,12 +179,16 @@ See [TOOLS.md](./TOOLS.md) for per-tool parameters and examples. Summary:
 | `freeagent_list_bank_accounts` | List all bank accounts | Yes |
 | `freeagent_get_bank_account` | Get bank account details | Yes |
 | `freeagent_list_bank_transactions` | List transactions for an account | Yes |
-| `freeagent_get_bank_transaction` | Get bank transaction details | Yes |
-| `freeagent_list_bank_transaction_explanations` | List transaction explanations | Yes |
-| `freeagent_get_bank_transaction_explanation` | Get explanation details | Yes |
-| `freeagent_create_bank_transaction_explanation` | Explain/categorize a bank transaction | No |
-| `freeagent_update_bank_transaction_explanation` | Update a transaction explanation | No |
+| `freeagent_get_bank_transaction` | Get bank transaction details (nested explanations include `has_attachment`) | Yes |
+| `freeagent_list_bank_transaction_explanations` | List explanations (each row: `has_attachment` / attachment URLs) | Yes |
+| `freeagent_get_bank_transaction_explanation` | Get explanation details (inc. attachment metadata) | Yes |
+| `freeagent_list_bank_transaction_explanation_attachments` | List file name/size/type for an explanation's receipts | Yes |
+| `freeagent_create_bank_transaction_explanation` | Explain/categorize a bank transaction (optional receipts) | No |
+| `freeagent_update_bank_transaction_explanation` | Update an explanation / **add** receipts (up to 10 per call, 50 max) | No |
 | `freeagent_reconcile_bank_transaction` | **Intent bundle**: explain a transaction with a category name / invoice ref / bill ref | No |
+| `freeagent_get_attachment` | Attachment metadata (download URL; bytes not inlined) | Yes |
+| `freeagent_delete_attachment` | Delete an attachment (`bank_transaction_explanation_id` → Explanation Attachments `_destroy`) | No |
+| `freeagent_delete_all_bank_transaction_explanation_attachments` | Clear every receipt on an explanation | No |
 
 ### Projects & Tasks
 | Tool | Description | Read-only |
@@ -205,7 +213,7 @@ See [TOOLS.md](./TOOLS.md) for per-tool parameters and examples. Summary:
 
 - **Timeslip timers** — start/stop timer endpoints are not exposed (poor MCP fit).
 - **Binary PDF download tools** — invoice/estimate/credit-note PDF bytes are not returned (no efficient agentic binary channel yet).
-- **File-based bank statement upload** — use `freeagent_upload_bank_statement` with JSON lines instead. Nested base64 attachments on expenses/explanations remain supported.
+- **File-based bank statement upload** — use `freeagent_upload_bank_statement` with JSON lines instead. Expense/explanation **receipt** attachments are supported via `path` / `upload_id` / inline `data` (see Features).
 - **Accountancy Practice API** — practice/client endpoints are out of scope for this company-facing server.
 
 ## Development
@@ -243,44 +251,36 @@ freeagent-mcp-server/
 │   ├── types.ts                       # TypeScript type definitions
 │   ├── schemas/
 │   │   ├── index.ts                   # Zod validation schemas for all tools
+│   │   ├── gaps.ts                    # Gap-coverage schemas (attachments, tax, …)
 │   │   ├── projects.ts                # Project-specific schemas
 │   │   └── schemas.test.ts            # Schema validation tests
 │   ├── services/
 │   │   ├── api-client.ts              # FreeAgent API client (Axios)
-│   │   ├── api-client.test.ts         # API client tests
-│   │   ├── formatter.ts               # Response formatting utilities (incl. discount amount helper)
-│   │   ├── formatter.test.ts          # Formatter tests
+│   │   ├── attachment-local-path.ts   # Confined FREEAGENT_ATTACHMENTS_DIR reads
+│   │   ├── attachment-payload.ts      # path / upload_id / data → FreeAgent payload
+│   │   ├── attachment-staging.ts      # S3-compatible prepare / fetch / cleanup
+│   │   ├── explanation-attachments.ts # Bank explanation Attachments API (2026-09-01)
+│   │   ├── formatter.ts               # Response formatting utilities
 │   │   ├── resolvers.ts               # Shared resolvers (category / user / contact / bill hints → URLs)
 │   │   ├── oauth-jwt.ts               # JWT-based OAuth provider (Vercel)
 │   │   └── freeagent-auth.ts          # Token validation
 │   └── tools/
-│       ├── register.ts                # Shared tool definitions, registration, ToolContext (elicitation)
-│       ├── contacts.ts                # Contact CRUD
-│       ├── invoices.ts                # Invoice management (incl. elicitation fallback)
-│       ├── transition-invoice.ts      # Invoice lifecycle transitions
-│       ├── invoice-from-timeslips.ts  # Intent bundle: draft an invoice from unbilled time
-│       ├── estimates.ts               # Estimates + transition_estimate
-│       ├── bills.ts                   # Supplier bills
-│       ├── recurring-invoices.ts      # Recurring invoice templates (read-only)
-│       ├── price-list-items.ts        # Catalog items
+│       ├── register.ts                # Shared tool definitions, registration, ToolContext
+│       ├── prepare-attachment-upload.ts
+│       ├── attachments.ts             # get / delete attachment (+ delete-all on explanations)
 │       ├── expenses.ts                # Expense & mileage tracking
-│       ├── log-expense.ts             # Intent bundle: positive-amount expense logging
-│       ├── timeslips.ts               # Time tracking (incl. update_timeslip)
-│       ├── bank-accounts.ts           # Bank accounts & transactions
-│       ├── bank-transactions.ts       # Transaction explanations
-│       ├── reconcile.ts               # Intent bundle: reconcile a transaction in one call
-│       ├── projects.ts                # Project management
-│       ├── tasks.ts                   # Task management
-│       ├── categories.ts              # Accounting categories
-│       └── company.ts                 # Company info & users
+│       ├── bank-transactions.ts       # Transaction explanations (+ multi-receipt)
+│       ├── …                          # contacts, invoices, estimates, bills, timeslips, …
 ├── api/
 │   └── index.ts              # Vercel serverless entry point
+├── skills/
+│   └── file-to-base64/       # Claude Code skill — inline attachment.data fallback only
 ├── .github/
 │   └── workflows/
 │       └── ci.yml            # GitHub Actions CI (lint, test, build)
-├── eslint.config.js          # ESLint flat config
-├── vitest.config.ts          # Vitest configuration
-├── vercel.json               # Vercel deployment config
+├── eslint.config.js
+├── vitest.config.ts
+├── vercel.json
 ├── package.json
 └── tsconfig.json
 ```
@@ -328,6 +328,8 @@ FreeAgent does not publish a full catalogue of error codes ([forum](https://api-
 - PKCE is used for the OAuth authorization flow
 - Strict Zod schemas reject unexpected input fields
 - Bearer auth middleware protects all MCP endpoints
+- Local `attachment.path` is confined to `FREEAGENT_ATTACHMENTS_DIR` (symlink-safe; default-deny when unset)
+- Staged `upload_id` tokens are short-lived JWTs signed with `JWT_SECRET`; configure a bucket lifecycle rule under `UPLOAD_S3_KEY_PREFIX` for abandoned objects
 
 ## License
 

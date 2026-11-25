@@ -37,13 +37,17 @@ Set these in **Vercel Dashboard > Settings > Environment Variables**:
 |----------|-------|
 | `FREEAGENT_CLIENT_ID` | Your OAuth Client ID |
 | `FREEAGENT_CLIENT_SECRET` | Your OAuth Client Secret |
+| `JWT_SECRET` | Long random string (`openssl rand -hex 32`) — required on Vercel |
 | `FREEAGENT_USE_SANDBOX` | `true` for sandbox, `false` for production |
+
+**Optional — receipt uploads without model base64:** set `UPLOAD_S3_*` (see [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)) so `freeagent_prepare_attachment_upload` can mint a PUT URL + `upload_id`. Inline `attachment.data` still works if unset.
 
 Or via CLI:
 
 ```bash
 vercel env add FREEAGENT_CLIENT_ID
 vercel env add FREEAGENT_CLIENT_SECRET
+vercel env add JWT_SECRET
 vercel env add FREEAGENT_USE_SANDBOX
 ```
 
@@ -88,6 +92,7 @@ Once connected, try these in Claude:
 - "Show me recent invoices"
 - "What's my company currency?"
 - "Create a contact for ABC Limited with email info@abc.com"
+- "Which bank explanations are missing a receipt?" (uses `has_attachment` on the explanations list)
 
 ## Verify Your Deployment
 

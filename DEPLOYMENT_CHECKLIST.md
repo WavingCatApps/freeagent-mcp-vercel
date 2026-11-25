@@ -21,6 +21,14 @@ Set these in Vercel Dashboard → Settings → Environment Variables:
 - [ ] `PRODUCTION_URL` = Production hostname without scheme (optional; Preview uses request host / `VERCEL_URL`)
 - [ ] FreeAgent redirect URIs cover production + `https://freeagent-mcp-vercel-*-simonrices-projects.vercel.app/oauth/callback`
 
+### 2b. Optional: out-of-band receipt uploads (S3-compatible)
+
+Skip unless you want remote MCP to avoid model-streamed base64. See [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md).
+
+- [ ] `UPLOAD_S3_BUCKET` / `UPLOAD_S3_ACCESS_KEY_ID` / `UPLOAD_S3_SECRET_ACCESS_KEY`
+- [ ] `UPLOAD_S3_ENDPOINT` (R2/MinIO/B2; omit for AWS) and optional `UPLOAD_S3_REGION` / `UPLOAD_S3_KEY_PREFIX` / `UPLOAD_STAGING_TTL_SECONDS`
+- [ ] Bucket lifecycle rule to expire objects under the key prefix (e.g. after 1 day)
+
 ### 3. Code Ready
 - [ ] Dependencies installed: `bun install`
 - [ ] Build successful: `bun run build`
