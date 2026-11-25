@@ -232,7 +232,8 @@ async function streamToBuffer(
 }
 
 /**
- * Fetch staged bytes for an upload_id, then best-effort delete the object.
+ * Fetch staged bytes without consuming the upload. Keep them available for retry
+ * until the caller has successfully saved the attachment in FreeAgent.
  */
 export async function fetchStagedAttachmentBytes(uploadId: string): Promise<{
   buffer: Buffer;
@@ -283,8 +284,27 @@ export async function fetchStagedAttachmentBytes(uploadId: string): Promise<{
     );
   }
 
-  // Best-effort cleanup so free-tier buckets do not accumulate receipts.
+  return {
+    buffer,
+    file_name: token.file_name,
+    content_type: token.content_type,
+    size: token.size,
+  };
+}
+
+/**
+ * Best-effort cleanup after FreeAgent confirms the attachment was saved.
+ * Cleanup failures must not turn a successful write into a retry/duplicate.
+ * Configure a bucket lifecycle rule to remove abandoned or expired uploads.
+ */
+export async function cleanupStagedAttachment(uploadId: string | undefined): Promise<void> {
+  if (!uploadId) return;
+
   try {
+    const config = readStagingConfig();
+    if (!config) throw new Error("Attachment staging is not configured");
+    const token = verifyUploadToken(uploadId);
+    const client = createS3Client(config);
     await client.send(
       new DeleteObjectCommand({
         Bucket: config.bucket,
@@ -296,19 +316,11 @@ export async function fetchStagedAttachmentBytes(uploadId: string): Promise<{
       JSON.stringify({
         level: "warn",
         component: "attachment-staging",
-        message: "Failed to delete staged upload after fetch",
+        message: "Failed to delete staged upload after FreeAgent save",
         data: {
-          key: token.key,
           error: error instanceof Error ? error.message : String(error),
         },
       })
     );
   }
-
-  return {
-    buffer,
-    file_name: token.file_name,
-    content_type: token.content_type,
-    size: token.size,
-  };
 }
