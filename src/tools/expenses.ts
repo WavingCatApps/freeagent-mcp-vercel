@@ -17,6 +17,7 @@ import type {
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
 import { buildAttachmentPayload } from "../services/attachment-payload.js";
+import { cleanupStagedAttachment } from "../services/attachment-staging.js";
 import { resourcePath } from "../utils/resource-path.js";
 
 /**
@@ -253,6 +254,7 @@ export async function createExpense(
   }
 
   const response = await client.post<{ expense: FreeAgentExpense }>("/expenses", { expense: expensePayload });
+  await cleanupStagedAttachment(params.attachment?.upload_id);
   const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 
@@ -330,6 +332,7 @@ export async function updateExpense(
   }
 
   const response = await client.put<{ expense: FreeAgentExpense }>(expenseUrl, { expense: expensePayload });
+  await cleanupStagedAttachment(updateFields.attachment?.upload_id);
   const expense = response.data.expense;
   const expenseId = extractIdFromUrl(expense.url);
 

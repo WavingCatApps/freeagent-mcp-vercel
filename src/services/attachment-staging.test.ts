@@ -104,7 +104,7 @@ describe("attachment-staging", () => {
     expect(typeof payload.key).toBe("string");
   });
 
-  it("fetches staged bytes and deletes the object", async () => {
+  it("retains staged bytes for retries until explicitly cleaned up after save", async () => {
     process.env.UPLOAD_S3_BUCKET = "receipts";
     process.env.UPLOAD_S3_ACCESS_KEY_ID = "key";
     process.env.UPLOAD_S3_SECRET_ACCESS_KEY = "secret";
@@ -123,19 +123,46 @@ describe("attachment-staging", () => {
     );
 
     send
-      .mockResolvedValueOnce({
+      .mockImplementation(async () => ({
         Body: (async function* () {
           yield body;
         })(),
-      })
-      .mockResolvedValueOnce({});
+      }));
 
     const mod = await load();
     const staged = await mod.fetchStagedAttachmentBytes(uploadId);
 
     expect(staged.buffer.equals(body)).toBe(true);
     expect(staged.file_name).toBe("taxi.pdf");
+    expect(send).toHaveBeenCalledTimes(1);
+    const retried = await mod.fetchStagedAttachmentBytes(uploadId);
+    expect(retried.buffer.equals(body)).toBe(true);
     expect(send).toHaveBeenCalledTimes(2);
+    await mod.cleanupStagedAttachment(uploadId);
+    expect(send).toHaveBeenCalledTimes(3);
+    expect(send.mock.calls[2][0].input).toEqual({
+      Bucket: "receipts",
+      Key: "mcp-uploads/abc/taxi.pdf",
+    });
+  });
+
+  it("does not fail a saved attachment when cleanup fails", async () => {
+    process.env.UPLOAD_S3_BUCKET = "receipts";
+    process.env.UPLOAD_S3_ACCESS_KEY_ID = "key";
+    process.env.UPLOAD_S3_SECRET_ACCESS_KEY = "secret";
+    const uploadId = jwt.sign({
+      typ: "fa_upload", key: "mcp-uploads/abc/taxi.pdf",
+      file_name: "taxi.pdf", content_type: "application/pdf", size: 10,
+    }, secret, { expiresIn: "10m" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    send.mockRejectedValue(new Error("storage unavailable"));
+    try {
+      const mod = await load();
+      await expect(mod.cleanupStagedAttachment(uploadId)).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("after FreeAgent save"));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("rejects size mismatches", async () => {

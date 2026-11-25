@@ -17,6 +17,7 @@ import type {
 } from "../schemas/index.js";
 import { formatResponse, createPaginationMetadata, extractIdFromUrl } from "../services/formatter.js";
 import { buildAttachmentPayload } from "../services/attachment-payload.js";
+import { cleanupStagedAttachment } from "../services/attachment-staging.js";
 import {
   addExplanationAttachments,
   listExplanationAttachments,
@@ -278,6 +279,10 @@ export async function createBankTransactionExplanation(
 
   // Attachments are added via the Explanation Attachments API after create
   // (nested `attachment` is not accepted under X-Api-Version 2026-09-01).
+  // Resolve before creating a record so an invalid/missing upload makes no write.
+  const attachmentPayload = params.attachment
+    ? await buildAttachmentPayload(params.attachment)
+    : undefined;
   const response = await client.post<{ bank_transaction_explanation: FreeAgentBankTransactionExplanation }>(
     "/bank_transaction_explanations",
     { bank_transaction_explanation: explanationPayload }
@@ -286,16 +291,27 @@ export async function createBankTransactionExplanation(
   const explanation = response.data.bank_transaction_explanation;
   const explanationId = extractIdFromUrl(explanation.url);
 
-  if (params.attachment) {
-    const payload = await buildAttachmentPayload(params.attachment);
-    await addExplanationAttachments(client, explanation.url, [
-      {
-        data: payload.data,
-        file_name: payload.file_name,
-        content_type: payload.content_type,
-        description: payload.description
-      }
-    ]);
+  if (attachmentPayload) {
+    const payload = attachmentPayload;
+    try {
+      await addExplanationAttachments(client, explanation.url, [
+        {
+          data: payload.data,
+          file_name: payload.file_name,
+          content_type: payload.content_type,
+          description: payload.description
+        }
+      ]);
+    } catch (error) {
+      throw new Error(
+        `Explanation ${explanationId} was created, but its attachment was not confirmed saved. ` +
+        `Do not create the explanation again. Check its attachments, then retry with ` +
+        `freeagent_update_bank_transaction_explanation and bank_transaction_explanation_id=${explanationId}. ` +
+        (params.attachment?.upload_id ? `The staged upload is retained until expiry. ` : "") +
+        `(${error instanceof Error ? error.message : "unknown error"})`
+      );
+    }
+    await cleanupStagedAttachment(params.attachment?.upload_id);
   }
 
   // Determine explanation type
@@ -390,6 +406,7 @@ export async function updateBankTransactionExplanation(
         description: payload.description
       }
     ]);
+    await cleanupStagedAttachment(updateFields.attachment.upload_id);
     attachmentNote =
       `\n**Attachments now**: ${attachments.length} file(s)` +
       (payload.file_name ? ` (added ${payload.file_name})` : "");
