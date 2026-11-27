@@ -257,6 +257,7 @@ app.get("/health", (_req: any, res: any) => {
       FREEAGENT_CLIENT_ID: Boolean(process.env.FREEAGENT_CLIENT_ID),
       FREEAGENT_CLIENT_SECRET: Boolean(process.env.FREEAGENT_CLIENT_SECRET),
       JWT_SECRET: Boolean(process.env.JWT_SECRET),
+      FREEAGENT_ATTACHMENTS_DIR: Boolean(process.env.FREEAGENT_ATTACHMENTS_DIR?.trim()),
       FREEAGENT_TOOL_SEARCH: toolSearchEnv !== undefined && toolSearchEnv !== "",
     },
   });

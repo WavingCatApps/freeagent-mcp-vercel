@@ -180,7 +180,7 @@ export const AttachmentSchema = z.object({
   path: z.string()
     .optional()
     .describe(
-      "Local file path under FREEAGENT_ATTACHMENTS_DIR. Best for stdio/local MCP — the server reads and encodes the file so the model never emits base64. Not usable on remote hosts that cannot see your disk."
+      "Local file path under FREEAGENT_ATTACHMENTS_DIR. Best for stdio or container MCP (mount a receipts volume) — the server reads and encodes the file so the model never emits base64. Not usable on remote hosts that cannot see your disk (e.g. Vercel)."
     ),
   data: z.string()
     .optional()

@@ -1,9 +1,10 @@
 /**
- * Confined local-path attachment reads for stdio / single-machine MCP.
+ * Confined local-path attachment reads for stdio / container MCP.
  *
  * The model passes a short path string; this process reads the bytes and
  * base64-encodes them for FreeAgent. FREEAGENT_ATTACHMENTS_DIR is mandatory
- * and default-deny: without it, path attachments are refused.
+ * and default-deny: without it, path attachments are refused. In the OCI
+ * image this defaults to `/receipts` (mount a host folder there).
  *
  * Remote hosts (e.g. Vercel) cannot see the user's laptop disk — use
  * upload_id staging or inline data there instead.

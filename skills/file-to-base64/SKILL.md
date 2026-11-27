@@ -7,7 +7,7 @@ description: Convert files (PDF, images) to Base64 for the FreeAgent MCP inline 
 
 Use this skill only when you need **inline** `attachment.data` for FreeAgent MCP tools. Prefer these modes instead when they are available:
 
-1. **Local / stdio** — set `FREEAGENT_ATTACHMENTS_DIR` and pass `attachment.path` (server reads the file; no base64 in the model).
+1. **Local / stdio / container** — set `FREEAGENT_ATTACHMENTS_DIR` (Docker defaults to `/receipts`) and pass `attachment.path` (server reads the file; no base64 in the model).
 2. **Remote MCP** — call `freeagent_prepare_attachment_upload`, PUT raw bytes to the returned URL, then pass `attachment.upload_id`.
 3. **Inline base64** — this skill: `attachment.data` (+ optional gzip / `is_gzipped`).
 
