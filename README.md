@@ -12,7 +12,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 - **Intent-bundle tools**: `reconcile_bank_transaction`, `log_expense`, and `invoice_from_timeslips` collapse multi-call sequences into single tool calls and resolve human-friendly hints (names, codes, references) to FreeAgent URLs server-side
 - **Tool-search mode** (`FREEAGENT_TOOL_SEARCH=true`): optional — collapses the catalog behind `freeagent_search_tools` / `freeagent_call_tool` for a smaller `tools/list`. Default is the full catalog (including on Vercel)
 - **MCP elicitation**: `create_invoice` falls back to a form elicitation when `contact` is omitted (on clients that support it)
-- **Two deployment modes**: local (stdio) or cloud (Vercel serverless via Streamable HTTP)
+- **Three deployment modes**: local stdio, self-hosted HTTP (Docker / Apple Container / Tailscale), or Vercel serverless
 - **OAuth 2.0**: stateless JWT-based auth for serverless, or direct token for local use
 - **Receipt attachments without model base64**: local `attachment.path` under `FREEAGENT_ATTACHMENTS_DIR`, remote S3-compatible `upload_id` staging, or inline `data` fallback
 - **Tool annotations**: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` on every tool
@@ -71,11 +71,13 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
 
 ### Docker / Apple Container (Streamable HTTP)
 
-Build and run the OAuth HTTP server in an OCI container (Docker Engine or [Apple Container](https://github.com/apple/container)):
+Build and run the OAuth HTTP server in an OCI container (Docker Engine or [Apple Container](https://github.com/apple/container)). Good fit for LAN / Tailscale: put the container behind Tailscale Serve and keep receipts on a host volume.
 
 ```bash
+mkdir -p ./receipts
 docker build -t freeagent-mcp .
 docker run --rm -p 3000:3000 \
+  -v "$PWD/receipts:/receipts" \
   -e FREEAGENT_CLIENT_ID \
   -e FREEAGENT_CLIENT_SECRET \
   -e JWT_SECRET \
@@ -84,7 +86,9 @@ docker run --rm -p 3000:3000 \
   freeagent-mcp
 ```
 
-Health check: `curl http://localhost:3000/health`. For stdio inside the same image: `docker run -i --rm -e FREEAGENT_ACCESS_TOKEN … freeagent-mcp bun dist/index.js`.
+The image defaults `FREEAGENT_ATTACHMENTS_DIR=/receipts`. Drop files into the mounted host folder and pass `attachment: { path: "/receipts/taxi.pdf" }` on expense / bank-explanation create or update — same confined path reads as stdio.
+
+Health check: `curl http://localhost:3000/health`. For stdio inside the same image: `docker run -i --rm -v "$PWD/receipts:/receipts" -e FREEAGENT_ACCESS_TOKEN … freeagent-mcp bun dist/index.js`.
 
 ### Vercel (Streamable HTTP) - for cloud access
 

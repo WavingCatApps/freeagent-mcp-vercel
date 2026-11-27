@@ -69,7 +69,7 @@ objects; the lifecycle rule removes abandoned uploads and any objects left after
 a cleanup failure. Cleanup failure never changes a successful FreeAgent save
 into an error.
 
-`FREEAGENT_ATTACHMENTS_DIR` / `attachment.path` is for **local stdio** only — a Vercel function cannot read files on the user’s laptop.
+`FREEAGENT_ATTACHMENTS_DIR` / `attachment.path` is for **local stdio or a self-hosted container** (volume-mounted receipts dir) — a Vercel function cannot read files on the user’s laptop.
 
 #### Via Vercel CLI
 

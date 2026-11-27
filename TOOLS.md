@@ -988,7 +988,7 @@ This server always sends `X-Api-Version: 2026-09-01` and uses the [Bank Transact
 
 ### Attachment modes (pick one)
 
-1. **Local path (stdio)** — set `FREEAGENT_ATTACHMENTS_DIR` to a dedicated receipts folder and pass `attachment.path`. The server reads the file; the model never emits base64. Paths outside that directory are refused (symlink-safe).
+1. **Local path (stdio / container)** — set `FREEAGENT_ATTACHMENTS_DIR` to a dedicated receipts folder (Docker image defaults to `/receipts`; mount a host volume) and pass `attachment.path`. The server reads the file; the model never emits base64. Paths outside that directory are refused (symlink-safe).
 2. **Remote staging** — configure S3-compatible env vars, call `freeagent_prepare_attachment_upload`, **PUT** raw bytes to the URL, then pass `attachment.upload_id`. See `VERCEL_DEPLOYMENT.md`.
 3. **Inline base64** — `attachment.data` (+ optional `is_gzipped`). Slow on remote hosts when the model streams every character; fine for tiny files.
 

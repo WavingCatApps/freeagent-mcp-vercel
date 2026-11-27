@@ -33,10 +33,15 @@ COPY --from=prerelease /usr/src/app/src ./src
 COPY --from=prerelease /usr/src/app/dist ./dist
 COPY --from=prerelease /usr/src/app/public ./public
 
+# Dedicated receipts dir for attachment.path (mount a host folder here).
+RUN mkdir -p /receipts && chown bun:bun /receipts
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
+ENV FREEAGENT_ATTACHMENTS_DIR=/receipts
 
 USER bun
+VOLUME ["/receipts"]
 EXPOSE 3000/tcp
 ENTRYPOINT ["bun", "run", "server.ts"]
